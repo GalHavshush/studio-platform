@@ -18,3 +18,9 @@ node_modules/
 .DS_Store
 .idea/
 .vscode/
+
+# Generated plan visualizations
+.too-long/
+
+# Claude Code instructions
+CLAUDE.md
