@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from app.config import Settings
 
 
+# _env_file=None below: ignore any real .env so results don't depend on the machine.
 def test_settings_load_from_env(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@host/db")
 
