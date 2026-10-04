@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Node / Expo
+node_modules/
+.expo/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
