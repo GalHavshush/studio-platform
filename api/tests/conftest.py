@@ -1,6 +1,9 @@
 import asyncio
+from pathlib import Path
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.engine import URL, make_url
@@ -35,8 +38,25 @@ def test_db_url() -> URL:
     return admin_url.set(database=TEST_DB_NAME)
 
 
+# Plain `def`, not `async`: env.py calls asyncio.run(), which can't run inside the
+# event loop pytest-asyncio keeps open for async tests.
 @pytest.fixture
-async def db_session(test_db_url: URL):
+def alembic_cfg(monkeypatch, test_db_url: URL) -> Config:
+    # env.py reads DATABASE_URL via get_settings(), so aim it at the test database.
+    monkeypatch.setenv("DATABASE_URL", test_db_url.render_as_string(hide_password=False))
+    get_settings.cache_clear()
+    yield Config(str(Path(__file__).parents[1] / "alembic.ini"))
+    get_settings.cache_clear()  # the monkeypatched env is undone after this; drop the cached copy
+
+
+@pytest.fixture
+def migrated_db(alembic_cfg: Config) -> None:
+    """Bring the test database to the latest schema, using the real migrations."""
+    command.upgrade(alembic_cfg, "head")
+
+
+@pytest.fixture
+async def db_session(test_db_url: URL, migrated_db):
     engine = create_async_engine(test_db_url, poolclass=NullPool)
     async with AsyncSession(engine) as session:
         yield session
