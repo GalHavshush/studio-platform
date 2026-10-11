@@ -5,9 +5,27 @@
 Multi-tenant platform for small coach-led studios (BJJ, MMA, pilates, yoga, CrossFit, dance).
 Core idea: coaches build a shared history of each participant through class reports and notes.
 
-## Layout
-- `api/`: FastAPI backend (Python, managed with [uv](https://docs.astral.sh/uv/))
-- `app/`: Expo client (placeholder until the frontend milestone)
+## Project structure
+```
+.github/workflows/ci.yml     CI: ruff + pytest on every push and pull request
+docker-compose.yml           local Postgres (port 5434)
+api/                         FastAPI backend (Python, managed with uv)
+├── app/
+│   ├── main.py              FastAPI app and the /health endpoint
+│   ├── config.py            settings read from the environment / .env (DATABASE_URL)
+│   ├── db.py                async engine and the per-request session dependency
+│   ├── models.py            SQLAlchemy models: User, Tenant, Membership
+│   └── seed.py              creates the pilot studio (python -m app.seed)
+├── migrations/              Alembic
+│   ├── env.py               how Alembic connects (URL comes from app settings)
+│   └── versions/            one file per schema change
+├── tests/
+│   ├── conftest.py          test database, migrated_db and client fixtures
+│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed
+├── alembic.ini
+├── pyproject.toml           dependencies and tool settings
+└── .env.example             template for api/.env
+```
 
 ## Requirements
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) (`brew install uv`)
@@ -27,6 +45,7 @@ uv run ruff check    # lint
 uv run alembic upgrade head     # apply all migrations
 uv run alembic downgrade base  # undo all migrations
 uv run alembic current          # which revision the database is at
+uv run python -m app.seed      # create the pilot studio + owner, coach, member (safe to re-run)
 ```
 
 ## CI
