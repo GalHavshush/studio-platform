@@ -18,6 +18,7 @@ node_modules/
 .DS_Store
 .idea/
 .vscode/
+.favorites.json
 
 # Generated plan visualizations
 .too-long/

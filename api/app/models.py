@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import func
+from sqlalchemy import CheckConstraint, ForeignKey, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -34,3 +34,20 @@ class Tenant(Base):
     # ponytail: not validated here; check with zoneinfo when sessions are created (step 18).
     timezone: Mapped[str]
     default_locale: Mapped[str] = mapped_column(server_default="en")
+
+
+class Membership(Base):
+    """Links a user to a studio with a role, so one account can belong to several studios."""
+
+    __tablename__ = "memberships"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "user_id"),
+        # CHECK rather than a Postgres ENUM: adding a role (head_coach, step 48) is a plain
+        # drop + add of this constraint.
+        CheckConstraint("role IN ('owner', 'coach', 'member')", name="ck_memberships_role"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"))
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    role: Mapped[str]
