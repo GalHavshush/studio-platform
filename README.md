@@ -9,6 +9,13 @@ Core idea: coaches build a shared history of each participant through class repo
 
 ## Requirements
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) (`brew install uv`)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (runs the local Postgres)
+
+## Database commands (run at the repo root)
+```bash
+docker compose up -d   # start Postgres on 127.0.0.1:5433 (data kept in a volume)
+docker compose down    # stop it (add -v to also delete the data)
+```
 
 ## API commands (run inside `api/`)
 ```bash
