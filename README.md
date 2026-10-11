@@ -1,5 +1,7 @@
 # Studio platform
 
+[![CI](https://github.com/GalHavshush/studio-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/GalHavshush/studio-platform/actions/workflows/ci.yml)
+
 Multi-tenant platform for small coach-led studios (BJJ, MMA, pilates, yoga, CrossFit, dance).
 Core idea: coaches build a shared history of each participant through class reports and notes.
 
@@ -23,3 +25,6 @@ uv sync              # create .venv and install dependencies
 uv run pytest        # run tests (exit code 5 = "no tests collected" until step 2)
 uv run ruff check    # lint
 ```
+
+## CI
+GitHub Actions (`.github/workflows/ci.yml`) runs `ruff check` and `pytest` against a Postgres service container on every push and pull request.
