@@ -15,13 +15,14 @@ api/                         FastAPI backend (Python, managed with uv)
 │   ├── config.py            settings read from the environment / .env (DATABASE_URL)
 │   ├── db.py                async engine and the per-request session dependency
 │   ├── models.py            SQLAlchemy models: User, Tenant, Membership
+│   ├── security.py          password hashing (argon2): hash_password, verify_password
 │   └── seed.py              creates the pilot studio (python -m app.seed)
 ├── migrations/              Alembic
 │   ├── env.py               how Alembic connects (URL comes from app settings)
 │   └── versions/            one file per schema change
 ├── tests/
 │   ├── conftest.py          test database, migrated_db and client fixtures
-│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed
+│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security
 ├── alembic.ini
 ├── pyproject.toml           dependencies and tool settings
 └── .env.example             template for api/.env

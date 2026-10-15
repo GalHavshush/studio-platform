@@ -19,6 +19,8 @@ class User(Base):
     email: Mapped[str] = mapped_column(unique=True)
     name: Mapped[str]
     locale: Mapped[str] = mapped_column(server_default="en")
+    # Argon2 hash, never the password. NULL = no password login (e.g. Google sign-in, step 53).
+    password_hash: Mapped[str | None]
 
 
 class Tenant(Base):
