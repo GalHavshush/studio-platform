@@ -18,8 +18,9 @@ jobs:
           --health-interval 5s
           --health-retries 10
     env:
-      # Throwaway DB that only lives for this job, so no GitHub secret is needed.
+      # Throwaway DB and a throwaway signing key that only live for this job, so no GitHub secret.
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: ci-only-secret-ci-only-secret-ci-only-secret
     defaults:
       run:
         working-directory: api

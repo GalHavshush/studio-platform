@@ -11,18 +11,19 @@ Core idea: coaches build a shared history of each participant through class repo
 docker-compose.yml           local Postgres (port 5434)
 api/                         FastAPI backend (Python, managed with uv)
 ├── app/
-│   ├── main.py              FastAPI app and the /health endpoint
-│   ├── config.py            settings read from the environment / .env (DATABASE_URL)
+│   ├── main.py              FastAPI app, the /health endpoint, mounts the routers
+│   ├── auth.py              POST /auth/login
+│   ├── config.py            settings read from the environment / .env (DATABASE_URL, JWT_SECRET)
 │   ├── db.py                async engine and the per-request session dependency
 │   ├── models.py            SQLAlchemy models: User, Tenant, Membership
-│   ├── security.py          password hashing (argon2): hash_password, verify_password
+│   ├── security.py          password hashing (argon2) and access-token (JWT) creation
 │   └── seed.py              creates the pilot studio (python -m app.seed)
 ├── migrations/              Alembic
 │   ├── env.py               how Alembic connects (URL comes from app settings)
 │   └── versions/            one file per schema change
 ├── tests/
 │   ├── conftest.py          test database, migrated_db and client fixtures
-│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security
+│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth
 ├── alembic.ini
 ├── pyproject.toml           dependencies and tool settings
 └── .env.example             template for api/.env
