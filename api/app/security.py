@@ -31,3 +31,21 @@ def create_access_token(user_id: uuid.UUID) -> str:
     now = datetime.now(UTC)
     claims = {"sub": str(user_id), "iat": now, "exp": now + ACCESS_TOKEN_TTL}
     return jwt.encode(claims, get_settings().jwt_secret, algorithm="HS256")
+
+
+def decode_access_token(token: str) -> uuid.UUID:
+    """Return the user id in a valid token; raise jwt.ExpiredSignatureError / InvalidTokenError.
+
+    algorithms is pinned: never let the token's own header choose how it is verified.
+    The signature and exp are checked by PyJWT; "require" rejects tokens missing either claim.
+    """
+    claims = jwt.decode(
+        token,
+        get_settings().jwt_secret,
+        algorithms=["HS256"],
+        options={"require": ["exp", "sub"]},
+    )
+    try:
+        return uuid.UUID(claims["sub"])
+    except ValueError as e:
+        raise jwt.InvalidTokenError("sub is not a user id") from e
