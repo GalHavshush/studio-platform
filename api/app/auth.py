@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -26,6 +27,10 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
 class LogoutRequest(BaseModel):
     refresh_token: str
 
@@ -34,6 +39,41 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+
+
+async def issue_refresh_token(
+    session: AsyncSession, user_id: uuid.UUID
+) -> tuple[str, RefreshToken]:
+    """Create a refresh token for the user. Returns the raw token (shown once, to the client)
+    and its stored row. Flushes, so the row has its id; the caller commits."""
+    raw = generate_refresh_token()
+    row = RefreshToken(
+        user_id=user_id,
+        token_hash=hash_refresh_token(raw),
+        expires_at=datetime.now(UTC) + REFRESH_TOKEN_TTL,
+    )
+    session.add(row)
+    await session.flush()
+    return raw, row
+
+
+async def claim_refresh_token(session: AsyncSession, token_hash: str, now: datetime):
+    """Atomically mark a usable token as revoked and return its (id, user_id), or None.
+
+    One UPDATE does the check and the write, so of two simultaneous claims on the same token the
+    second waits for the first's row lock, then re-checks `revoked_at IS NULL` and matches nothing.
+    """
+    result = await session.execute(
+        update(RefreshToken)
+        .where(
+            RefreshToken.token_hash == token_hash,
+            RefreshToken.revoked_at.is_(None),
+            RefreshToken.expires_at > now,
+        )
+        .values(revoked_at=now)
+        .returning(RefreshToken.id, RefreshToken.user_id)
+    )
+    return result.first()
 
 
 @router.post("/login")
@@ -61,18 +101,48 @@ async def login(
         )
 
     access_token = create_access_token(user.id)
-    refresh_token = generate_refresh_token()
-    session.add(
-        RefreshToken(
-            user_id=user.id,
-            token_hash=hash_refresh_token(refresh_token),
-            expires_at=datetime.now(UTC) + REFRESH_TOKEN_TTL,
-        )
-    )
+    refresh_token, _ = await issue_refresh_token(session, user.id)
     # First endpoint that writes: nothing is saved until commit. Commit last, after everything
     # that reads `user`, because commit expires loaded objects (reading them again would query).
     await session.commit()
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+
+
+@router.post("/refresh")
+async def refresh(
+    body: RefreshRequest, session: Annotated[AsyncSession, Depends(get_session)]
+) -> TokenResponse:
+    """Trade a refresh token for a new access token and a new refresh token.
+
+    Send the refresh token in the body; no Bearer header is needed, since the access token has
+    expired. The old refresh token is used up (revoked and linked to its replacement), so the
+    client must store the new one. Unknown, expired and already-used tokens all give the same
+    `401 invalid_refresh_token`. Note: rotation alone does not stop a thief who refreshes before the
+    real user; detecting reuse and revoking the whole login is step 13d.
+    """
+    claimed = await claim_refresh_token(
+        session, hash_refresh_token(body.refresh_token), datetime.now(UTC)
+    )
+    if claimed is None:
+        raise HTTPException(
+            status_code=401,
+            detail="invalid_refresh_token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    old_id, user_id = claimed
+
+    # Claim, replacement and link are one transaction with one commit at the end: if anything
+    # below raises, nothing is committed and the session closing rolls the claim back too, so the
+    # original token stays usable.
+    # ponytail: sliding expiry, the replacement gets a fresh 30 days, so a chain used at least
+    # monthly never ends; add an absolute cap if sessions should not live forever.
+    new_raw, new_row = await issue_refresh_token(session, user_id)
+    await session.execute(
+        update(RefreshToken).where(RefreshToken.id == old_id).values(replaced_by_id=new_row.id)
+    )
+    access_token = create_access_token(user_id)
+    await session.commit()
+    return TokenResponse(access_token=access_token, refresh_token=new_raw)
 
 
 @router.post("/logout", status_code=204)

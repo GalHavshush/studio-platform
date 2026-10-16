@@ -69,3 +69,7 @@ class RefreshToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     # NULL = still usable. Set when the token is cancelled (logout), never cleared again.
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set when this token is rotated away: points at the token that replaced it (a linked chain).
+    replaced_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("refresh_tokens.id", name="fk_refresh_tokens_replaced_by_id")
+    )
