@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.config import get_settings
-from app.db import get_session
+from app.db import get_engine, get_session
 from app.main import app
 
 TEST_DB_NAME = "studio_test"
@@ -79,3 +79,42 @@ async def client(db_session: AsyncSession):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
     app.dependency_overrides.clear()
+
+
+# --- real commits, for the few tests that need them (rollback, concurrency) ---
+
+
+async def _clear_tables(url: URL) -> None:
+    engine = create_async_engine(url, poolclass=NullPool)
+    async with engine.begin() as conn:
+        await conn.execute(text("TRUNCATE users, tenants CASCADE"))
+    await engine.dispose()
+
+
+@pytest.fixture
+async def committed_db(test_db_url: URL, migrated_db) -> URL:
+    """The test database for tests that really commit; every other test rolls back instead.
+
+    Clears whole tables before and after: acceptable only because this is the dedicated test
+    database, hence the name check.
+    ponytail: assumes tests run one at a time; parallel workers (pytest-xdist) would each need a
+    database of their own.
+    """
+    assert test_db_url.database == TEST_DB_NAME
+    await _clear_tables(test_db_url)
+    yield test_db_url
+    await _clear_tables(test_db_url)
+
+
+@pytest.fixture
+async def real_client(committed_db: URL, alembic_cfg: Config):
+    """A client that runs the app with its real get_session: one session per request, committed
+    only when the endpoint commits, rolled back when it fails. alembic_cfg has already pointed
+    DATABASE_URL at the test database; the cached engine must not outlive that."""
+    get_engine.cache_clear()
+    # raise_app_exceptions=False: an unhandled error comes back as a 500 response, like a server.
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+    await get_engine().dispose()
+    get_engine.cache_clear()
