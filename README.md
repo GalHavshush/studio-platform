@@ -43,8 +43,10 @@ docker compose down    # stop it (add -v to also delete the data)
 
 ## API commands (run inside `api/`)
 ```bash
+cp .env.example .env # first time only: DATABASE_URL and JWT_SECRET (the app won't start without them)
 uv sync              # create .venv and install dependencies
-uv run pytest        # run tests (exit code 5 = "no tests collected" until step 2)
+uv run fastapi dev   # run the server at http://localhost:8000 (interactive docs at /docs)
+uv run pytest        # run tests (the database must be up)
 uv run ruff check    # lint
 uv run alembic upgrade head     # apply all migrations
 uv run alembic downgrade base  # undo all migrations
