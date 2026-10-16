@@ -40,6 +40,12 @@ class TokenResponse(BaseModel):
 async def login(
     body: LoginRequest, session: Annotated[AsyncSession, Depends(get_session)]
 ) -> TokenResponse:
+    """Exchange email + password for tokens.
+
+    Returns a short-lived access token (JWT, 15 min) to send as `Authorization: Bearer ...`, and
+    a long-lived refresh token (30 days). Any failure (unknown email, wrong password, account
+    without a password) gives the same `401 invalid_credentials`.
+    """
     user = await session.scalar(select(User).where(User.email == body.email.strip().lower()))
     # Always run one argon2 verify, in a thread: it is deliberately slow and would otherwise
     # block the event loop (every other request) while it runs.
@@ -73,11 +79,11 @@ async def login(
 async def logout(
     body: LogoutRequest, session: Annotated[AsyncSession, Depends(get_session)]
 ) -> Response:
-    """Revoke a refresh token. Authenticated by the token itself: the access token has often
-    expired by the time someone logs out.
+    """Log out: revoke a refresh token so it can no longer be used.
 
-    Always 204 for a well-formed request, even for an unknown or already-revoked token: logging
-    out twice is harmless, and different answers would reveal which tokens exist.
+    Send the refresh token in the body; no Bearer header is needed, since the access token has
+    often expired by now. Always `204` for a well-formed request, including unknown or already
+    revoked tokens. The access token stays valid until it expires, so the client should discard it.
     """
     # One atomic UPDATE. `revoked_at IS NULL` makes it a no-op the second time, so the original
     # revocation time is kept (idempotent) and there is no read-then-write gap to race through.
