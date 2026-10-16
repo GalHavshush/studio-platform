@@ -11,7 +11,7 @@ Core idea: coaches build a shared history of each participant through class repo
 docker-compose.yml           local Postgres (port 5434)
 api/                         FastAPI backend (Python, managed with uv)
 ├── app/
-│   ├── main.py              FastAPI app, the /health endpoint, mounts the routers
+│   ├── main.py              FastAPI app, the /health endpoint, the /scalar docs page, mounts the routers
 │   ├── auth.py              POST /auth/login (access + refresh token), POST /auth/logout
 │   ├── me.py                GET /me (profile + studio memberships of the logged-in user)
 │   ├── deps.py              shared dependencies: current_user (reads and verifies the Bearer token)
@@ -25,7 +25,7 @@ api/                         FastAPI backend (Python, managed with uv)
 │   └── versions/            one file per schema change
 ├── tests/
 │   ├── conftest.py          test database, migrated_db and client fixtures
-│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout
+│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, docs
 ├── alembic.ini
 ├── pyproject.toml           dependencies and tool settings
 └── .env.example             template for api/.env
@@ -45,7 +45,7 @@ docker compose down    # stop it (add -v to also delete the data)
 ```bash
 cp .env.example .env # first time only: DATABASE_URL and JWT_SECRET (the app won't start without them)
 uv sync              # create .venv and install dependencies
-uv run fastapi dev   # run the server at http://localhost:8000 (interactive docs at /docs)
+uv run fastapi dev   # run the server at http://localhost:8000 (API docs: /docs Swagger, /redoc, /scalar with dark mode)
 uv run pytest        # run tests (the database must be up)
 uv run ruff check    # lint
 uv run alembic upgrade head     # apply all migrations
