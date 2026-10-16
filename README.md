@@ -12,7 +12,7 @@ docker-compose.yml           local Postgres (port 5434)
 api/                         FastAPI backend (Python, managed with uv)
 ├── app/
 │   ├── main.py              FastAPI app, the /health endpoint, mounts the routers
-│   ├── auth.py              POST /auth/login (returns access + refresh token)
+│   ├── auth.py              POST /auth/login (access + refresh token), POST /auth/logout
 │   ├── me.py                GET /me (profile + studio memberships of the logged-in user)
 │   ├── deps.py              shared dependencies: current_user (reads and verifies the Bearer token)
 │   ├── config.py            settings read from the environment / .env (DATABASE_URL, JWT_SECRET)
@@ -25,7 +25,7 @@ api/                         FastAPI backend (Python, managed with uv)
 │   └── versions/            one file per schema change
 ├── tests/
 │   ├── conftest.py          test database, migrated_db and client fixtures
-│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens
+│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout
 ├── alembic.ini
 ├── pyproject.toml           dependencies and tool settings
 └── .env.example             template for api/.env
