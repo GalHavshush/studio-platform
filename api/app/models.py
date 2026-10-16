@@ -67,3 +67,5 @@ class RefreshToken(Base):
     token_hash: Mapped[str] = mapped_column(unique=True)
     # timezone=True: store a real UTC instant, not a naive wall-clock time.
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # NULL = still usable. Set when the token is cancelled (logout), never cleared again.
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

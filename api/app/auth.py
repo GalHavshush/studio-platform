@@ -1,10 +1,10 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
@@ -24,6 +24,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
 
 
 class TokenResponse(BaseModel):
@@ -63,3 +67,27 @@ async def login(
     # that reads `user`, because commit expires loaded objects (reading them again would query).
     await session.commit()
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+
+
+@router.post("/logout", status_code=204)
+async def logout(
+    body: LogoutRequest, session: Annotated[AsyncSession, Depends(get_session)]
+) -> Response:
+    """Revoke a refresh token. Authenticated by the token itself: the access token has often
+    expired by the time someone logs out.
+
+    Always 204 for a well-formed request, even for an unknown or already-revoked token: logging
+    out twice is harmless, and different answers would reveal which tokens exist.
+    """
+    # One atomic UPDATE. `revoked_at IS NULL` makes it a no-op the second time, so the original
+    # revocation time is kept (idempotent) and there is no read-then-write gap to race through.
+    await session.execute(
+        update(RefreshToken)
+        .where(
+            RefreshToken.token_hash == hash_refresh_token(body.refresh_token),
+            RefreshToken.revoked_at.is_(None),
+        )
+        .values(revoked_at=datetime.now(UTC))
+    )
+    await session.commit()
+    return Response(status_code=204)
