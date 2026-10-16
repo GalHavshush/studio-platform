@@ -58,8 +58,14 @@ def migrated_db(alembic_cfg: Config) -> None:
 @pytest.fixture
 async def db_session(test_db_url: URL, migrated_db):
     engine = create_async_engine(test_db_url, poolclass=NullPool)
-    async with AsyncSession(engine) as session:
+    async with engine.connect() as conn:
+        outer = await conn.begin()
+        # Endpoints call session.commit(). With create_savepoint that only releases a SAVEPOINT,
+        # so the outer transaction is still open and rolling it back undoes everything.
+        session = AsyncSession(bind=conn, join_transaction_mode="create_savepoint")
         yield session
+        await session.close()
+        await outer.rollback()
     await engine.dispose()
 
 

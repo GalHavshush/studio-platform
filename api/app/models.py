@@ -1,6 +1,7 @@
 import uuid
+from datetime import datetime
 
-from sqlalchemy import CheckConstraint, ForeignKey, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -53,3 +54,16 @@ class Membership(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"))
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     role: Mapped[str]
+
+
+class RefreshToken(Base):
+    """A long-lived login credential. Only its SHA-256 hash is stored, never the token itself."""
+
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    # Unique: lookups go by this value, and the unique index makes them fast.
+    token_hash: Mapped[str] = mapped_column(unique=True)
+    # timezone=True: store a real UTC instant, not a naive wall-clock time.
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

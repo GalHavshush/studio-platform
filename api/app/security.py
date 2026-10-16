@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -11,6 +13,7 @@ from app.config import get_settings
 _hasher = PasswordHash.recommended()
 
 ACCESS_TOKEN_TTL = timedelta(minutes=15)
+REFRESH_TOKEN_TTL = timedelta(days=30)
 
 
 def hash_password(password: str) -> str:
@@ -49,3 +52,14 @@ def decode_access_token(token: str) -> uuid.UUID:
         return uuid.UUID(claims["sub"])
     except ValueError as e:
         raise jwt.InvalidTokenError("sub is not a user id") from e
+
+
+def generate_refresh_token() -> str:
+    """256 random bits from the OS. Opaque: it means nothing until looked up in the database."""
+    return secrets.token_urlsafe(32)
+
+
+def hash_refresh_token(token: str) -> str:
+    # Plain SHA-256, no salt or slowness: the input is 256 random bits, so there is nothing to
+    # guess and no rainbow table to defend against. (Passwords are different: see argon2 above.)
+    return hashlib.sha256(token.encode()).hexdigest()

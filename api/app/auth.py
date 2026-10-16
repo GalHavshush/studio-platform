@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,8 +8,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models import User
-from app.security import DUMMY_HASH, create_access_token, verify_password
+from app.models import RefreshToken, User
+from app.security import (
+    DUMMY_HASH,
+    REFRESH_TOKEN_TTL,
+    create_access_token,
+    generate_refresh_token,
+    hash_refresh_token,
+    verify_password,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -20,6 +28,7 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
 
 
@@ -40,4 +49,17 @@ async def login(
             detail="invalid_credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return TokenResponse(access_token=create_access_token(user.id))
+
+    access_token = create_access_token(user.id)
+    refresh_token = generate_refresh_token()
+    session.add(
+        RefreshToken(
+            user_id=user.id,
+            token_hash=hash_refresh_token(refresh_token),
+            expires_at=datetime.now(UTC) + REFRESH_TOKEN_TTL,
+        )
+    )
+    # First endpoint that writes: nothing is saved until commit. Commit last, after everything
+    # that reads `user`, because commit expires loaded objects (reading them again would query).
+    await session.commit()
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
