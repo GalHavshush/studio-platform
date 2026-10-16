@@ -38,6 +38,10 @@ class MeResponse(BaseModel):
 async def me(
     user: CurrentUser, session: Annotated[AsyncSession, Depends(get_session)]
 ) -> MeResponse:
+    """The logged-in user's profile and the studios they belong to, with their role in each.
+
+    Requires `Authorization: Bearer <access token>`; otherwise `401`.
+    """
     # A join instead of ORM relationship()s: one query, and no new concept yet.
     rows = await session.execute(
         select(Tenant, Membership.role)
