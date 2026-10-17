@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated
@@ -20,6 +21,7 @@ from app.security import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 
 class LoginRequest(BaseModel):
@@ -101,6 +103,21 @@ async def claim_refresh_token(session: AsyncSession, token_hash: str, now: datet
     return result.first()
 
 
+async def revoke_family(session: AsyncSession, family_id: uuid.UUID, now: datetime) -> int:
+    """Revoke every still-usable token of one login (family); returns how many were revoked.
+
+    `revoked_at IS NULL` keeps earlier revocation times and makes a repeat a no-op. Callers must
+    hold the user lock (lock_user), so a refresh in flight cannot add a token this misses.
+    """
+    result = await session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.family_id == family_id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=now)
+        .returning(RefreshToken.id)
+    )
+    return len(result.all())
+
+
 def _invalid_refresh_token() -> HTTPException:
     return HTTPException(
         status_code=401,
@@ -148,10 +165,15 @@ async def refresh(
     """Trade a refresh token for a new access token and a new refresh token.
 
     Send the refresh token in the body; no Bearer header is needed, since the access token has
-    expired. The old refresh token is used up (revoked and replaced), so the
-    client must store the new one. Unknown, expired and already-used tokens all give the same
-    `401 invalid_refresh_token`. Note: rotation alone does not stop a thief who refreshes before the
-    real user; detecting reuse and revoking the whole login is step 13e.
+    expired. The old refresh token is used up (revoked and replaced), so the client must store
+    the new one. Unknown, expired and already-used tokens all give the same
+    `401 invalid_refresh_token`.
+
+    Presenting an already-used token again counts as theft: the whole login (every token of that
+    device) is revoked and the user must log in again. This includes two simultaneous refreshes
+    with the same token, so clients must send one refresh at a time. Reuse is only noticed when the
+    old token is presented; a thief who refreshes first and is never contradicted stays signed in
+    until the tokens expire.
     """
     token_hash = hash_refresh_token(body.refresh_token)
     owner = await find_token_owner(session, token_hash)
@@ -159,9 +181,28 @@ async def refresh(
         raise _invalid_refresh_token()
     user_id, family_id = owner
     await lock_user(session, user_id)  # a logout racing this refresh now waits for it to finish
+    now = datetime.now(UTC)
     # The claim runs after the lock, so it sees the token as it is now, not as it was before waiting.
-    claimed = await claim_refresh_token(session, token_hash, datetime.now(UTC))
+    claimed = await claim_refresh_token(session, token_hash, now)
     if claimed is None:
+        revoked_at = await session.scalar(
+            select(RefreshToken.revoked_at).where(RefreshToken.token_hash == token_hash)
+        )
+        if revoked_at is not None:
+            # An already-used token came back, so two parties hold it and one may be a thief.
+            # Every revocation except rotation revokes a whole family, so a revoked token whose
+            # family still has usable tokens was rotated away: end the whole login.
+            revoked = await revoke_family(session, family_id, now)
+            # Commit BEFORE raising: an exception makes the session roll back, which would undo
+            # the revocation and leave the thief's replacement token usable.
+            await session.commit()
+            if revoked:
+                logger.warning(
+                    "refresh token reuse: revoked %d token(s) of family %s (user %s)",
+                    revoked,
+                    family_id,
+                    user_id,
+                )
         raise _invalid_refresh_token()
 
     # Claim and replacement are one transaction with one commit at the end: if anything
@@ -193,11 +234,6 @@ async def logout(
         # Wait for any refresh in flight for this user, so the UPDATE below also sees the
         # replacement token that refresh created.
         await lock_user(session, user_id)
-        # `revoked_at IS NULL` makes a repeat logout a no-op that keeps the original times.
-        await session.execute(
-            update(RefreshToken)
-            .where(RefreshToken.family_id == family_id, RefreshToken.revoked_at.is_(None))
-            .values(revoked_at=datetime.now(UTC))
-        )
+        await revoke_family(session, family_id, datetime.now(UTC))
     await session.commit()
     return Response(status_code=204)
