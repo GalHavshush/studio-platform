@@ -16,7 +16,9 @@ config = context.config
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False: the default switches off every logger created before this
+    # runs (our own app loggers), silently, whenever migrations run inside the app/test process.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Lets `alembic revision --autogenerate` diff our models against the database.
 target_metadata = Base.metadata

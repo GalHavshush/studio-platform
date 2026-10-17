@@ -140,3 +140,76 @@ async def test_refresh_keeps_the_family_and_each_login_gets_its_own(client, db_s
 
     assert rows[0].family_id == rows[1].family_id  # rotation inherits the family
     assert rows[0].family_id != rows[2].family_id  # a different login is a different family
+
+
+# --- reuse detection ---
+
+
+async def expire(db_session, raw_token):
+    await db_session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.token_hash == hash_refresh_token(raw_token))
+        .values(expires_at=datetime.now(UTC) - timedelta(seconds=1))
+    )
+
+
+async def test_reusing_a_used_up_token_revokes_the_whole_family(client, db_session):
+    a = await login(client)
+    b = (await refresh(client, a["refresh_token"])).json()
+    c = (await refresh(client, b["refresh_token"])).json()  # the newest token, held by the "thief"
+
+    reuse = await refresh(client, a["refresh_token"])  # the old one comes back
+
+    assert reuse.status_code == 401
+    assert reuse.json() == {"detail": "invalid_refresh_token"}  # nothing that hints at theft
+    for token in (a, b, c):
+        assert (await row_for(db_session, token["refresh_token"])).revoked_at is not None
+    assert (await refresh(client, c["refresh_token"])).status_code == 401  # even the newest is dead
+
+
+async def test_reuse_is_detected_even_if_the_used_up_token_has_expired(client, db_session):
+    a = await login(client)
+    b = (await refresh(client, a["refresh_token"])).json()
+    await expire(db_session, a["refresh_token"])
+
+    await refresh(client, a["refresh_token"])
+
+    assert (await refresh(client, b["refresh_token"])).status_code == 401
+
+
+async def test_reuse_leaves_other_devices_untouched(client, db_session):
+    a = await login(client)
+    await refresh(client, a["refresh_token"])
+    other_device = await login(client)
+
+    await refresh(client, a["refresh_token"])  # reuse
+
+    assert (await row_for(db_session, other_device["refresh_token"])).revoked_at is None
+
+
+async def test_only_real_reuse_is_logged(client, db_session, caplog):
+    caplog.set_level("WARNING", logger="app.auth")
+    logged_out = await login(client)
+    await client.post("/auth/logout", json={"refresh_token": logged_out["refresh_token"]})
+    await refresh(client, logged_out["refresh_token"])  # revoked by logout: nothing to detect
+    expired = await login(client)
+    await expire(db_session, expired["refresh_token"])
+    await refresh(client, expired["refresh_token"])  # merely expired
+    assert "reuse" not in caplog.text
+
+    used = await login(client)
+    await refresh(client, used["refresh_token"])
+    await refresh(client, used["refresh_token"])  # real reuse
+
+    assert caplog.text.count("refresh token reuse") == 1
+    assert used["refresh_token"] not in caplog.text  # ids only, never the token
+
+
+async def test_an_expired_token_is_a_plain_401_and_revokes_nothing(client, db_session):
+    expired = await login(client)
+    await expire(db_session, expired["refresh_token"])
+
+    response = await refresh(client, expired["refresh_token"])
+
+    assert response.status_code == 401
+    assert (await row_for(db_session, expired["refresh_token"])).revoked_at is None
