@@ -43,7 +43,7 @@ async def test_refresh_returns_a_new_working_pair(client):
     assert me.json()["email"] == "owner@example.com"
 
 
-async def test_rotation_revokes_the_old_token_and_links_the_new_one(client, db_session):
+async def test_rotation_uses_up_the_old_token_and_issues_one_in_the_same_family(client, db_session):
     old = await login(client)
 
     new = (await refresh(client, old["refresh_token"])).json()
@@ -51,21 +51,20 @@ async def test_rotation_revokes_the_old_token_and_links_the_new_one(client, db_s
     old_row = await row_for(db_session, old["refresh_token"])
     new_row = await row_for(db_session, new["refresh_token"])
     assert old_row.revoked_at is not None
-    assert old_row.replaced_by_id == new_row.id
     assert new_row.revoked_at is None
-    assert new_row.replaced_by_id is None
     assert new_row.user_id == old_row.user_id
+    assert new_row.family_id == old_row.family_id
     assert abs(new_row.expires_at - (datetime.now(UTC) + REFRESH_TOKEN_TTL)) < timedelta(minutes=1)
 
 
-async def test_rotation_can_be_repeated_and_forms_a_chain(client, db_session):
+async def test_rotation_can_be_repeated_and_only_the_newest_token_stays_usable(client, db_session):
     a = await login(client)
     b = (await refresh(client, a["refresh_token"])).json()
     c = (await refresh(client, b["refresh_token"])).json()
 
     rows = [await row_for(db_session, t["refresh_token"]) for t in (a, b, c)]
 
-    assert [r.replaced_by_id for r in rows] == [rows[1].id, rows[2].id, None]
+    assert len({r.family_id for r in rows}) == 1  # one login, one family
     assert [r.revoked_at is not None for r in rows] == [True, True, False]
 
 
@@ -128,3 +127,16 @@ async def test_malformed_body_is_a_validation_error(client):
     response = await client.post("/auth/refresh", json={})
 
     assert response.status_code == 422
+
+
+async def test_refresh_keeps_the_family_and_each_login_gets_its_own(client, db_session):
+    first_login = await login(client)
+    second_login = await login(client)
+    rotated = (await refresh(client, first_login["refresh_token"])).json()
+
+    rows = [
+        await row_for(db_session, t["refresh_token"]) for t in (first_login, rotated, second_login)
+    ]
+
+    assert rows[0].family_id == rows[1].family_id  # rotation inherits the family
+    assert rows[0].family_id != rows[2].family_id  # a different login is a different family

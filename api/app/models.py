@@ -63,13 +63,13 @@ class RefreshToken(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    # One family = one device's login: login starts a new family, rotation copies it to the
+    # replacement. Logout revokes by family, so it also catches tokens created while it ran.
+    family_id: Mapped[uuid.UUID] = mapped_column(index=True)
     # Unique: lookups go by this value, and the unique index makes them fast.
     token_hash: Mapped[str] = mapped_column(unique=True)
     # timezone=True: store a real UTC instant, not a naive wall-clock time.
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    # NULL = still usable. Set when the token is cancelled (logout), never cleared again.
+    # NULL = still usable. Set when the token is used up (rotation) or its login is ended
+    # (logout); never cleared again.
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # Set when this token is rotated away: points at the token that replaced it (a linked chain).
-    replaced_by_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("refresh_tokens.id", name="fk_refresh_tokens_replaced_by_id")
-    )

@@ -29,8 +29,12 @@ async def test_duplicate_token_hash_is_rejected(db_session):
     await db_session.flush()
     db_session.add_all(
         [
-            RefreshToken(user_id=user.id, token_hash="same", expires_at=FUTURE),
-            RefreshToken(user_id=user.id, token_hash="same", expires_at=FUTURE),
+            RefreshToken(
+                user_id=user.id, family_id=uuid.uuid4(), token_hash="same", expires_at=FUTURE
+            ),
+            RefreshToken(
+                user_id=user.id, family_id=uuid.uuid4(), token_hash="same", expires_at=FUTURE
+            ),
         ]
     )
 
@@ -39,7 +43,11 @@ async def test_duplicate_token_hash_is_rejected(db_session):
 
 
 async def test_token_for_a_missing_user_is_rejected(db_session):
-    db_session.add(RefreshToken(user_id=uuid.uuid4(), token_hash="h", expires_at=FUTURE))
+    db_session.add(
+        RefreshToken(
+            user_id=uuid.uuid4(), family_id=uuid.uuid4(), token_hash="h", expires_at=FUTURE
+        )
+    )
 
     with pytest.raises(IntegrityError):
         await db_session.flush()
