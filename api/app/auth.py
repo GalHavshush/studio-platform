@@ -42,19 +42,44 @@ class TokenResponse(BaseModel):
 
 
 async def issue_refresh_token(
-    session: AsyncSession, user_id: uuid.UUID
-) -> tuple[str, RefreshToken]:
-    """Create a refresh token for the user. Returns the raw token (shown once, to the client)
-    and its stored row. Flushes, so the row has its id; the caller commits."""
+    session: AsyncSession, user_id: uuid.UUID, family_id: uuid.UUID | None = None
+) -> str:
+    """Create a refresh token for the user, in the given family or (login) a new one. Returns the
+    raw token (shown once, to the client); only its hash is stored. The caller commits."""
     raw = generate_refresh_token()
     row = RefreshToken(
         user_id=user_id,
+        family_id=family_id or uuid.uuid4(),
         token_hash=hash_refresh_token(raw),
         expires_at=datetime.now(UTC) + REFRESH_TOKEN_TTL,
     )
     session.add(row)
     await session.flush()
-    return raw, row
+    return raw
+
+
+async def find_token_owner(session: AsyncSession, token_hash: str):
+    """(user_id, family_id) of a token, or None. A plain read: both are fixed for a token's whole
+    life, so it is safe to read before taking the lock; everything that can change is decided
+    after the lock."""
+    result = await session.execute(
+        select(RefreshToken.user_id, RefreshToken.family_id).where(
+            RefreshToken.token_hash == token_hash
+        )
+    )
+    return result.first()
+
+
+async def lock_user(session: AsyncSession, user_id: uuid.UUID) -> None:
+    """Make this user's token operations (refresh, logout) take turns until the transaction ends.
+
+    FOR NO KEY UPDATE rather than FOR UPDATE: it does not block inserts that merely reference the
+    user (a login creating a token), but it still conflicts with another such lock. Always take it
+    before modifying any token row, so every operation locks in the same order.
+    ponytail: one lock per user serializes all of a user's devices; use a per-family lock if
+    contention ever matters.
+    """
+    await session.execute(select(User.id).where(User.id == user_id).with_for_update(key_share=True))
 
 
 async def claim_refresh_token(session: AsyncSession, token_hash: str, now: datetime):
@@ -74,6 +99,14 @@ async def claim_refresh_token(session: AsyncSession, token_hash: str, now: datet
         .returning(RefreshToken.id, RefreshToken.user_id)
     )
     return result.first()
+
+
+def _invalid_refresh_token() -> HTTPException:
+    return HTTPException(
+        status_code=401,
+        detail="invalid_refresh_token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 @router.post("/login")
@@ -101,7 +134,7 @@ async def login(
         )
 
     access_token = create_access_token(user.id)
-    refresh_token, _ = await issue_refresh_token(session, user.id)
+    refresh_token = await issue_refresh_token(session, user.id)
     # First endpoint that writes: nothing is saved until commit. Commit last, after everything
     # that reads `user`, because commit expires loaded objects (reading them again would query).
     await session.commit()
@@ -115,31 +148,28 @@ async def refresh(
     """Trade a refresh token for a new access token and a new refresh token.
 
     Send the refresh token in the body; no Bearer header is needed, since the access token has
-    expired. The old refresh token is used up (revoked and linked to its replacement), so the
+    expired. The old refresh token is used up (revoked and replaced), so the
     client must store the new one. Unknown, expired and already-used tokens all give the same
     `401 invalid_refresh_token`. Note: rotation alone does not stop a thief who refreshes before the
-    real user; detecting reuse and revoking the whole login is step 13d.
+    real user; detecting reuse and revoking the whole login is step 13e.
     """
-    claimed = await claim_refresh_token(
-        session, hash_refresh_token(body.refresh_token), datetime.now(UTC)
-    )
+    token_hash = hash_refresh_token(body.refresh_token)
+    owner = await find_token_owner(session, token_hash)
+    if owner is None:
+        raise _invalid_refresh_token()
+    user_id, family_id = owner
+    await lock_user(session, user_id)  # a logout racing this refresh now waits for it to finish
+    # The claim runs after the lock, so it sees the token as it is now, not as it was before waiting.
+    claimed = await claim_refresh_token(session, token_hash, datetime.now(UTC))
     if claimed is None:
-        raise HTTPException(
-            status_code=401,
-            detail="invalid_refresh_token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    old_id, user_id = claimed
+        raise _invalid_refresh_token()
 
-    # Claim, replacement and link are one transaction with one commit at the end: if anything
+    # Claim and replacement are one transaction with one commit at the end: if anything
     # below raises, nothing is committed and the session closing rolls the claim back too, so the
     # original token stays usable.
     # ponytail: sliding expiry, the replacement gets a fresh 30 days, so a chain used at least
-    # monthly never ends; add an absolute cap if sessions should not live forever.
-    new_raw, new_row = await issue_refresh_token(session, user_id)
-    await session.execute(
-        update(RefreshToken).where(RefreshToken.id == old_id).values(replaced_by_id=new_row.id)
-    )
+    # monthly never ends (one family, many tokens); add an absolute cap if sessions should not live forever.
+    new_raw = await issue_refresh_token(session, user_id, family_id)
     access_token = create_access_token(user_id)
     await session.commit()
     return TokenResponse(access_token=access_token, refresh_token=new_raw)
@@ -149,21 +179,25 @@ async def refresh(
 async def logout(
     body: LogoutRequest, session: Annotated[AsyncSession, Depends(get_session)]
 ) -> Response:
-    """Log out: revoke a refresh token so it can no longer be used.
+    """Log out: end this login by revoking the refresh token's whole family (the token itself and
+    any it was rotated into or from), so none of them can be used again. Other devices' logins are
+    not affected.
 
     Send the refresh token in the body; no Bearer header is needed, since the access token has
     often expired by now. Always `204` for a well-formed request, including unknown or already
     revoked tokens. The access token stays valid until it expires, so the client should discard it.
     """
-    # One atomic UPDATE. `revoked_at IS NULL` makes it a no-op the second time, so the original
-    # revocation time is kept (idempotent) and there is no read-then-write gap to race through.
-    await session.execute(
-        update(RefreshToken)
-        .where(
-            RefreshToken.token_hash == hash_refresh_token(body.refresh_token),
-            RefreshToken.revoked_at.is_(None),
+    owner = await find_token_owner(session, hash_refresh_token(body.refresh_token))
+    if owner is not None:
+        user_id, family_id = owner
+        # Wait for any refresh in flight for this user, so the UPDATE below also sees the
+        # replacement token that refresh created.
+        await lock_user(session, user_id)
+        # `revoked_at IS NULL` makes a repeat logout a no-op that keeps the original times.
+        await session.execute(
+            update(RefreshToken)
+            .where(RefreshToken.family_id == family_id, RefreshToken.revoked_at.is_(None))
+            .values(revoked_at=datetime.now(UTC))
         )
-        .values(revoked_at=datetime.now(UTC))
-    )
     await session.commit()
     return Response(status_code=204)

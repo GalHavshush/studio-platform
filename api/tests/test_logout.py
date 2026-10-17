@@ -65,7 +65,7 @@ async def test_unknown_token_gets_204_and_changes_nothing(client, db_session):
     assert await revoked_at(db_session, token) is None
 
 
-async def test_logout_revokes_only_the_presented_token(client, db_session):
+async def test_logout_leaves_other_logins_untouched(client, db_session):
     this_device = await login(client)
     other_device = await login(client)  # same user, second login
     other_user = await login(client, "coach@example.com")
@@ -81,3 +81,16 @@ async def test_malformed_body_is_a_validation_error_not_a_success(client):
     response = await client.post("/auth/logout", json={})
 
     assert response.status_code == 422
+
+
+async def test_logout_with_a_rotated_token_revokes_its_replacements(client, db_session):
+    a = await login(client)
+    b = (await client.post("/auth/refresh", json={"refresh_token": a})).json()["refresh_token"]
+    other_device = await login(client)
+
+    await logout(client, a)  # a is already used up, but it still identifies this login
+
+    assert await revoked_at(db_session, b) is not None
+    assert await revoked_at(db_session, other_device) is None
+    refreshed = await client.post("/auth/refresh", json={"refresh_token": b})
+    assert refreshed.status_code == 401

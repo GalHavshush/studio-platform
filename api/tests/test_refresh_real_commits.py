@@ -1,27 +1,19 @@
 import asyncio
+import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.pool import NullPool
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.auth
 from app.auth import claim_refresh_token
 from app.models import RefreshToken, User
 from app.security import hash_refresh_token
-from app.seed import PILOT_PASSWORD, seed
+from app.seed import PILOT_PASSWORD
 
 
-async def seed_committed(url):
-    engine = create_async_engine(url, poolclass=NullPool)
-    async with AsyncSession(engine) as session:
-        await seed(session)
-        await session.commit()
-    return engine
-
-
-async def test_failed_replacement_rolls_back_everything(real_client, committed_db, monkeypatch):
-    engine = await seed_committed(committed_db)
+async def test_failed_replacement_rolls_back_everything(real_client, committed_engine, monkeypatch):
+    engine = committed_engine
     login = await real_client.post(
         "/auth/login", json={"email": "owner@example.com", "password": PILOT_PASSWORD}
     )
@@ -39,36 +31,22 @@ async def test_failed_replacement_rolls_back_everything(real_client, committed_d
         row = await session.scalar(
             select(RefreshToken).where(RefreshToken.token_hash == hash_refresh_token(original))
         )
-        assert row.revoked_at is None and row.replaced_by_id is None
+        assert row.revoked_at is None
         assert len((await session.scalars(select(RefreshToken))).all()) == 1
     # And the original token still works.
     retry = await real_client.post("/auth/refresh", json={"refresh_token": original})
     assert retry.status_code == 200
-    await engine.dispose()
 
 
-async def wait_until_a_backend_waits_on_a_lock(engine, timeout=5.0):
-    """Poll Postgres until some connection is blocked on a lock: no sleeps-and-hope."""
-    deadline = asyncio.get_running_loop().time() + timeout
-    async with engine.connect() as conn:
-        while asyncio.get_running_loop().time() < deadline:
-            waiting = await conn.scalar(
-                text("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'")
-            )
-            if waiting:
-                return
-            await asyncio.sleep(0.02)
-    raise AssertionError("the second claim never started waiting on the row lock")
-
-
-async def test_two_simultaneous_claims_only_one_wins(committed_db):
-    engine = await seed_committed(committed_db)
+async def test_two_simultaneous_claims_only_one_wins(committed_engine, wait_for_lock_wait):
+    engine = committed_engine
     token_hash = hash_refresh_token("the-one-token")
     async with AsyncSession(engine) as session:
         user_id = await session.scalar(select(User.id).where(User.email == "owner@example.com"))
         session.add(
             RefreshToken(
                 user_id=user_id,
+                family_id=uuid.uuid4(),
                 token_hash=token_hash,
                 expires_at=datetime.now(UTC) + timedelta(days=1),
             )
@@ -81,9 +59,8 @@ async def test_two_simultaneous_claims_only_one_wins(committed_db):
         assert won is not None
 
         loser = asyncio.create_task(claim_refresh_token(second, token_hash, now))
-        await wait_until_a_backend_waits_on_a_lock(engine)
+        await wait_for_lock_wait(engine)
         assert not loser.done()  # blocked behind the first claim
 
         await first.commit()  # releases the lock; the second UPDATE re-checks revoked_at IS NULL
         assert await asyncio.wait_for(loser, timeout=5) is None
-    await engine.dispose()

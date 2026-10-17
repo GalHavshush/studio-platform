@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from sqlalchemy.pool import NullPool
 from app.config import get_settings
 from app.db import get_engine, get_session
 from app.main import app
+from app.seed import seed
 
 TEST_DB_NAME = "studio_test"
 
@@ -41,7 +43,7 @@ def test_db_url() -> URL:
 # Plain `def`, not `async`: env.py calls asyncio.run(), which can't run inside the
 # event loop pytest-asyncio keeps open for async tests.
 @pytest.fixture
-def alembic_cfg(monkeypatch, test_db_url: URL) -> Config:
+def alembic_cfg(monkeypatch, test_db_url: URL) -> Iterator[Config]:
     # env.py reads DATABASE_URL via get_settings(), so aim it at the test database.
     monkeypatch.setenv("DATABASE_URL", test_db_url.render_as_string(hide_password=False))
     get_settings.cache_clear()
@@ -92,7 +94,7 @@ async def _clear_tables(url: URL) -> None:
 
 
 @pytest.fixture
-async def committed_db(test_db_url: URL, migrated_db) -> URL:
+async def committed_db(test_db_url: URL, migrated_db) -> AsyncIterator[URL]:
     """The test database for tests that really commit; every other test rolls back instead.
 
     Clears whole tables before and after: acceptable only because this is the dedicated test
@@ -118,3 +120,34 @@ async def real_client(committed_db: URL, alembic_cfg: Config):
         yield client
     await get_engine().dispose()
     get_engine.cache_clear()
+
+
+@pytest.fixture
+async def committed_engine(committed_db: URL):
+    """An engine on the test database with the pilot studio really committed (see committed_db)."""
+    engine = create_async_engine(committed_db, poolclass=NullPool)
+    async with AsyncSession(engine) as session:
+        await seed(session)
+        await session.commit()
+    yield engine
+    await engine.dispose()
+
+
+@pytest.fixture
+def wait_for_lock_wait():
+    """Returns an async function that polls Postgres until some connection is blocked on a lock,
+    so tests prove "it is waiting" without sleeping and hoping."""
+
+    async def wait(engine, timeout: float = 5.0) -> None:
+        deadline = asyncio.get_running_loop().time() + timeout
+        async with engine.connect() as conn:
+            while asyncio.get_running_loop().time() < deadline:
+                waiting = await conn.scalar(
+                    text("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'")
+                )
+                if waiting:
+                    return
+                await asyncio.sleep(0.02)
+        raise AssertionError("nothing ever started waiting on a lock")
+
+    return wait
