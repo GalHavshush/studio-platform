@@ -163,7 +163,9 @@ def wait_for_lock_wait():
 @dataclass
 class Studio:
     id: uuid.UUID
-    users: dict[str, User]  # role -> a user who holds exactly that role in this studio
+    # role -> id of a user who holds exactly that role in this studio. Ids, not User objects:
+    # an endpoint's commit expires ORM objects, and reading one afterwards fails in async code.
+    users: dict[str, uuid.UUID]
 
 
 @dataclass
@@ -171,10 +173,10 @@ class TwoTenants:
     a: Studio
     b: Studio
 
-    def headers(self, user: User, tenant_id: uuid.UUID) -> dict[str, str]:
-        """Request headers for `user` acting in `tenant_id` (their own studio or someone else's)."""
+    def headers(self, user_id: uuid.UUID, tenant_id: uuid.UUID) -> dict[str, str]:
+        """Request headers for a user acting in `tenant_id` (their own studio or someone else's)."""
         return {
-            "Authorization": f"Bearer {create_access_token(user.id)}",
+            "Authorization": f"Bearer {create_access_token(user_id)}",
             "X-Tenant-Id": str(tenant_id),
         }
 
@@ -197,9 +199,16 @@ async def two_tenants(db_session: AsyncSession) -> TwoTenants:
             Membership(tenant_id=tenant.id, user_id=user.id, role=role)
             for role, user in users.items()
         )
-        studios.append(Studio(id=tenant.id, users=users))
+        studios.append(Studio(id=tenant.id, users={role: user.id for role, user in users.items()}))
     await db_session.flush()
     return TwoTenants(a=studios[0], b=studios[1])
+
+
+def treated_as_stranger(response) -> bool:
+    """401, or the 403 `not_a_member` that TenantCtx gives to someone outside the studio."""
+    if response.status_code == 401:
+        return True
+    return response.status_code == 403 and response.json() == {"detail": "not_a_member"}
 
 
 @pytest.fixture
@@ -207,19 +216,22 @@ def assert_tenant_isolation(two_tenants: TwoTenants):
     """Returns `check(send)`; `send(headers)` performs one request against the endpoint under test.
 
     Every user of each studio, owners included, must get 403 `not_a_member` when naming the other
-    studio. Each user must also get through to their own studio: without that control the check
-    would pass for an endpoint that simply refuses everybody.
+    studio. Each user must also be accepted as a member of their own studio (a role too low for the
+    endpoint is fine): without that control the check would pass for an endpoint that simply
+    refuses everybody.
     """
 
     async def check(send) -> None:
         for mine, theirs in ((two_tenants.a, two_tenants.b), (two_tenants.b, two_tenants.a)):
-            for role, user in mine.users.items():
-                own = await send(two_tenants.headers(user, mine.id))
-                assert own.status_code not in (401, 403), (
-                    f"a {role} was refused in their own studio ({own.status_code}): "
+            for role, user_id in mine.users.items():
+                own = await send(two_tenants.headers(user_id, mine.id))
+                # A role too low for the endpoint (403 insufficient_role) is fine: this user is
+                # still a member. Being treated as a stranger in their own studio is not.
+                assert not treated_as_stranger(own), (
+                    f"a {role} was treated as a stranger in their own studio ({own.status_code}): "
                     "the endpoint is broken, so the isolation result would mean nothing"
                 )
-                foreign = await send(two_tenants.headers(user, theirs.id))
+                foreign = await send(two_tenants.headers(user_id, theirs.id))
                 assert foreign.status_code == 403 and foreign.json() == {
                     "detail": "not_a_member"
                 }, f"a {role} of one studio got {foreign.status_code} when naming another studio"

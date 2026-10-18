@@ -56,6 +56,20 @@ class Membership(Base):
     role: Mapped[str]
 
 
+class ClassType(Base):
+    """A kind of class a studio offers (BJJ, Pilates...). The first tenant-owned table: every row
+    belongs to one studio, and every query on it must filter by that studio."""
+
+    __tablename__ = "class_types"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
+    # Indexed: every read of this table is "the rows of this studio".
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
+    # ponytail: names are not unique within a studio, so "Pilates" can be created twice. Add
+    # UniqueConstraint("tenant_id", "name") plus a 409 if that ever bites.
+    name: Mapped[str]
+
+
 class RefreshToken(Base):
     """A long-lived login credential. Only its SHA-256 hash is stored, never the token itself."""
 

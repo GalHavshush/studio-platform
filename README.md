@@ -13,11 +13,12 @@ api/                         FastAPI backend (Python, managed with uv)
 ├── app/
 │   ├── main.py              FastAPI app, the /health endpoint, the /scalar docs page, mounts the routers
 │   ├── auth.py              POST /auth/login (access + refresh token), POST /auth/refresh, POST /auth/logout
+│   ├── class_types.py       GET/POST /class-types, PUT /class-types/{id} (a studio's class types; writes are owner-only)
 │   ├── me.py                GET /me (profile + studio memberships of the logged-in user)
-│   ├── deps.py              shared dependencies: current_user (verifies the Bearer token), TenantCtx (X-Tenant-Id + membership role)
+│   ├── deps.py              shared dependencies: current_user (verifies the Bearer token), TenantCtx (X-Tenant-Id + membership role), require_role (owner > coach > member)
 │   ├── config.py            settings read from the environment / .env (DATABASE_URL, JWT_SECRET)
 │   ├── db.py                async engine and the per-request session dependency
-│   ├── models.py            SQLAlchemy models: User, Tenant, Membership, RefreshToken
+│   ├── models.py            SQLAlchemy models: User, Tenant, Membership, ClassType, RefreshToken
 │   ├── security.py          password hashing (argon2), access tokens (JWT), refresh-token generation and hashing
 │   └── seed.py              creates the pilot studio (python -m app.seed)
 ├── migrations/              Alembic
@@ -25,7 +26,7 @@ api/                         FastAPI backend (Python, managed with uv)
 │   └── versions/            one file per schema change
 ├── tests/
 │   ├── conftest.py          test database, migrated_db, client, real-commit and two-studio fixtures
-│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, refresh, token_families, reuse_detection, tenant_ctx, tenant_isolation, docs
+│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, refresh, token_families, reuse_detection, tenant_ctx, tenant_isolation, class_types, docs
 ├── alembic.ini
 ├── pyproject.toml           dependencies and tool settings
 └── .env.example             template for api/.env
