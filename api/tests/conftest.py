@@ -1,5 +1,7 @@
 import asyncio
+import uuid
 from collections.abc import AsyncIterator, Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -14,6 +16,8 @@ from sqlalchemy.pool import NullPool
 from app.config import get_settings
 from app.db import get_engine, get_session
 from app.main import app
+from app.models import Membership, Tenant, User
+from app.security import create_access_token
 from app.seed import seed
 
 TEST_DB_NAME = "studio_test"
@@ -151,3 +155,73 @@ def wait_for_lock_wait():
         raise AssertionError("nothing ever started waiting on a lock")
 
     return wait
+
+
+# --- tenant isolation harness: see tests/test_tenant_isolation.py ---
+
+
+@dataclass
+class Studio:
+    id: uuid.UUID
+    users: dict[str, User]  # role -> a user who holds exactly that role in this studio
+
+
+@dataclass
+class TwoTenants:
+    a: Studio
+    b: Studio
+
+    def headers(self, user: User, tenant_id: uuid.UUID) -> dict[str, str]:
+        """Request headers for `user` acting in `tenant_id` (their own studio or someone else's)."""
+        return {
+            "Authorization": f"Bearer {create_access_token(user.id)}",
+            "X-Tenant-Id": str(tenant_id),
+        }
+
+
+@pytest.fixture
+async def two_tenants(db_session: AsyncSession) -> TwoTenants:
+    """Two studios, each with its own owner, coach and member. Later steps add data to both and
+    assert that one studio never sees the other's."""
+    studios = []
+    for slug in ("studio-a", "studio-b"):
+        tenant = Tenant(name=slug, slug=slug, timezone="UTC")
+        users = {
+            role: User(email=f"{role}@{slug}.example.com", name=f"{role} of {slug}")
+            for role in ("owner", "coach", "member")
+        }
+        db_session.add(tenant)
+        db_session.add_all(users.values())
+        await db_session.flush()
+        db_session.add_all(
+            Membership(tenant_id=tenant.id, user_id=user.id, role=role)
+            for role, user in users.items()
+        )
+        studios.append(Studio(id=tenant.id, users=users))
+    await db_session.flush()
+    return TwoTenants(a=studios[0], b=studios[1])
+
+
+@pytest.fixture
+def assert_tenant_isolation(two_tenants: TwoTenants):
+    """Returns `check(send)`; `send(headers)` performs one request against the endpoint under test.
+
+    Every user of each studio, owners included, must get 403 `not_a_member` when naming the other
+    studio. Each user must also get through to their own studio: without that control the check
+    would pass for an endpoint that simply refuses everybody.
+    """
+
+    async def check(send) -> None:
+        for mine, theirs in ((two_tenants.a, two_tenants.b), (two_tenants.b, two_tenants.a)):
+            for role, user in mine.users.items():
+                own = await send(two_tenants.headers(user, mine.id))
+                assert own.status_code not in (401, 403), (
+                    f"a {role} was refused in their own studio ({own.status_code}): "
+                    "the endpoint is broken, so the isolation result would mean nothing"
+                )
+                foreign = await send(two_tenants.headers(user, theirs.id))
+                assert foreign.status_code == 403 and foreign.json() == {
+                    "detail": "not_a_member"
+                }, f"a {role} of one studio got {foreign.status_code} when naming another studio"
+
+    return check
