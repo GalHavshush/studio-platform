@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Annotated
 
@@ -92,3 +93,24 @@ async def tenant_ctx(
 
 # Tenant-scoped endpoints write `ctx: TenantCtx`; every query in them must filter by ctx.tenant_id.
 TenantCtx = Annotated[TenantContext, Depends(tenant_ctx)]
+
+
+# Roles are cumulative: an owner can do everything a coach can, and a coach everything a member can.
+ROLE_RANK = {"member": 0, "coach": 1, "owner": 2}
+
+
+def require_role(min_role: str) -> Callable[[TenantContext], Awaitable[TenantContext]]:
+    """Build a dependency that passes when the user's role in the studio is `min_role` or higher.
+
+    Authentication (token) and tenancy (membership) are already settled by TenantCtx; this adds
+    authorization: what that role may do. Too low a role gives 403 `insufficient_role`. A role
+    missing from ROLE_RANK ranks below everyone, so an unknown role is refused, never let through.
+    """
+    needed = ROLE_RANK[min_role]  # a typo in min_role fails when the app loads, not per request
+
+    async def dependency(ctx: TenantCtx) -> TenantContext:
+        if ROLE_RANK.get(ctx.role, -1) < needed:
+            raise HTTPException(status_code=403, detail="insufficient_role")
+        return ctx
+
+    return dependency

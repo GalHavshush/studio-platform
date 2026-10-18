@@ -14,32 +14,55 @@ To register an endpoint: add `("METHOD", "/path"): sender` below, where
 `async def sender(client, headers)` sends one request to it with those headers.
 """
 
+import uuid
 from typing import Annotated
 
 import pytest
 from fastapi import FastAPI
-from fastapi.routing import APIRoute
 from httpx import ASGITransport, AsyncClient
 
-from app.deps import CurrentUser, TenantCtx, tenant_ctx
+from app.deps import CurrentUser, TenantCtx
 from app.main import app
 
-TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {}
+
+async def _list_class_types(client, headers):
+    return await client.get("/class-types", headers=headers)
 
 
-def uses_tenant_ctx(dependant) -> bool:
-    return any(d.call is tenant_ctx or uses_tenant_ctx(d) for d in dependant.dependencies)
+async def _create_class_type(client, headers):
+    return await client.post("/class-types", json={"name": "BJJ"}, headers=headers)
+
+
+async def _rename_class_type(client, headers):
+    # A random id is enough here: this checks who is let in, not what the route does.
+    return await client.put(f"/class-types/{uuid.uuid4()}", json={"name": "BJJ"}, headers=headers)
+
+
+TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
+    ("GET", "/class-types"): _list_class_types,
+    ("POST", "/class-types"): _create_class_type,
+    ("PUT", "/class-types/{class_type_id}"): _rename_class_type,
+}
 
 
 def tenant_scoped_routes(application: FastAPI) -> set[tuple[str, str]]:
-    """Every (METHOD, path) whose handler depends on TenantCtx, directly or through another
-    dependency."""
-    return {
-        (method, route.path)
-        for route in application.routes
-        if isinstance(route, APIRoute) and uses_tenant_ctx(route.dependant)
-        for method in route.methods
-    }
+    """Every (METHOD, path) that takes the `X-Tenant-Id` header, which is exactly the routes that
+    depend on TenantCtx, however deeply nested or included from a router.
+
+    Read from the OpenAPI schema, a public and stable view, rather than from FastAPI's route
+    objects: this FastAPI wraps included routers in private objects, and an earlier version of
+    this scan that walked the routes silently found nothing.
+    ponytail: a route with include_in_schema=False is invisible to this scan.
+    """
+    found = set()
+    for path, operations in application.openapi()["paths"].items():
+        for method, operation in operations.items():
+            if any(
+                p["in"] == "header" and p["name"].lower() == "x-tenant-id"
+                for p in operation.get("parameters", [])
+            ):
+                found.add((method.upper(), path))
+    return found
 
 
 async def test_every_registered_endpoint_is_isolated(client, assert_tenant_isolation):
@@ -122,3 +145,17 @@ def test_the_scanner_finds_direct_and_indirect_tenant_ctx_routes_and_ignores_oth
     async def open_route(): ...
 
     assert tenant_scoped_routes(scanned) == {("GET", "/direct"), ("GET", "/indirect")}
+
+
+def test_the_scanner_sees_routes_added_through_an_included_router():
+    from fastapi import APIRouter
+
+    router = APIRouter(prefix="/things")
+
+    @router.get("/{thing_id}")
+    async def thing(thing_id: int, ctx: TenantCtx): ...
+
+    scanned = FastAPI()
+    scanned.include_router(router)
+
+    assert tenant_scoped_routes(scanned) == {("GET", "/things/{thing_id}")}
