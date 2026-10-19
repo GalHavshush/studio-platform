@@ -59,3 +59,38 @@ def test_family_backfill_keeps_a_rotation_chain_together(alembic_cfg, test_db_ur
 
     assert families[ids["A"]] == families[ids["B"]] == families[ids["C"]]
     assert families[ids["D"]] != families[ids["A"]]
+
+
+def test_participants_backfill_covers_existing_memberships(alembic_cfg, test_db_url):
+    async def run(work):
+        engine = create_async_engine(test_db_url, poolclass=NullPool)
+        async with engine.begin() as conn:
+            result = await work(conn)
+        await engine.dispose()
+        return result
+
+    async def insert_member(conn):
+        await conn.execute(text("INSERT INTO users (email, name) VALUES ('m@example.com', 'Mia')"))
+        await conn.execute(
+            text("INSERT INTO tenants (name, slug, timezone) VALUES ('S', 's', 'UTC')")
+        )
+        await conn.execute(
+            text(
+                "INSERT INTO memberships (tenant_id, user_id, role)"
+                " SELECT t.id, u.id, 'member' FROM tenants t, users u"
+            )
+        )
+
+    async def read_participants(conn):
+        return (await conn.execute(text("SELECT name FROM participants"))).scalars().all()
+
+    try:
+        command.downgrade(alembic_cfg, "base")
+        command.upgrade(alembic_cfg, "d04a2ab4f83a")  # the revision just before participants
+        asyncio.run(run(insert_member))
+        command.upgrade(alembic_cfg, "head")
+        names = asyncio.run(run(read_participants))
+    finally:
+        command.downgrade(alembic_cfg, "base")
+
+    assert names == ["Mia"]
