@@ -108,7 +108,13 @@ class ClassSession(Base):
     # UTC instants (timestamptz); the studio's timezone is only for display.
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # "scheduled" or "cancelled". A cancelled session stays: reports, notes and the schedule keep
+    # pointing at it. There is no way back to "scheduled".
+    status: Mapped[str] = mapped_column(server_default="scheduled")
+    # What the class is about, written by the coach ahead of time.
+    preview: Mapped[str | None]
     __table_args__ = (
+        CheckConstraint("status IN ('scheduled', 'cancelled')", name="ck_class_sessions_status"),
         # Backstop for the API's check: no code path can store a session that ends before it starts.
         CheckConstraint("ends_at > starts_at", name="ck_class_sessions_ends_after_start"),
         # For the schedule query: one studio's sessions in a time window, already in order.

@@ -336,6 +336,8 @@ async def test_every_member_gets_one_session_by_id(client, two_tenants, db_sessi
         "coach_id": str(a.users["coach"]),
         "starts_at": "2026-10-20T15:00:00Z",
         "ends_at": "2026-10-20T16:00:00Z",
+        "status": "scheduled",
+        "preview": None,
     }
 
 
@@ -392,3 +394,253 @@ async def test_archiving_leaves_existing_sessions_readable_and_unarchiving_allow
     assert still_there.json()["class_type_id"] == str(ct)
     assert blocked.status_code == 422
     assert allowed.status_code == 201
+
+
+# --- updating: owner any, coach own, members never ---
+
+
+async def patch(client, two_tenants, studio, role, session_id, payload):
+    return await client.patch(
+        f"/sessions/{session_id}",
+        json=payload,
+        headers=two_tenants.headers(studio.users[role], studio.id),
+    )
+
+
+async def cancel(client, two_tenants, studio, role, session_id):
+    return await client.post(
+        f"/sessions/{session_id}/cancel", headers=two_tenants.headers(studio.users[role], studio.id)
+    )
+
+
+async def a_session(db_session, studio, coach_role="coach"):
+    ct = await add_class_type(db_session, studio)
+    return await add_session(
+        db_session, studio, ct, "2026-10-20T15:00:00+00:00", coach_role=coach_role
+    )
+
+
+@pytest.mark.parametrize("role", ["owner", "coach"])
+async def test_the_owner_and_the_sessions_coach_can_edit_the_preview(
+    client, two_tenants, db_session, role
+):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)  # taught by a's coach
+
+    response = await patch(client, two_tenants, a, role, sid, {"preview": "  Guard passing  "})
+
+    assert response.status_code == 200
+    assert response.json()["preview"] == "Guard passing"  # trimmed
+
+
+async def test_a_coach_cannot_edit_another_coachs_session(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a, coach_role="owner")  # the owner teaches it
+
+    response = await patch(client, two_tenants, a, "coach", sid, {"preview": "Mine now"})
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "not_your_session"}
+    assert (
+        await client.get(f"/sessions/{sid}", headers=two_tenants.headers(a.users["owner"], a.id))
+    ).json()["preview"] is None
+
+
+async def test_members_cannot_edit_or_cancel(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+
+    edited = await patch(client, two_tenants, a, "member", sid, {"preview": "x"})
+    cancelled = await cancel(client, two_tenants, a, "member", sid)
+
+    for response in (edited, cancelled):
+        assert response.status_code == 403
+        assert response.json() == {"detail": "insufficient_role"}
+
+
+async def test_only_the_sent_fields_change_and_null_clears_the_preview(
+    client, two_tenants, db_session
+):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    await patch(client, two_tenants, a, "owner", sid, {"preview": "Drills"})
+
+    moved = await patch(
+        client, two_tenants, a, "owner", sid, {"starts_at": "2026-10-20T18:30:00+03:00"}
+    )
+    cleared = await patch(client, two_tenants, a, "owner", sid, {"preview": None})
+    untouched = await patch(client, two_tenants, a, "owner", sid, {})
+
+    assert moved.json()["starts_at"] == "2026-10-20T15:30:00Z"  # stored in UTC
+    assert moved.json()["ends_at"] == "2026-10-20T16:00:00Z"  # not sent, unchanged
+    assert moved.json()["preview"] == "Drills"
+    assert cleared.json()["preview"] is None
+    assert untouched.status_code == 200
+    assert untouched.json() == cleared.json()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"ends_at": "2026-10-20T14:00:00+00:00"},  # before the stored start (15:00Z)
+        {"starts_at": "2026-10-20T17:00:00+00:00"},  # after the stored end (16:00Z)
+        {"starts_at": "2026-10-20T16:00:00+00:00"},  # equal to the stored end
+    ],
+)
+async def test_the_resulting_times_must_still_be_in_order(client, two_tenants, db_session, payload):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+
+    response = await patch(client, two_tenants, a, "owner", sid, payload)
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "invalid_times"}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"starts_at": "2026-10-20T18:00:00"},  # naive
+        {"starts_at": None},
+        {"ends_at": None},
+        {"coach_id": None},
+        {"preview": "x" * 2001},
+    ],
+)
+async def test_invalid_fields_are_rejected(client, two_tenants, db_session, payload):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+
+    response = await patch(client, two_tenants, a, "owner", sid, payload)
+
+    assert response.status_code == 422
+
+
+async def test_only_the_owner_can_change_the_coach(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+
+    by_coach = await patch(
+        client, two_tenants, a, "coach", sid, {"coach_id": str(a.users["owner"])}
+    )
+    by_owner = await patch(
+        client, two_tenants, a, "owner", sid, {"coach_id": str(a.users["owner"])}
+    )
+
+    assert by_coach.status_code == 403
+    assert by_coach.json() == {"detail": "insufficient_role"}
+    assert by_owner.status_code == 200
+    assert by_owner.json()["coach_id"] == str(a.users["owner"])
+
+
+@pytest.mark.parametrize("who", ["member", "other_studio", "nobody"])
+async def test_the_new_coach_must_be_staff_of_this_studio(client, two_tenants, db_session, who):
+    a, b = two_tenants.a, two_tenants.b
+    sid = await a_session(db_session, a)
+    new_coach = {
+        "member": a.users["member"],
+        "other_studio": b.users["coach"],
+        "nobody": uuid.uuid4(),
+    }[who]
+
+    response = await patch(client, two_tenants, a, "owner", sid, {"coach_id": str(new_coach)})
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "invalid_coach"}
+
+
+# --- cancelling ---
+
+
+@pytest.mark.parametrize("role", ["owner", "coach"])
+async def test_the_owner_and_the_sessions_coach_can_cancel_and_it_stays_listed(
+    client, two_tenants, db_session, role
+):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+
+    response = await cancel(client, two_tenants, a, role, sid)
+    listed = await listing(
+        client,
+        two_tenants,
+        a,
+        "member",
+        **{"from": "2026-10-20T00:00:00+00:00", "to": "2026-10-21T00:00:00+00:00"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "cancelled"
+    assert [(x["id"], x["status"]) for x in listed.json()] == [(str(sid), "cancelled")]
+
+
+async def test_a_coach_cannot_cancel_another_coachs_session(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a, coach_role="owner")
+
+    response = await cancel(client, two_tenants, a, "coach", sid)
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "not_your_session"}
+    still = await client.get(
+        f"/sessions/{sid}", headers=two_tenants.headers(a.users["owner"], a.id)
+    )
+    assert still.json()["status"] == "scheduled"
+
+
+async def test_cancelling_twice_is_fine(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+
+    first = await cancel(client, two_tenants, a, "owner", sid)
+    second = await cancel(client, two_tenants, a, "owner", sid)
+
+    assert first.status_code == second.status_code == 200
+    assert second.json() == first.json()
+
+
+async def test_a_cancelled_session_cannot_be_edited(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    await cancel(client, two_tenants, a, "owner", sid)
+
+    response = await patch(client, two_tenants, a, "owner", sid, {"preview": "Too late"})
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "session_cancelled"}
+
+
+async def test_the_database_only_accepts_known_statuses(db_session, two_tenants):
+    from sqlalchemy.exc import IntegrityError
+
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+
+    with pytest.raises(IntegrityError):
+        await db_session.execute(
+            text("UPDATE class_sessions SET status = 'postponed' WHERE id = :id"), {"id": sid}
+        )
+
+
+# --- other studios' sessions ---
+
+
+async def test_another_studios_session_cannot_be_edited_or_cancelled(
+    client, two_tenants, db_session
+):
+    a, b = two_tenants.a, two_tenants.b
+    theirs = await a_session(db_session, b)
+
+    edit = await patch(client, two_tenants, a, "owner", theirs, {"preview": "Hacked"})
+    edit_missing = await patch(client, two_tenants, a, "owner", uuid.uuid4(), {"preview": "Hacked"})
+    cancelled = await cancel(client, two_tenants, a, "owner", theirs)
+    cancelled_missing = await cancel(client, two_tenants, a, "owner", uuid.uuid4())
+
+    assert edit.status_code == edit_missing.status_code == 404
+    assert cancelled.status_code == cancelled_missing.status_code == 404
+    assert edit.text == edit_missing.text == cancelled.text == cancelled_missing.text
+    assert edit.json() == {"detail": "session_not_found"}
+    mine = await client.get(
+        f"/sessions/{theirs}", headers=two_tenants.headers(b.users["owner"], b.id)
+    )
+    assert mine.json()["status"] == "scheduled"
+    assert mine.json()["preview"] is None
