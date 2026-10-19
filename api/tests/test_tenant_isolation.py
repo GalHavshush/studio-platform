@@ -46,6 +46,14 @@ async def _unarchive_class_type(client, headers):
     return await client.post(f"/class-types/{uuid.uuid4()}/unarchive", headers=headers)
 
 
+async def _update_session(client, headers):
+    return await client.patch(f"/sessions/{uuid.uuid4()}", json={"preview": "x"}, headers=headers)
+
+
+async def _cancel_session(client, headers):
+    return await client.post(f"/sessions/{uuid.uuid4()}/cancel", headers=headers)
+
+
 async def _create_session(client, headers):
     # Random ids: this checks who is let in, not what the route does with the body.
     body = {
@@ -74,6 +82,8 @@ TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
     ("POST", "/sessions"): _create_session,
     ("GET", "/sessions"): _list_sessions,
     ("GET", "/sessions/{session_id}"): _get_session,
+    ("PATCH", "/sessions/{session_id}"): _update_session,
+    ("POST", "/sessions/{session_id}/cancel"): _cancel_session,
 }
 
 
