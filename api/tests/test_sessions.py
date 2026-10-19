@@ -199,3 +199,156 @@ async def test_the_studio_comes_from_the_header_not_the_body(client, two_tenants
         select(ClassSession).where(ClassSession.id == uuid.UUID(response.json()["id"]))
     )
     assert row.tenant_id == a.id
+
+
+# --- reading: any member, one studio, a time window ---
+
+
+async def add_session(db_session, studio, class_type_id, starts_at, coach_role="coach"):
+    from datetime import datetime, timedelta
+
+    start = datetime.fromisoformat(starts_at)
+    row = ClassSession(
+        tenant_id=studio.id,
+        class_type_id=class_type_id,
+        coach_id=studio.users[coach_role],
+        starts_at=start,
+        ends_at=start + timedelta(hours=1),
+    )
+    db_session.add(row)
+    await db_session.flush()
+    return row.id
+
+
+async def listing(client, two_tenants, studio, role, **params):
+    return await client.get(
+        "/sessions", params=params, headers=two_tenants.headers(studio.users[role], studio.id)
+    )
+
+
+@pytest.mark.parametrize("role", ["owner", "coach", "member"])
+async def test_every_member_lists_only_their_studios_sessions_in_time_order(
+    client, two_tenants, db_session, role
+):
+    a, b = two_tenants.a, two_tenants.b
+    ct_a, ct_b = await add_class_type(db_session, a), await add_class_type(db_session, b)
+    late = await add_session(db_session, a, ct_a, "2026-10-21T18:00:00+00:00")
+    early = await add_session(db_session, a, ct_a, "2026-10-20T07:00:00+00:00")
+    await add_session(db_session, b, ct_b, "2026-10-20T09:00:00+00:00")  # the other studio's
+
+    response = await listing(
+        client,
+        two_tenants,
+        a,
+        role,
+        **{"from": "2026-10-20T00:00:00+00:00", "to": "2026-10-22T00:00:00+00:00"},
+    )
+
+    assert response.status_code == 200
+    assert [s["id"] for s in response.json()] == [str(early), str(late)]
+
+
+async def test_the_range_includes_from_and_excludes_to(client, two_tenants, db_session):
+    a = two_tenants.a
+    ct = await add_class_type(db_session, a)
+    await add_session(db_session, a, ct, "2026-10-19T23:59:59+00:00")  # just before
+    at_from = await add_session(db_session, a, ct, "2026-10-20T00:00:00+00:00")
+    last = await add_session(db_session, a, ct, "2026-10-20T23:59:59+00:00")
+    await add_session(db_session, a, ct, "2026-10-21T00:00:00+00:00")  # exactly `to`
+
+    response = await listing(
+        client,
+        two_tenants,
+        a,
+        "member",
+        **{"from": "2026-10-20T00:00:00+00:00", "to": "2026-10-21T00:00:00+00:00"},
+    )
+
+    assert [s["id"] for s in response.json()] == [str(at_from), str(last)]
+
+
+async def test_the_range_is_compared_as_instants_not_wall_clock(client, two_tenants, db_session):
+    a = two_tenants.a
+    ct = await add_class_type(db_session, a)
+    inside = await add_session(db_session, a, ct, "2026-10-20T15:00:00+00:00")
+
+    # The same instant as 18:00 in UTC+3, so a window ending at 18:30+03:00 contains it.
+    response = await listing(
+        client,
+        two_tenants,
+        a,
+        "member",
+        **{"from": "2026-10-20T17:00:00+03:00", "to": "2026-10-20T18:30:00+03:00"},
+    )
+
+    assert [s["id"] for s in response.json()] == [str(inside)]
+
+
+@pytest.mark.parametrize(
+    ("params", "code"),
+    [
+        ({"from": "2026-10-20T00:00:00+00:00"}, None),  # `to` missing
+        ({"to": "2026-10-20T00:00:00+00:00"}, None),  # `from` missing
+        ({"from": "2026-10-20T00:00:00", "to": "2026-10-21T00:00:00+00:00"}, None),  # naive
+        ({"from": "2026-10-21T00:00:00+00:00", "to": "2026-10-20T00:00:00+00:00"}, "invalid_range"),
+        ({"from": "2026-10-20T00:00:00+00:00", "to": "2026-10-20T00:00:00+00:00"}, "invalid_range"),
+        (
+            {"from": "2026-10-01T00:00:00+00:00", "to": "2026-12-05T00:00:00+00:00"},
+            "range_too_long",
+        ),
+    ],
+)
+async def test_invalid_ranges_are_rejected(client, two_tenants, params, code):
+    response = await listing(client, two_tenants, two_tenants.a, "member", **params)
+
+    assert response.status_code == 422
+    if code:
+        assert response.json() == {"detail": code}
+
+
+async def test_the_longest_allowed_range_works(client, two_tenants):
+    response = await listing(
+        client,
+        two_tenants,
+        two_tenants.a,
+        "member",
+        **{"from": "2026-10-01T00:00:00+00:00", "to": "2026-12-02T00:00:00+00:00"},  # 62 days
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.mark.parametrize("role", ["owner", "coach", "member"])
+async def test_every_member_gets_one_session_by_id(client, two_tenants, db_session, role):
+    a = two_tenants.a
+    ct = await add_class_type(db_session, a)
+    session_id = await add_session(db_session, a, ct, "2026-10-20T15:00:00+00:00")
+
+    response = await client.get(
+        f"/sessions/{session_id}", headers=two_tenants.headers(a.users[role], a.id)
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "id": str(session_id),
+        "class_type_id": str(ct),
+        "coach_id": str(a.users["coach"]),
+        "starts_at": "2026-10-20T15:00:00Z",
+        "ends_at": "2026-10-20T16:00:00Z",
+    }
+
+
+async def test_another_studios_session_is_not_found(client, two_tenants, db_session):
+    a, b = two_tenants.a, two_tenants.b
+    theirs = await add_session(
+        db_session, b, await add_class_type(db_session, b), "2026-10-20T15:00:00+00:00"
+    )
+    headers = two_tenants.headers(a.users["owner"], a.id)
+
+    foreign = await client.get(f"/sessions/{theirs}", headers=headers)
+    nonexistent = await client.get(f"/sessions/{uuid.uuid4()}", headers=headers)
+
+    assert foreign.status_code == nonexistent.status_code == 404
+    assert foreign.text == nonexistent.text  # ids cannot be probed
+    assert foreign.json() == {"detail": "session_not_found"}

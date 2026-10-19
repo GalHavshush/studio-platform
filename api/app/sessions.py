@@ -1,17 +1,20 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import AwareDatetime, BaseModel, ConfigDict, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.deps import TenantContext, require_role
+from app.deps import TenantContext, TenantCtx, require_role
 from app.models import ClassSession, ClassType, Membership
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
+
+# So a schedule query cannot pull the whole table. ponytail: fixed cap; add pagination if a studio needs more.
+MAX_RANGE = timedelta(days=62)
 
 # Coaches and owners create sessions (owners can do everything coaches can).
 CoachCtx = Annotated[TenantContext, Depends(require_role("coach"))]
@@ -86,3 +89,52 @@ async def create_session(
     created = SessionOut.model_validate(row)  # read before commit, which expires `row`
     await session.commit()
     return created
+
+
+@router.get("")
+async def list_sessions(
+    ctx: TenantCtx,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    # `from` is a Python keyword, so the parameter is named from_ and exposed as ?from=.
+    from_: Annotated[AwareDatetime, Query(alias="from")],
+    to: AwareDatetime,
+) -> list[SessionOut]:
+    """The studio's sessions that start in `[from, to)`, earliest first. Any member.
+
+    Both times need an offset. `from` is included and `to` is not, so back-to-back ranges neither
+    overlap nor miss a session. Invalid ranges get `422 invalid_range` (`to` not after `from`) or
+    `422 range_too_long` (over 62 days).
+    """
+    if to <= from_:
+        raise HTTPException(status_code=422, detail="invalid_range")
+    if to - from_ > MAX_RANGE:
+        raise HTTPException(status_code=422, detail="range_too_long")
+    rows = await session.scalars(
+        select(ClassSession)
+        .where(
+            ClassSession.tenant_id == ctx.tenant_id,
+            ClassSession.starts_at >= from_,
+            ClassSession.starts_at < to,
+        )
+        .order_by(ClassSession.starts_at, ClassSession.id)  # id: a stable order for equal times
+    )
+    return [SessionOut.model_validate(row) for row in rows]
+
+
+@router.get("/{session_id}")
+async def get_session_by_id(
+    session_id: uuid.UUID, ctx: TenantCtx, session: Annotated[AsyncSession, Depends(get_session)]
+) -> SessionOut:
+    """One session of this studio. Any member.
+
+    A session of another studio gets the same `404 session_not_found` as one that does not exist,
+    so ids cannot be probed.
+    """
+    row = await session.scalar(
+        select(ClassSession).where(
+            ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id
+        )
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    return SessionOut.model_validate(row)
