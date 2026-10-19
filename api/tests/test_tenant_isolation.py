@@ -60,6 +60,12 @@ async def _rsvp(client, headers):
     )
 
 
+async def _attendance(client, headers):
+    return await client.post(
+        f"/sessions/{uuid.uuid4()}/attendance", json={"attended": True}, headers=headers
+    )
+
+
 async def _create_session(client, headers):
     # Random ids: this checks who is let in, not what the route does with the body.
     body = {
@@ -91,6 +97,7 @@ TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
     ("PATCH", "/sessions/{session_id}"): _update_session,
     ("POST", "/sessions/{session_id}/cancel"): _cancel_session,
     ("PUT", "/sessions/{session_id}/rsvp"): _rsvp,
+    ("POST", "/sessions/{session_id}/attendance"): _attendance,
 }
 
 
