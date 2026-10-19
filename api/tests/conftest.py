@@ -16,7 +16,7 @@ from sqlalchemy.pool import NullPool
 from app.config import get_settings
 from app.db import get_engine, get_session
 from app.main import app
-from app.models import Membership, Tenant, User
+from app.models import Membership, Participant, Tenant, User
 from app.security import create_access_token
 from app.seed import seed
 
@@ -198,6 +198,11 @@ async def two_tenants(db_session: AsyncSession) -> TwoTenants:
         db_session.add_all(
             Membership(tenant_id=tenant.id, user_id=user.id, role=role)
             for role, user in users.items()
+        )
+        # Every membership has a participant, as the seed and the migration guarantee.
+        db_session.add_all(
+            Participant(tenant_id=tenant.id, user_id=user.id, name=user.name)
+            for user in users.values()
         )
         studios.append(Studio(id=tenant.id, users={role: user.id for role, user in users.items()}))
     await db_session.flush()

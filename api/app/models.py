@@ -122,6 +122,26 @@ class ClassSession(Base):
     )
 
 
+class Rsvp(Base):
+    """A participant's plan for a session: going, not going or maybe. Only an intention before the
+    class; whether they actually came is recorded separately (step 21). One row per participant and
+    session, enforced by the composite primary key.
+    ponytail: the session and the participant are not checked to be in the same studio here; the
+    endpoint derives both from the caller's studio."""
+
+    __tablename__ = "rsvps"
+    __table_args__ = (
+        # waitlist joins this list in step 25.
+        CheckConstraint("status IN ('going', 'not_going', 'maybe')", name="ck_rsvps_status"),
+    )
+
+    session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("class_sessions.id"), primary_key=True)
+    participant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("participants.id"), primary_key=True
+    )
+    status: Mapped[str]
+
+
 class RefreshToken(Base):
     """A long-lived login credential. Only its SHA-256 hash is stored, never the token itself."""
 
