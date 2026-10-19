@@ -48,11 +48,22 @@ async def _create_session(client, headers):
     return await client.post("/sessions", json=body, headers=headers)
 
 
+async def _list_sessions(client, headers):
+    params = {"from": "2026-10-01T00:00:00+00:00", "to": "2026-10-08T00:00:00+00:00"}
+    return await client.get("/sessions", params=params, headers=headers)
+
+
+async def _get_session(client, headers):
+    return await client.get(f"/sessions/{uuid.uuid4()}", headers=headers)
+
+
 TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
     ("GET", "/class-types"): _list_class_types,
     ("POST", "/class-types"): _create_class_type,
     ("PUT", "/class-types/{class_type_id}"): _rename_class_type,
     ("POST", "/sessions"): _create_session,
+    ("GET", "/sessions"): _list_sessions,
+    ("GET", "/sessions/{session_id}"): _get_session,
 }
 
 

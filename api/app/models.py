@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -96,8 +96,8 @@ class ClassSession(Base):
     __tablename__ = "class_sessions"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
-    # Indexed: every read is "the sessions of this studio". Step 19 adds a time index when it lists by date range.
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
+    # Not indexed on its own: the (tenant_id, starts_at) index below also serves "this studio's sessions".
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"))
     class_type_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("class_types.id"))
     # A user, not a membership: the API checks they are staff of this studio when it writes this.
     # ponytail: removing the coach's membership later leaves their past sessions pointing at them.
@@ -105,9 +105,11 @@ class ClassSession(Base):
     # UTC instants (timestamptz); the studio's timezone is only for display.
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    # Backstop for the API's check: no code path can store a session that ends before it starts.
     __table_args__ = (
+        # Backstop for the API's check: no code path can store a session that ends before it starts.
         CheckConstraint("ends_at > starts_at", name="ck_class_sessions_ends_after_start"),
+        # For the schedule query: one studio's sessions in a time window, already in order.
+        Index("ix_class_sessions_tenant_id_starts_at", "tenant_id", "starts_at"),
     )
 
 
