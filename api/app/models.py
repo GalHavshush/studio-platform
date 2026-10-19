@@ -90,6 +90,27 @@ class Participant(Base):
     name: Mapped[str]
 
 
+class ClassSession(Base):
+    """One occurrence of a class type: that class, at a given time, taught by a given coach."""
+
+    __tablename__ = "class_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
+    # Indexed: every read is "the sessions of this studio". Step 19 adds a time index when it lists by date range.
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
+    class_type_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("class_types.id"))
+    # A user, not a membership: the API checks they are staff of this studio when it writes this.
+    # ponytail: removing the coach's membership later leaves their past sessions pointing at them.
+    coach_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    # UTC instants (timestamptz); the studio's timezone is only for display.
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Backstop for the API's check: no code path can store a session that ends before it starts.
+    __table_args__ = (
+        CheckConstraint("ends_at > starts_at", name="ck_class_sessions_ends_after_start"),
+    )
+
+
 class RefreshToken(Base):
     """A long-lived login credential. Only its SHA-256 hash is stored, never the token itself."""
 
