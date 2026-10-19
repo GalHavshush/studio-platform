@@ -38,6 +38,14 @@ async def _rename_class_type(client, headers):
     return await client.put(f"/class-types/{uuid.uuid4()}", json={"name": "BJJ"}, headers=headers)
 
 
+async def _archive_class_type(client, headers):
+    return await client.post(f"/class-types/{uuid.uuid4()}/archive", headers=headers)
+
+
+async def _unarchive_class_type(client, headers):
+    return await client.post(f"/class-types/{uuid.uuid4()}/unarchive", headers=headers)
+
+
 async def _create_session(client, headers):
     # Random ids: this checks who is let in, not what the route does with the body.
     body = {
@@ -61,6 +69,8 @@ TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
     ("GET", "/class-types"): _list_class_types,
     ("POST", "/class-types"): _create_class_type,
     ("PUT", "/class-types/{class_type_id}"): _rename_class_type,
+    ("POST", "/class-types/{class_type_id}/archive"): _archive_class_type,
+    ("POST", "/class-types/{class_type_id}/unarchive"): _unarchive_class_type,
     ("POST", "/sessions"): _create_session,
     ("GET", "/sessions"): _list_sessions,
     ("GET", "/sessions/{session_id}"): _get_session,

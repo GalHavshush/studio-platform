@@ -352,3 +352,43 @@ async def test_another_studios_session_is_not_found(client, two_tenants, db_sess
     assert foreign.status_code == nonexistent.status_code == 404
     assert foreign.text == nonexistent.text  # ids cannot be probed
     assert foreign.json() == {"detail": "session_not_found"}
+
+
+# --- archived class types ---
+
+
+async def test_a_session_cannot_use_an_archived_class_type(client, two_tenants, db_session):
+    from datetime import UTC, datetime
+
+    a = two_tenants.a
+    ct = await add_class_type(db_session, a)
+    await db_session.execute(
+        text("UPDATE class_types SET archived_at = :now WHERE id = :id"),
+        {"now": datetime.now(UTC), "id": ct},
+    )
+
+    response = await post(client, two_tenants, a, "owner", body(ct))
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "class_type_archived"}
+    assert await count(db_session) == 0
+
+
+async def test_archiving_leaves_existing_sessions_readable_and_unarchiving_allows_new_ones(
+    client, two_tenants, db_session
+):
+    a = two_tenants.a
+    ct = await add_class_type(db_session, a)
+    existing = await add_session(db_session, a, ct, "2026-10-20T15:00:00+00:00")
+    owner = two_tenants.headers(a.users["owner"], a.id)
+
+    await client.post(f"/class-types/{ct}/archive", headers=owner)
+    still_there = await client.get(f"/sessions/{existing}", headers=owner)
+    blocked = await post(client, two_tenants, a, "owner", body(ct))
+    await client.post(f"/class-types/{ct}/unarchive", headers=owner)
+    allowed = await post(client, two_tenants, a, "owner", body(ct))
+
+    assert still_there.status_code == 200
+    assert still_there.json()["class_type_id"] == str(ct)
+    assert blocked.status_code == 422
+    assert allowed.status_code == 201

@@ -53,19 +53,24 @@ async def create_session(
 
     A coach can only create their own sessions (`403 not_your_session` if they name someone
     else); an owner can name any coach or owner of the studio (`422 invalid_coach` otherwise).
-    Times are stored in UTC. A class type of another studio gets `404 class_type_not_found`.
+    Times are stored in UTC. A class type of another studio gets `404 class_type_not_found`; an
+    archived one gets `422 class_type_archived`.
     """
     coach_id = body.coach_id or ctx.user.id
     if ctx.role == "coach" and coach_id != ctx.user.id:
         raise HTTPException(status_code=403, detail="not_your_session")
 
-    class_type = await session.scalar(
-        select(ClassType.id).where(
-            ClassType.id == body.class_type_id, ClassType.tenant_id == ctx.tenant_id
+    class_type = (
+        await session.execute(
+            select(ClassType.archived_at).where(
+                ClassType.id == body.class_type_id, ClassType.tenant_id == ctx.tenant_id
+            )
         )
-    )
+    ).first()
     if class_type is None:
         raise HTTPException(status_code=404, detail="class_type_not_found")
+    if class_type.archived_at is not None:
+        raise HTTPException(status_code=422, detail="class_type_archived")
 
     is_staff = await session.scalar(
         select(Membership.id).where(

@@ -13,7 +13,7 @@ api/                         FastAPI backend (Python, managed with uv)
 ├── app/
 │   ├── main.py              FastAPI app, the /health endpoint, the /scalar docs page, mounts the routers
 │   ├── auth.py              POST /auth/login (access + refresh token), POST /auth/refresh, POST /auth/logout
-│   ├── class_types.py       GET/POST /class-types, PUT /class-types/{id} (a studio's class types; writes are owner-only)
+│   ├── class_types.py       GET/POST /class-types, PUT /class-types/{id}, POST /class-types/{id}/archive and /unarchive (a studio's class types; writes are owner-only; archived ones are hidden by default)
 │   ├── sessions.py          POST /sessions (create a class session: a class type at a time, taught by a coach or owner), GET /sessions?from=&to= (schedule window), GET /sessions/{id}
 │   ├── me.py                GET /me (profile + studio memberships of the logged-in user)
 │   ├── deps.py              shared dependencies: current_user (verifies the Bearer token), TenantCtx (X-Tenant-Id + membership role), require_role (owner > coach > member)
