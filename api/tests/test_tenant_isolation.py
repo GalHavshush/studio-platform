@@ -38,10 +38,21 @@ async def _rename_class_type(client, headers):
     return await client.put(f"/class-types/{uuid.uuid4()}", json={"name": "BJJ"}, headers=headers)
 
 
+async def _create_session(client, headers):
+    # Random ids: this checks who is let in, not what the route does with the body.
+    body = {
+        "class_type_id": str(uuid.uuid4()),
+        "starts_at": "2026-10-20T18:00:00+03:00",
+        "ends_at": "2026-10-20T19:00:00+03:00",
+    }
+    return await client.post("/sessions", json=body, headers=headers)
+
+
 TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
     ("GET", "/class-types"): _list_class_types,
     ("POST", "/class-types"): _create_class_type,
     ("PUT", "/class-types/{class_type_id}"): _rename_class_type,
+    ("POST", "/sessions"): _create_session,
 }
 
 
