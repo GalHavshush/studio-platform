@@ -139,7 +139,12 @@ class Rsvp(Base):
     participant_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("participants.id"), primary_key=True
     )
-    status: Mapped[str]
+    # The plan. NULL = no plan given (someone can attend without having RSVPed).
+    status: Mapped[str | None]
+    # What happened, kept apart from the plan so "said going, did not come" stays visible.
+    # NULL = not recorded yet.
+    attended: Mapped[bool | None]
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class RefreshToken(Base):
