@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_engine
-from app.models import Membership, Tenant, User
+from app.models import Membership, Participant, Tenant, User
 from app.security import hash_password
 
 PILOT_TENANT = {"name": "Pilot Studio", "slug": "pilot-studio", "timezone": "Asia/Jerusalem"}
@@ -62,6 +62,17 @@ async def seed(session: AsyncSession) -> None:
                 {"tenant_id": tenant_id, "user_id": user_ids[email], "role": role}
                 for email, _, role in PILOT_PEOPLE
             ]
+        )
+        .on_conflict_do_nothing(index_elements=["tenant_id", "user_id"])
+    )
+    # Everyone with a membership is also a participant of that studio.
+    await session.execute(
+        insert(Participant)
+        .from_select(
+            ["tenant_id", "user_id", "name"],
+            select(Membership.tenant_id, Membership.user_id, User.name)
+            .join(User, User.id == Membership.user_id)
+            .where(Membership.tenant_id == tenant_id),
         )
         .on_conflict_do_nothing(index_elements=["tenant_id", "user_id"])
     )

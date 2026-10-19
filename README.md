@@ -18,15 +18,15 @@ api/                         FastAPI backend (Python, managed with uv)
 │   ├── deps.py              shared dependencies: current_user (verifies the Bearer token), TenantCtx (X-Tenant-Id + membership role), require_role (owner > coach > member)
 │   ├── config.py            settings read from the environment / .env (DATABASE_URL, JWT_SECRET)
 │   ├── db.py                async engine and the per-request session dependency
-│   ├── models.py            SQLAlchemy models: User, Tenant, Membership, ClassType, RefreshToken
+│   ├── models.py            SQLAlchemy models: User, Tenant, Membership, ClassType, Participant, RefreshToken
 │   ├── security.py          password hashing (argon2), access tokens (JWT), refresh-token generation and hashing
-│   └── seed.py              creates the pilot studio (python -m app.seed)
+│   └── seed.py              creates the pilot studio, its people and their participants (python -m app.seed)
 ├── migrations/              Alembic
 │   ├── env.py               how Alembic connects (URL comes from app settings)
 │   └── versions/            one file per schema change
 ├── tests/
 │   ├── conftest.py          test database, migrated_db, client, real-commit and two-studio fixtures
-│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, refresh, token_families, reuse_detection, tenant_ctx, tenant_isolation, class_types, docs
+│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, refresh, token_families, reuse_detection, tenant_ctx, tenant_isolation, class_types, participants, docs
 ├── alembic.ini
 ├── pyproject.toml           dependencies and tool settings
 └── .env.example             template for api/.env

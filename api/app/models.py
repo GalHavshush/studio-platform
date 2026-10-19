@@ -70,6 +70,26 @@ class ClassType(Base):
     name: Mapped[str]
 
 
+class Participant(Base):
+    """A person as one studio knows them: the thing attendance, reports and notes attach to. A user
+    is global (one account), a participant belongs to one studio, so someone in two studios has
+    two participants. Created together with the membership (seed, migration backfill; step 50's
+    invite code must do the same)."""
+
+    __tablename__ = "participants"
+    # Also serves "the participants of this studio" (tenant_id is the leading column), so no
+    # separate tenant_id index. Postgres treats NULLs as distinct, so kids without an account
+    # (user_id NULL, step 47) are not limited to one per studio.
+    __table_args__ = (UniqueConstraint("tenant_id", "user_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    # ponytail: copied from users.name when created and not kept in sync; a studio can later
+    # rename its own participant (e.g. a nickname) without touching the global account.
+    name: Mapped[str]
+
+
 class RefreshToken(Base):
     """A long-lived login credential. Only its SHA-256 hash is stored, never the token itself."""
 
