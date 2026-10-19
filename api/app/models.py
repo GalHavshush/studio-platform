@@ -68,6 +68,9 @@ class ClassType(Base):
     # ponytail: names are not unique within a studio, so "Pilates" can be created twice. Add
     # UniqueConstraint("tenant_id", "name") plus a 409 if that ever bites.
     name: Mapped[str]
+    # NULL = active. Set when an owner archives the type; never deleted, because sessions, reports
+    # and notes reference it. Archived types are hidden by default and cannot get new sessions.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Participant(Base):

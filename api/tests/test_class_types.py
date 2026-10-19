@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from fastapi import Depends, FastAPI, HTTPException
@@ -85,7 +86,11 @@ async def test_owner_renames_a_class_type(client, two_tenants, db_session):
     )
 
     assert response.status_code == 200
-    assert response.json() == {"id": str(row_id), "name": "Brazilian Jiu-Jitsu"}
+    assert response.json() == {
+        "id": str(row_id),
+        "name": "Brazilian Jiu-Jitsu",
+        "archived_at": None,
+    }
 
 
 @pytest.mark.parametrize("body", [{"name": ""}, {"name": "   "}, {"name": "x" * 101}, {}])
@@ -191,3 +196,128 @@ async def test_a_role_the_ranking_does_not_know_is_refused_not_let_through():
 
     assert refused.value.status_code == 403
     assert refused.value.detail == "insufficient_role"
+
+
+# --- archiving: owner only, hidden by default, never deleted ---
+
+PAST = datetime(2026, 1, 1, tzinfo=UTC)
+
+
+async def archive(client, two_tenants, studio, role, class_type_id, action="archive"):
+    return await client.post(
+        f"/class-types/{class_type_id}/{action}",
+        headers=two_tenants.headers(studio.users[role], studio.id),
+    )
+
+
+async def names(client, two_tenants, studio, role="member", **params):
+    response = await client.get(
+        "/class-types", params=params, headers=two_tenants.headers(studio.users[role], studio.id)
+    )
+    return [c["name"] for c in response.json()]
+
+
+@pytest.mark.parametrize("action", ["archive", "unarchive"])
+@pytest.mark.parametrize("role", ["coach", "member"])
+async def test_only_owners_can_archive_or_unarchive(client, two_tenants, db_session, role, action):
+    a = two_tenants.a
+    row = await add_class_type(db_session, a, "BJJ")
+    row_id = row.id
+
+    response = await archive(client, two_tenants, a, role, row_id, action)
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "insufficient_role"}
+    await db_session.refresh(row)
+    assert row.archived_at is None
+
+
+async def test_archived_types_are_hidden_by_default_and_shown_on_request(
+    client, two_tenants, db_session
+):
+    a = two_tenants.a
+    await add_class_type(db_session, a, "Yoga")
+    bjj = (await add_class_type(db_session, a, "BJJ")).id
+
+    response = await archive(client, two_tenants, a, "owner", bjj)
+
+    assert response.status_code == 200
+    assert response.json()["archived_at"] is not None
+    assert await names(client, two_tenants, a) == ["Yoga"]
+    assert await names(client, two_tenants, a, include_archived="true") == ["BJJ", "Yoga"]
+
+
+async def test_unarchiving_brings_a_class_type_back(client, two_tenants, db_session):
+    a = two_tenants.a
+    bjj = (await add_class_type(db_session, a, "BJJ")).id
+    await archive(client, two_tenants, a, "owner", bjj)
+
+    response = await archive(client, two_tenants, a, "owner", bjj, "unarchive")
+
+    assert response.status_code == 200
+    assert response.json()["archived_at"] is None
+    assert await names(client, two_tenants, a) == ["BJJ"]
+
+
+async def test_archiving_twice_keeps_the_first_timestamp(client, two_tenants, db_session):
+    a = two_tenants.a
+    row = await add_class_type(db_session, a, "BJJ")
+    row.archived_at = PAST  # a fixed past value, so no clock mocking is needed
+    await db_session.flush()
+    row_id = row.id
+
+    response = await archive(client, two_tenants, a, "owner", row_id)
+
+    assert response.status_code == 200
+    assert response.json()["archived_at"] == "2026-01-01T00:00:00Z"
+
+
+async def test_unarchiving_an_active_type_changes_nothing(client, two_tenants, db_session):
+    a = two_tenants.a
+    row_id = (await add_class_type(db_session, a, "BJJ")).id
+
+    response = await archive(client, two_tenants, a, "owner", row_id, "unarchive")
+
+    assert response.status_code == 200
+    assert response.json()["archived_at"] is None
+
+
+async def test_an_archived_type_can_still_be_renamed(client, two_tenants, db_session):
+    a = two_tenants.a
+    row = await add_class_type(db_session, a, "BJJ")
+    row.archived_at = PAST
+    await db_session.flush()
+    row_id = row.id
+
+    response = await client.put(
+        f"/class-types/{row_id}",
+        json={"name": "Brazilian Jiu-Jitsu"},
+        headers=two_tenants.headers(a.users["owner"], a.id),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["archived_at"] == "2026-01-01T00:00:00Z"
+
+
+@pytest.mark.parametrize("action", ["archive", "unarchive"])
+async def test_another_studios_class_type_cannot_be_archived_or_unarchived(
+    client, two_tenants, db_session, action
+):
+    a, b = two_tenants.a, two_tenants.b
+    theirs = await add_class_type(db_session, b, "Pilates")
+    if action == "unarchive":
+        theirs.archived_at = PAST
+        await db_session.flush()
+    expected = theirs.archived_at
+    theirs_id = theirs.id
+
+    foreign = await archive(client, two_tenants, a, "owner", theirs_id, action)
+    nonexistent = await archive(client, two_tenants, a, "owner", uuid.uuid4(), action)
+
+    assert foreign.status_code == nonexistent.status_code == 404
+    assert foreign.text == nonexistent.text  # ids cannot be probed
+    assert foreign.json() == {"detail": "class_type_not_found"}
+    await db_session.refresh(theirs)
+    assert theirs.archived_at == expected
+    # And the other studio's list is not affected by what A's owner tried.
+    assert await names(client, two_tenants, b, include_archived="true") == ["Pilates"]
