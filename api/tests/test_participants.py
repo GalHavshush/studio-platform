@@ -46,10 +46,8 @@ async def test_participant_needs_an_existing_studio(db_session):
 async def test_the_same_user_in_two_studios_has_two_participants(db_session, two_tenants):
     user_id = two_tenants.a.users["member"]
     db_session.add(Membership(tenant_id=two_tenants.b.id, user_id=user_id, role="member"))
-    db_session.add_all(
-        Participant(tenant_id=studio.id, user_id=user_id, name="Same person")
-        for studio in (two_tenants.a, two_tenants.b)
-    )
+    # two_tenants already gave this user a participant in studio A; studio B gets its own.
+    db_session.add(Participant(tenant_id=two_tenants.b.id, user_id=user_id, name="Same person"))
     await db_session.flush()
 
     studios = await db_session.scalars(
@@ -65,7 +63,9 @@ async def test_a_studio_only_finds_its_own_participants(db_session, two_tenants)
     await db_session.flush()
 
     names = await db_session.scalars(
-        select(Participant.name).where(Participant.tenant_id == two_tenants.a.id)
+        select(Participant.name).where(
+            Participant.tenant_id == two_tenants.a.id, Participant.user_id.is_(None)
+        )
     )
 
     assert list(names) == [f"kid of {two_tenants.a.id}"]

@@ -54,6 +54,12 @@ async def _cancel_session(client, headers):
     return await client.post(f"/sessions/{uuid.uuid4()}/cancel", headers=headers)
 
 
+async def _rsvp(client, headers):
+    return await client.put(
+        f"/sessions/{uuid.uuid4()}/rsvp", json={"status": "going"}, headers=headers
+    )
+
+
 async def _create_session(client, headers):
     # Random ids: this checks who is let in, not what the route does with the body.
     body = {
@@ -84,6 +90,7 @@ TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
     ("GET", "/sessions/{session_id}"): _get_session,
     ("PATCH", "/sessions/{session_id}"): _update_session,
     ("POST", "/sessions/{session_id}/cancel"): _cancel_session,
+    ("PUT", "/sessions/{session_id}/rsvp"): _rsvp,
 }
 
 

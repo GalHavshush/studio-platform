@@ -1,15 +1,16 @@
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import AwareDatetime, BaseModel, ConfigDict, StringConstraints, model_validator
 from sqlalchemy import select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.deps import TenantContext, TenantCtx, require_role
-from app.models import ClassSession, ClassType, Membership
+from app.models import ClassSession, ClassType, Membership, Participant, Rsvp
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -238,3 +239,58 @@ async def cancel_session(
     cancelled = SessionOut.model_validate(row)
     await session.commit()
     return cancelled
+
+
+class RsvpIn(BaseModel):
+    status: Literal["going", "not_going", "maybe"]
+
+
+class RsvpOut(BaseModel):
+    session_id: uuid.UUID
+    status: str
+
+
+@router.put("/{session_id}/rsvp")
+async def rsvp_to_session(
+    session_id: uuid.UUID,
+    body: RsvpIn,
+    ctx: TenantCtx,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> RsvpOut:
+    """Set the caller's own plan for a session: going, not_going or maybe. Any member.
+
+    An upsert: the first call creates the RSVP and later calls change it, so repeating a request is
+    fine. It is only an intention; attendance after the class is a separate step. The RSVP belongs
+    to the caller's participant in this studio, never to one named by the client. A session of
+    another studio gets `404 session_not_found`; a cancelled one gets `409 session_cancelled`.
+    """
+    found = (
+        await session.execute(
+            select(ClassSession.status).where(
+                ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id
+            )
+        )
+    ).first()
+    if found is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if found.status == "cancelled":
+        raise HTTPException(status_code=409, detail="session_cancelled")
+
+    participant_id = await session.scalar(
+        select(Participant.id).where(
+            Participant.tenant_id == ctx.tenant_id, Participant.user_id == ctx.user.id
+        )
+    )
+    if participant_id is None:  # every membership gets a participant, so this should not happen
+        raise HTTPException(status_code=409, detail="no_participant")
+
+    # One atomic statement: a read-then-insert could race with the same member's other request.
+    await session.execute(
+        insert(Rsvp)
+        .values(session_id=session_id, participant_id=participant_id, status=body.status)
+        .on_conflict_do_update(
+            index_elements=[Rsvp.session_id, Rsvp.participant_id], set_={"status": body.status}
+        )
+    )
+    await session.commit()
+    return RsvpOut(session_id=session_id, status=body.status)
