@@ -338,6 +338,7 @@ async def test_every_member_gets_one_session_by_id(client, two_tenants, db_sessi
         "ends_at": "2026-10-20T16:00:00Z",
         "status": "scheduled",
         "preview": None,
+        "capacity": None,
     }
 
 
@@ -644,3 +645,57 @@ async def test_another_studios_session_cannot_be_edited_or_cancelled(
     )
     assert mine.json()["status"] == "scheduled"
     assert mine.json()["preview"] is None
+
+
+# --- capacity: seats for booking-mode classes ---
+
+
+async def test_capacity_can_be_set_on_create_and_defaults_to_unlimited(
+    client, two_tenants, db_session
+):
+    a = two_tenants.a
+    ct = await add_class_type(db_session, a)
+
+    limited = await post(client, two_tenants, a, "coach", body(ct, capacity=12))
+    unlimited = await post(client, two_tenants, a, "coach", body(ct))
+
+    assert limited.json()["capacity"] == 12
+    assert unlimited.json()["capacity"] is None
+
+
+@pytest.mark.parametrize("capacity", [0, -3, "many", 1.5])
+async def test_an_invalid_capacity_is_rejected(client, two_tenants, db_session, capacity):
+    a = two_tenants.a
+    ct = await add_class_type(db_session, a)
+
+    created = await post(client, two_tenants, a, "coach", body(ct, capacity=capacity))
+    sid = await a_session(db_session, a)
+    patched = await patch(client, two_tenants, a, "owner", sid, {"capacity": capacity})
+
+    assert created.status_code == patched.status_code == 422
+    assert await count(db_session) == 1  # only the helper's session
+
+
+async def test_capacity_can_be_changed_and_cleared_with_patch(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)  # taught by the coach
+
+    set_by_coach = await patch(client, two_tenants, a, "coach", sid, {"capacity": 8})
+    untouched = await patch(client, two_tenants, a, "owner", sid, {"preview": "x"})
+    cleared = await patch(client, two_tenants, a, "owner", sid, {"capacity": None})
+
+    assert set_by_coach.json()["capacity"] == 8
+    assert untouched.json()["capacity"] == 8  # a field that is not sent stays as it is
+    assert cleared.json()["capacity"] is None
+
+
+async def test_the_database_refuses_a_non_positive_capacity(db_session, two_tenants):
+    from sqlalchemy.exc import IntegrityError
+
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+
+    with pytest.raises(IntegrityError):
+        await db_session.execute(
+            text("UPDATE class_sessions SET capacity = 0 WHERE id = :id"), {"id": sid}
+        )

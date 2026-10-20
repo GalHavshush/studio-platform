@@ -125,8 +125,11 @@ class ClassSession(Base):
     status: Mapped[str] = mapped_column(server_default="scheduled")
     # What the class is about, written by the coach ahead of time.
     preview: Mapped[str | None]
+    # Seats for booking-mode classes (step 24); NULL = unlimited. Ignored in rsvp mode.
+    capacity: Mapped[int | None]
     __table_args__ = (
         CheckConstraint("status IN ('scheduled', 'cancelled')", name="ck_class_sessions_status"),
+        CheckConstraint("capacity >= 1", name="ck_class_sessions_capacity_positive"),
         # Backstop for the API's check: no code path can store a session that ends before it starts.
         CheckConstraint("ends_at > starts_at", name="ck_class_sessions_ends_after_start"),
         # For the schedule query: one studio's sessions in a time window, already in order.
