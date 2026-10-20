@@ -392,6 +392,7 @@ async def rsvp_to_session(
     await session.execute(
         insert(Rsvp)
         .values(
+            tenant_id=ctx.tenant_id,
             session_id=session_id,
             participant_id=participant_id,
             status=status,
@@ -480,6 +481,7 @@ async def record_attendance(
     await session.execute(
         insert(Rsvp)
         .values(
+            tenant_id=ctx.tenant_id,
             session_id=session_id,
             participant_id=participant_id,
             attended=body.attended,
