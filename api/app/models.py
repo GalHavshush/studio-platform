@@ -1,7 +1,16 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, UniqueConstraint, func, text
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -82,6 +91,8 @@ class ClassType(Base):
         CheckConstraint(
             "attendance_mode IN ('rsvp', 'booking')", name="ck_class_types_attendance_mode"
         ),
+        # Redundant with the primary key, but a composite foreign key needs it as its target (27b).
+        UniqueConstraint("tenant_id", "id", name="uq_class_types_tenant_id_id"),
     )
 
 
@@ -95,7 +106,11 @@ class Participant(Base):
     # Also serves "the participants of this studio" (tenant_id is the leading column), so no
     # separate tenant_id index. Postgres treats NULLs as distinct, so kids without an account
     # (user_id NULL, step 47) are not limited to one per studio.
-    __table_args__ = (UniqueConstraint("tenant_id", "user_id"),)
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "user_id"),
+        # Target for composite foreign keys that must stay within one studio (27b).
+        UniqueConstraint("tenant_id", "id", name="uq_participants_tenant_id_id"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"))
@@ -113,7 +128,8 @@ class ClassSession(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
     # Not indexed on its own: the (tenant_id, starts_at) index below also serves "this studio's sessions".
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"))
-    class_type_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("class_types.id"))
+    # Same studio as this session: enforced by the composite foreign key in __table_args__.
+    class_type_id: Mapped[uuid.UUID]
     # A user, not a membership: the API checks they are staff of this studio when it writes this.
     # ponytail: removing the coach's membership later leaves their past sessions pointing at them.
     coach_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
@@ -132,6 +148,13 @@ class ClassSession(Base):
         CheckConstraint("capacity >= 1", name="ck_class_sessions_capacity_positive"),
         # Backstop for the API's check: no code path can store a session that ends before it starts.
         CheckConstraint("ends_at > starts_at", name="ck_class_sessions_ends_after_start"),
+        UniqueConstraint("tenant_id", "id", name="uq_class_sessions_tenant_id_id"),
+        # The class type must belong to the same studio as the session (27b).
+        ForeignKeyConstraint(
+            ["tenant_id", "class_type_id"],
+            ["class_types.tenant_id", "class_types.id"],
+            name="fk_class_sessions_class_type_same_tenant",
+        ),
         # For the schedule query: one studio's sessions in a time window, already in order.
         Index("ix_class_sessions_tenant_id_starts_at", "tenant_id", "starts_at"),
     )
@@ -140,9 +163,9 @@ class ClassSession(Base):
 class Rsvp(Base):
     """A participant's plan for a session: going, not going or maybe. Only an intention before the
     class; whether they actually came is recorded separately (step 21). One row per participant and
-    session, enforced by the composite primary key.
-    ponytail: the session and the participant are not checked to be in the same studio here; the
-    endpoint derives both from the caller's studio."""
+    session, enforced by the composite primary key. The session and the participant must belong to
+    the same studio as the row itself: the composite foreign keys below make the database refuse
+    anything else, whatever code wrote it (27b)."""
 
     __tablename__ = "rsvps"
     __table_args__ = (
@@ -154,12 +177,23 @@ class Rsvp(Base):
             "(status IS NOT DISTINCT FROM 'waitlist') = (waitlisted_at IS NOT NULL)",
             name="ck_rsvps_waitlisted_at",
         ),
+        ForeignKeyConstraint(
+            ["tenant_id", "session_id"],
+            ["class_sessions.tenant_id", "class_sessions.id"],
+            name="fk_rsvps_session_same_tenant",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "participant_id"],
+            ["participants.tenant_id", "participants.id"],
+            name="fk_rsvps_participant_same_tenant",
+        ),
     )
 
-    session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("class_sessions.id"), primary_key=True)
-    participant_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("participants.id"), primary_key=True
-    )
+    session_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    participant_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    # Copied from the session by the endpoints; the composite foreign keys check it against both
+    # parents, so it cannot name a studio other than theirs. (The studio itself exists through them.)
+    tenant_id: Mapped[uuid.UUID]
     # The plan. NULL = no plan given (someone can attend without having RSVPed). "waitlist" is set by
     # the server, never by the client: the session was full when they asked for "going".
     status: Mapped[str | None]

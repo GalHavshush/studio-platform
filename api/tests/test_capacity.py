@@ -203,9 +203,9 @@ async def test_the_primary_key_rejects_a_duplicate_row(db_session, two_tenants):
             Participant.tenant_id == a.id, Participant.user_id == a.users["member"]
         )
     )
-    db_session.add(Rsvp(session_id=sid, participant_id=me, status="going"))
+    db_session.add(Rsvp(tenant_id=a.id, session_id=sid, participant_id=me, status="going"))
     await db_session.flush()
-    db_session.add(Rsvp(session_id=sid, participant_id=me, status="going"))
+    db_session.add(Rsvp(tenant_id=a.id, session_id=sid, participant_id=me, status="going"))
 
     with pytest.raises(IntegrityError):
         await db_session.flush()

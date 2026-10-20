@@ -114,7 +114,10 @@ async def test_the_database_only_accepts_known_statuses(db_session, two_tenants)
     sid = await a_session(db_session, a)
     db_session.add(
         Rsvp(
-            session_id=sid, participant_id=await participant_of(db_session, a, "member"), status="x"
+            tenant_id=a.id,
+            session_id=sid,
+            participant_id=await participant_of(db_session, a, "member"),
+            status="x",
         )
     )
 

@@ -1,8 +1,10 @@
 import asyncio
 import uuid
 
+import pytest
 from alembic import command
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -94,3 +96,102 @@ def test_participants_backfill_covers_existing_memberships(alembic_cfg, test_db_
         command.downgrade(alembic_cfg, "base")
 
     assert names == ["Mia"]
+
+
+# --- step 27b: same-studio foreign keys ---
+
+BEFORE_SAME_STUDIO_KEYS = "c0f26fe1c347"  # the revision just before
+
+
+async def _run(test_db_url, work):
+    engine = create_async_engine(test_db_url, poolclass=NullPool)
+    async with engine.begin() as conn:
+        result = await work(conn)
+    await engine.dispose()
+    return result
+
+
+async def _insert_old_schema_rows(conn, session_in_studio: str, class_type_in_studio: str):
+    """Rows as the schema looked before 27b (rsvps has no tenant_id yet). The class type and the
+    session can be put in different studios ("a" or "b") to build bad data."""
+    studios = {}
+    for name in ("a", "b"):
+        studios[name] = (
+            await conn.execute(
+                text(
+                    "INSERT INTO tenants (name, slug, timezone) VALUES (:n, :n, 'UTC') RETURNING id"
+                ),
+                {"n": name},
+            )
+        ).scalar_one()
+    user_id = (
+        await conn.execute(
+            text("INSERT INTO users (email, name) VALUES ('u@example.com', 'U') RETURNING id")
+        )
+    ).scalar_one()
+    class_type_id = (
+        await conn.execute(
+            text("INSERT INTO class_types (tenant_id, name) VALUES (:t, 'c') RETURNING id"),
+            {"t": studios[class_type_in_studio]},
+        )
+    ).scalar_one()
+    session_id = (
+        await conn.execute(
+            text(
+                "INSERT INTO class_sessions (tenant_id, class_type_id, coach_id, starts_at, ends_at)"
+                " VALUES (:t, :c, :u, now(), now() + interval '1 hour') RETURNING id"
+            ),
+            {"t": studios[session_in_studio], "c": class_type_id, "u": user_id},
+        )
+    ).scalar_one()
+    participant_id = (
+        await conn.execute(
+            text(
+                "INSERT INTO participants (tenant_id, user_id, name)"
+                " VALUES (:t, :u, 'U') RETURNING id"
+            ),
+            {"t": studios[session_in_studio], "u": user_id},
+        )
+    ).scalar_one()
+    await conn.execute(
+        text("INSERT INTO rsvps (session_id, participant_id, status) VALUES (:s, :p, 'going')"),
+        {"s": session_id, "p": participant_id},
+    )
+    return studios[session_in_studio]
+
+
+def test_same_studio_keys_backfill_the_rsvps_studio(alembic_cfg, test_db_url):
+    async def read(conn):
+        return (await conn.execute(text("SELECT tenant_id FROM rsvps"))).scalars().all()
+
+    try:
+        command.downgrade(alembic_cfg, "base")
+        command.upgrade(alembic_cfg, BEFORE_SAME_STUDIO_KEYS)
+        studio = asyncio.run(
+            _run(test_db_url, lambda conn: _insert_old_schema_rows(conn, "a", "a"))
+        )
+        command.upgrade(alembic_cfg, "head")
+        backfilled = asyncio.run(_run(test_db_url, read))
+    finally:
+        command.downgrade(alembic_cfg, "base")  # drops this test's rows; fixtures re-upgrade
+
+    assert backfilled == [studio]
+
+
+def test_the_migration_refuses_existing_rows_that_cross_studios(alembic_cfg, test_db_url):
+    async def current_revision(conn):
+        return (await conn.execute(text("SELECT version_num FROM alembic_version"))).scalar_one()
+
+    try:
+        command.downgrade(alembic_cfg, "base")
+        command.upgrade(alembic_cfg, BEFORE_SAME_STUDIO_KEYS)
+        # A session in studio a that uses a class type of studio b: possible before 27b.
+        asyncio.run(_run(test_db_url, lambda conn: _insert_old_schema_rows(conn, "a", "b")))
+        with pytest.raises(DBAPIError):
+            command.upgrade(alembic_cfg, "head")
+        revision = asyncio.run(_run(test_db_url, current_revision))
+    finally:
+        command.downgrade(alembic_cfg, "base")
+
+    # The failed migration rolled back completely (DDL is transactional in Postgres).
+    assert revision == BEFORE_SAME_STUDIO_KEYS

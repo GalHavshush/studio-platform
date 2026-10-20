@@ -353,7 +353,13 @@ async def test_the_database_keeps_status_and_queue_place_consistent(
         )
     )
     db_session.add(
-        Rsvp(session_id=sid, participant_id=me, status=status, waitlisted_at=waitlisted_at)
+        Rsvp(
+            tenant_id=a.id,
+            session_id=sid,
+            participant_id=me,
+            status=status,
+            waitlisted_at=waitlisted_at,
+        )
     )
 
     with pytest.raises(IntegrityError):
