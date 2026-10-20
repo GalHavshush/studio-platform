@@ -14,13 +14,13 @@ api/                         FastAPI backend (Python, managed with uv)
 │   ├── main.py              FastAPI app, the /health endpoint, the /scalar docs page, mounts the routers
 │   ├── auth.py              POST /auth/login (access + refresh token), POST /auth/refresh, POST /auth/logout
 │   ├── class_types.py       GET/POST /class-types, PUT /class-types/{id}, POST /class-types/{id}/archive and /unarchive (a studio's class types; writes are owner-only; archived ones are hidden by default; each has an attendance mode, rsvp or booking)
-│   ├── sessions.py          POST /sessions (create a class session: a class type at a time, taught by a coach or owner), GET /sessions?from=&to= (schedule window), GET /sessions/{id}, PATCH /sessions/{id} (preview, times, coach), POST /sessions/{id}/cancel, PUT /sessions/{id}/rsvp (going / not_going / maybe; seats are limited in booking mode, with a waitlist), POST /sessions/{id}/attendance (attended or not; check-in opens 15 min before start)
+│   ├── sessions.py          POST /sessions (create a class session: a class type at a time, taught by a coach or owner), GET /sessions?from=&to= (schedule window), GET /sessions/{id}, PATCH /sessions/{id} (preview, times, coach), POST /sessions/{id}/cancel, PUT /sessions/{id}/rsvp (going / not_going / maybe; seats are limited in booking mode, with a waitlist), PUT /sessions/{id}/report (the coach's class report), POST /sessions/{id}/attendance (attended or not; check-in opens 15 min before start)
 │   ├── tenant.py            GET /tenant (the studio named by X-Tenant-Id, with its enabled modules)
 │   ├── me.py                GET /me (profile + studio memberships of the logged-in user)
 │   ├── deps.py              shared dependencies: current_user (verifies the Bearer token), TenantCtx (X-Tenant-Id + membership role), require_role (owner > coach > member), require_module (studio has the module on)
 │   ├── config.py            settings read from the environment / .env (DATABASE_URL, JWT_SECRET)
 │   ├── db.py                async engine and the per-request session dependency
-│   ├── models.py            SQLAlchemy models: User, Tenant, Membership, ClassType, Participant, ClassSession, Rsvp, RefreshToken
+│   ├── models.py            SQLAlchemy models: User, Tenant, Membership, ClassType, Participant, ClassSession, Rsvp, ClassReport, RefreshToken
 │   ├── security.py          password hashing (argon2), access tokens (JWT), refresh-token generation and hashing
 │   └── seed.py              creates the pilot studio, its people and their participants (python -m app.seed)
 ├── migrations/              Alembic
@@ -28,7 +28,7 @@ api/                         FastAPI backend (Python, managed with uv)
 │   └── versions/            one file per schema change
 ├── tests/
 │   ├── conftest.py          test database, migrated_db, client, real-commit and two-studio fixtures
-│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, refresh, token_families, reuse_detection, tenant_ctx, tenant_isolation, class_types, participants, sessions, rsvps, attendance, modules, capacity, waitlist, booking_race (concurrency and the session row lock), same_studio_links, docs
+│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, refresh, token_families, reuse_detection, tenant_ctx, tenant_isolation, class_types, participants, sessions, rsvps, attendance, modules, capacity, waitlist, booking_race (concurrency and the session row lock), same_studio_links, reports, docs
 ├── alembic.ini
 ├── pyproject.toml           dependencies and tool settings
 └── .env.example             template for api/.env
