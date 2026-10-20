@@ -120,6 +120,13 @@ def require_role(min_role: str) -> Callable[[TenantContext], Awaitable[TenantCon
 KNOWN_MODULES = {"booking"}
 
 
+async def studio_has_module(session: AsyncSession, tenant_id: uuid.UUID, name: str) -> bool:
+    """Whether the studio has switched `name` on. For handlers that serve studios with and without
+    the module; a route that exists only for a module uses `require_module` instead."""
+    modules = await session.scalar(select(Tenant.modules).where(Tenant.id == tenant_id))
+    return name in (modules or [])
+
+
 def require_module(name: str) -> Callable[[TenantContext], Awaitable[TenantContext]]:
     """Build a dependency that passes only when the studio has switched `name` on.
 
@@ -133,8 +140,7 @@ def require_module(name: str) -> Callable[[TenantContext], Awaitable[TenantConte
     async def dependency(
         ctx: TenantCtx, session: Annotated[AsyncSession, Depends(get_session)]
     ) -> TenantContext:
-        modules = await session.scalar(select(Tenant.modules).where(Tenant.id == ctx.tenant_id))
-        if name not in (modules or []):
+        if not await studio_has_module(session, ctx.tenant_id, name):
             raise HTTPException(status_code=403, detail="module_disabled")
         return ctx
 
