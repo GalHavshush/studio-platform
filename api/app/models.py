@@ -75,6 +75,14 @@ class ClassType(Base):
     # NULL = active. Set when an owner archives the type; never deleted, because sessions, reports
     # and notes reference it. Archived types are hidden by default and cannot get new sessions.
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # "rsvp" (a plan, step 20) or "booking" (capacity and waitlist, steps 24-25). "booking" can only be
+    # set in a studio that has the booking module on (app/class_types.py); for now it is stored only.
+    attendance_mode: Mapped[str] = mapped_column(server_default="rsvp")
+    __table_args__ = (
+        CheckConstraint(
+            "attendance_mode IN ('rsvp', 'booking')", name="ck_class_types_attendance_mode"
+        ),
+    )
 
 
 class Participant(Base):

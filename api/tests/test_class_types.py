@@ -89,6 +89,7 @@ async def test_owner_renames_a_class_type(client, two_tenants, db_session):
     assert response.json() == {
         "id": str(row_id),
         "name": "Brazilian Jiu-Jitsu",
+        "attendance_mode": "rsvp",
         "archived_at": None,
     }
 
@@ -321,3 +322,168 @@ async def test_another_studios_class_type_cannot_be_archived_or_unarchived(
     assert theirs.archived_at == expected
     # And the other studio's list is not affected by what A's owner tried.
     assert await names(client, two_tenants, b, include_archived="true") == ["Pilates"]
+
+
+# --- attendance mode: rsvp by default, booking only with the booking module ---
+
+
+async def set_modules(db_session, studio, modules):
+    from app.models import Tenant
+
+    tenant = await db_session.get(Tenant, studio.id)
+    tenant.modules = modules
+    await db_session.flush()
+
+
+async def create(client, two_tenants, studio, **body):
+    return await client.post(
+        "/class-types",
+        json={"name": "Open mat"} | body,
+        headers=two_tenants.headers(studio.users["owner"], studio.id),
+    )
+
+
+async def update(client, two_tenants, studio, class_type_id, **body):
+    return await client.put(
+        f"/class-types/{class_type_id}",
+        json={"name": "Open mat"} | body,
+        headers=two_tenants.headers(studio.users["owner"], studio.id),
+    )
+
+
+async def test_a_new_class_type_defaults_to_rsvp(client, two_tenants):
+    response = await create(client, two_tenants, two_tenants.a)
+
+    assert response.status_code == 201
+    assert response.json()["attendance_mode"] == "rsvp"
+
+
+async def test_booking_can_be_set_when_the_studio_has_the_module(client, two_tenants, db_session):
+    a = two_tenants.a
+    await set_modules(db_session, a, ["booking"])
+
+    created = await create(client, two_tenants, a, attendance_mode="booking")
+    other = (await create(client, two_tenants, a)).json()["id"]
+    switched = await update(client, two_tenants, a, other, attendance_mode="booking")
+
+    assert created.status_code == 201
+    assert created.json()["attendance_mode"] == "booking"
+    assert switched.status_code == 200
+    assert switched.json()["attendance_mode"] == "booking"
+
+
+async def test_booking_is_refused_without_the_module(client, two_tenants, db_session):
+    a = two_tenants.a  # modules default to []
+    existing = (await create(client, two_tenants, a, name="BJJ")).json()["id"]
+
+    created = await create(client, two_tenants, a, name="Pilates", attendance_mode="booking")
+    switched = await update(client, two_tenants, a, existing, attendance_mode="booking")
+
+    for response in (created, switched):
+        assert response.status_code == 403
+        assert response.json() == {"detail": "module_disabled"}
+    assert await names(client, two_tenants, a) == ["BJJ"]  # the refused create left nothing
+    listed = await client.get("/class-types", headers=two_tenants.headers(a.users["owner"], a.id))
+    assert [c["attendance_mode"] for c in listed.json()] == [
+        "rsvp"
+    ]  # and the update changed nothing
+
+
+async def test_another_studios_module_does_not_count(client, two_tenants, db_session):
+    a, b = two_tenants.a, two_tenants.b
+    await set_modules(db_session, a, ["booking"])  # only A has it
+
+    response = await create(client, two_tenants, b, attendance_mode="booking")
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "module_disabled"}
+
+
+async def test_an_omitted_mode_leaves_it_unchanged_on_update(client, two_tenants, db_session):
+    a = two_tenants.a
+    await set_modules(db_session, a, ["booking"])
+    booking_id = (await create(client, two_tenants, a, attendance_mode="booking")).json()["id"]
+
+    renamed = await update(client, two_tenants, a, booking_id, name="Booked class")
+
+    assert renamed.status_code == 200
+    assert renamed.json()["attendance_mode"] == "booking"
+    assert renamed.json()["name"] == "Booked class"
+
+
+async def test_a_booking_type_stays_editable_after_the_module_is_switched_off(
+    client, two_tenants, db_session
+):
+    a = two_tenants.a
+    await set_modules(db_session, a, ["booking"])
+    class_type_id = (await create(client, two_tenants, a, attendance_mode="booking")).json()["id"]
+    await set_modules(db_session, a, [])
+
+    renamed = await update(client, two_tenants, a, class_type_id, name="New name")
+    resent = await update(client, two_tenants, a, class_type_id, attendance_mode="booking")
+    back = await update(client, two_tenants, a, class_type_id, attendance_mode="rsvp")
+    again = await update(client, two_tenants, a, class_type_id, attendance_mode="booking")
+
+    assert (renamed.status_code, resent.status_code, back.status_code) == (200, 200, 200)
+    assert back.json()["attendance_mode"] == "rsvp"
+    assert again.status_code == 403  # switching TO booking needs the module again
+
+
+@pytest.mark.parametrize("mode", ["waitlist", "", "BOOKING"])
+async def test_an_invalid_mode_is_rejected(client, two_tenants, mode):
+    response = await create(client, two_tenants, two_tenants.a, attendance_mode=mode)
+
+    assert response.status_code == 422
+
+
+async def test_the_database_only_accepts_known_modes(db_session, two_tenants):
+    from sqlalchemy.exc import IntegrityError
+
+    db_session.add(ClassType(tenant_id=two_tenants.a.id, name="x", attendance_mode="waitlist"))
+
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+@pytest.mark.parametrize("role", ["coach", "member"])
+async def test_only_owners_can_set_the_mode(client, two_tenants, db_session, role):
+    a = two_tenants.a
+    await set_modules(db_session, a, ["booking"])
+
+    response = await client.post(
+        "/class-types",
+        json={"name": "x", "attendance_mode": "booking"},
+        headers=two_tenants.headers(a.users[role], a.id),
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "insufficient_role"}
+
+
+async def test_every_member_sees_the_mode_in_the_list(client, two_tenants, db_session):
+    a = two_tenants.a
+    await set_modules(db_session, a, ["booking"])
+    await create(client, two_tenants, a, name="BJJ", attendance_mode="booking")
+    await create(client, two_tenants, a, name="Yoga")
+
+    response = await client.get(
+        "/class-types", headers=two_tenants.headers(a.users["member"], a.id)
+    )
+
+    assert [(c["name"], c["attendance_mode"]) for c in response.json()] == [
+        ("BJJ", "booking"),
+        ("Yoga", "rsvp"),
+    ]
+
+
+async def test_rsvp_never_needs_the_module_even_when_sent_explicitly(client, two_tenants):
+    a = two_tenants.a  # no modules at all
+
+    created = await create(client, two_tenants, a, attendance_mode="rsvp")
+    updated = await update(
+        client, two_tenants, a, created.json()["id"], name="Renamed", attendance_mode="rsvp"
+    )
+
+    assert created.status_code == 201
+    assert updated.status_code == 200
+    assert updated.json()["attendance_mode"] == "rsvp"
