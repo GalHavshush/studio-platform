@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models import Membership, User
+from app.models import Membership, Tenant, User
 from app.security import decode_access_token
 
 # auto_error=False: we raise our own 401 so every auth failure has the same shape. Declaring the
@@ -111,6 +111,31 @@ def require_role(min_role: str) -> Callable[[TenantContext], Awaitable[TenantCon
     async def dependency(ctx: TenantCtx) -> TenantContext:
         if ROLE_RANK.get(ctx.role, -1) < needed:
             raise HTTPException(status_code=403, detail="insufficient_role")
+        return ctx
+
+    return dependency
+
+
+# The optional modules a studio can switch on (tenants.modules). Add a name here with its feature.
+KNOWN_MODULES = {"booking"}
+
+
+def require_module(name: str) -> Callable[[TenantContext], Awaitable[TenantContext]]:
+    """Build a dependency that passes only when the studio has switched `name` on.
+
+    Sits on top of TenantCtx, so the membership check comes first (a stranger still gets
+    `not_a_member`). A disabled module gives 403 `module_disabled`. For routes that exist only for
+    a module; a route that also serves studios without it checks `tenants.modules` itself.
+    """
+    if name not in KNOWN_MODULES:  # a typo fails when the app loads, not per request
+        raise ValueError(f"unknown module: {name}")
+
+    async def dependency(
+        ctx: TenantCtx, session: Annotated[AsyncSession, Depends(get_session)]
+    ) -> TenantContext:
+        modules = await session.scalar(select(Tenant.modules).where(Tenant.id == ctx.tenant_id))
+        if name not in (modules or []):
+            raise HTTPException(status_code=403, detail="module_disabled")
         return ctx
 
     return dependency

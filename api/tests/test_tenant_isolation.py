@@ -25,6 +25,10 @@ from app.deps import CurrentUser, TenantCtx
 from app.main import app
 
 
+async def _get_tenant(client, headers):
+    return await client.get("/tenant", headers=headers)
+
+
 async def _list_class_types(client, headers):
     return await client.get("/class-types", headers=headers)
 
@@ -86,6 +90,7 @@ async def _get_session(client, headers):
 
 
 TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
+    ("GET", "/tenant"): _get_tenant,
     ("GET", "/class-types"): _list_class_types,
     ("POST", "/class-types"): _create_class_type,
     ("PUT", "/class-types/{class_type_id}"): _rename_class_type,

@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, UniqueConstraint, func, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -37,6 +38,9 @@ class Tenant(Base):
     # ponytail: not validated here; check with zoneinfo when sessions are created (step 18).
     timezone: Mapped[str]
     default_locale: Mapped[str] = mapped_column(server_default="en")
+    # The optional modules this studio has switched on, e.g. ["booking"]. Set by the seed script for
+    # now. Names are checked against KNOWN_MODULES (app/deps.py) where they are used, not here.
+    modules: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
 
 
 class Membership(Base):

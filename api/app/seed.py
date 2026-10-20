@@ -14,7 +14,14 @@ from app.db import get_engine
 from app.models import Membership, Participant, Tenant, User
 from app.security import hash_password
 
-PILOT_TENANT = {"name": "Pilot Studio", "slug": "pilot-studio", "timezone": "Asia/Jerusalem"}
+PILOT_TENANT = {
+    "name": "Pilot Studio",
+    "slug": "pilot-studio",
+    "timezone": "Asia/Jerusalem",
+    "modules": [
+        "booking"
+    ],  # lets you try steps 23-27 locally; a real pilot lists only what it paid for
+}
 # Placeholder for local dev. Real pilots get their own passwords (invite flow comes in step 50).
 PILOT_PASSWORD = "change-me-pilot"
 # (email, name, role). One membership per person at their highest role: roles are cumulative.
@@ -29,8 +36,13 @@ PILOT_PEOPLE = [
 # change a membership that already exists; switch to DO UPDATE if the seed must reconcile.
 async def seed(session: AsyncSession) -> None:
     """Create the pilot studio and its people. Safe to run repeatedly; the caller commits."""
+    tenant_stmt = insert(Tenant).values(PILOT_TENANT)
+    # Modules are re-applied on every run (the seed is the only way to change them for now); the
+    # rest of an existing tenant is left alone.
     await session.execute(
-        insert(Tenant).values(PILOT_TENANT).on_conflict_do_nothing(index_elements=["slug"])
+        tenant_stmt.on_conflict_do_update(
+            index_elements=["slug"], set_={"modules": tenant_stmt.excluded.modules}
+        )
     )
     # Hash once: argon2 is deliberately slow, and each hash gets its own salt anyway.
     password_hash = hash_password(PILOT_PASSWORD)
