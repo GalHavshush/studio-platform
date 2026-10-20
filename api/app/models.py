@@ -233,6 +233,43 @@ class ClassReport(Base):
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class ParticipantNote(Base):
+    """A coach's private note about one participant, written inside a class report (step 29). Staff
+    only for now; a per-note "share with the member" toggle comes in step 30. One note per person
+    per session (the unique constraint); `session_id` is nullable for notes written outside a
+    class later. Both links are composite, so a note stays in one studio (27b).
+    ponytail: a changed note keeps its `created_at` and takes the latest author; there is no
+    per-note edit history."""
+
+    __tablename__ = "participant_notes"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id", "participant_id", name="uq_participant_notes_session_participant"
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "participant_id"],
+            ["participants.tenant_id", "participants.id"],
+            name="fk_participant_notes_participant_same_tenant",
+        ),
+        # With a NULL session_id this link is not checked (MATCH SIMPLE), as intended.
+        ForeignKeyConstraint(
+            ["tenant_id", "session_id"],
+            ["class_sessions.tenant_id", "class_sessions.id"],
+            name="fk_participant_notes_session_same_tenant",
+        ),
+        # For "everything written about this participant, newest first".
+        Index("ix_participant_notes_participant_id_created_at", "participant_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
+    tenant_id: Mapped[uuid.UUID]
+    participant_id: Mapped[uuid.UUID]
+    session_id: Mapped[uuid.UUID | None]
+    author_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    body: Mapped[str]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class RefreshToken(Base):
     """A long-lived login credential. Only its SHA-256 hash is stored, never the token itself."""
 
