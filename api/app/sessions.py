@@ -235,6 +235,12 @@ async def update_session(
     for field, value in changes.items():
         setattr(row, field, value.astimezone(UTC) if isinstance(value, datetime) else value)
     await session.flush()
+    if "capacity" in changes:  # more seats (or unlimited) may let waiting people in
+        mode = await session.scalar(
+            select(ClassType.attendance_mode).where(ClassType.id == row.class_type_id)
+        )
+        if await _booking_applies(session, ctx.tenant_id, mode):
+            await _promote_waitlist(session, row.id, row.capacity)
     updated = SessionOut.model_validate(row)  # read before commit, which expires `row`
     await session.commit()
     return updated
@@ -256,6 +262,48 @@ async def cancel_session(
     cancelled = SessionOut.model_validate(row)
     await session.commit()
     return cancelled
+
+
+async def _booking_applies(
+    session: AsyncSession, tenant_id: uuid.UUID, attendance_mode: str
+) -> bool:
+    """Seats and the waitlist only exist for a booking-mode class in a studio that has the module on;
+    otherwise the session behaves as a plain RSVP one."""
+    return attendance_mode == "booking" and await studio_has_module(session, tenant_id, "booking")
+
+
+async def _count_going(session: AsyncSession, session_id: uuid.UUID) -> int:
+    return await session.scalar(
+        select(func.count())
+        .select_from(Rsvp)
+        .where(Rsvp.session_id == session_id, Rsvp.status == "going")
+    )
+
+
+async def _promote_waitlist(
+    session: AsyncSession, session_id: uuid.UUID, capacity: int | None
+) -> None:
+    """Move the earliest waitlisted people to `going` until the seats are full again (everyone if
+    the session is unlimited). Called whenever a seat may have freed up; the single place where a
+    promotion happens, so step 46 can notify the promoted people from here, after the commit.
+    ponytail: ties on waitlisted_at are broken by participant id, which is stable but arbitrary."""
+    waiting = (
+        select(Rsvp.participant_id)
+        .where(Rsvp.session_id == session_id, Rsvp.status == "waitlist")
+        .order_by(Rsvp.waitlisted_at, Rsvp.participant_id)
+    )
+    if capacity is not None:
+        free = capacity - await _count_going(session, session_id)
+        if free <= 0:
+            return
+        waiting = waiting.limit(free)
+    promoted = list(await session.scalars(waiting))
+    if promoted:
+        await session.execute(
+            update(Rsvp)
+            .where(Rsvp.session_id == session_id, Rsvp.participant_id.in_(promoted))
+            .values(status="going", waitlisted_at=None)
+        )
 
 
 class RsvpIn(BaseModel):
@@ -281,9 +329,10 @@ async def rsvp_to_session(
     to the caller's participant in this studio, never to one named by the client. A session of
     another studio gets `404 session_not_found`; a cancelled one gets `409 session_cancelled`.
 
-    In a booking-mode class (module on) a `going` takes one of `capacity` seats: when all are taken
-    the answer is `409 session_full`. `maybe` and `not_going` never take a seat, and repeating
-    `going` is a no-op.
+    In a booking-mode class (module on) a `going` takes one of `capacity` seats. When all are taken
+    the answer is still 200 but the status is `waitlist`: the person waits in line, and the earliest
+    waiting person is promoted to `going` when a seat frees up. `maybe` and `not_going` never take
+    a seat (and take you off the waitlist), and repeating `going` keeps your seat or your place.
     """
     found = (
         await session.execute(
@@ -305,39 +354,47 @@ async def rsvp_to_session(
     if participant_id is None:  # every membership gets a participant, so this should not happen
         raise HTTPException(status_code=409, detail="no_participant")
 
-    # Booking rules: only when the class type is in booking mode AND the studio has the module on.
-    if (
-        body.status == "going"
-        and found.capacity is not None
-        and found.attendance_mode == "booking"
-        and await studio_has_module(session, ctx.tenant_id, "booking")
-    ):
-        current = await session.scalar(
-            select(Rsvp.status).where(
+    booking = await _booking_applies(session, ctx.tenant_id, found.attendance_mode)
+    previous = (
+        await session.execute(
+            select(Rsvp.status, Rsvp.waitlisted_at).where(
                 Rsvp.session_id == session_id, Rsvp.participant_id == participant_id
             )
         )
-        if current != "going":  # someone who already holds a seat keeps it; nothing to check
-            booked = await session.scalar(
-                select(func.count())
-                .select_from(Rsvp)
-                .where(Rsvp.session_id == session_id, Rsvp.status == "going")
-            )
-            # ponytail: check-then-insert is deliberately naive. Two requests can both see a free
-            # seat and both book it (overbooking); step 26 shows it, step 27 fixes it.
-            if booked >= found.capacity:
-                raise HTTPException(status_code=409, detail="session_full")
+    ).first()
+    previous_status = previous.status if previous else None
+
+    status, waitlisted_at = body.status, None
+    # ponytail: check-then-insert is deliberately naive. Two requests can both see a free seat and
+    # both book it (overbooking); step 26 shows it, step 27 fixes it.
+    wants_a_seat = booking and found.capacity is not None and body.status == "going"
+    full = (
+        wants_a_seat
+        and previous_status != "going"  # someone who holds a seat keeps it
+        and await _count_going(session, session_id) >= found.capacity
+    )
+    if full:  # wait in line; someone already waiting keeps their place
+        status = "waitlist"
+        waitlisted_at = (previous.waitlisted_at if previous else None) or datetime.now(UTC)
 
     # One atomic statement: a read-then-insert could race with the same member's other request.
     await session.execute(
         insert(Rsvp)
-        .values(session_id=session_id, participant_id=participant_id, status=body.status)
+        .values(
+            session_id=session_id,
+            participant_id=participant_id,
+            status=status,
+            waitlisted_at=waitlisted_at,
+        )
         .on_conflict_do_update(
-            index_elements=[Rsvp.session_id, Rsvp.participant_id], set_={"status": body.status}
+            index_elements=[Rsvp.session_id, Rsvp.participant_id],
+            set_={"status": status, "waitlisted_at": waitlisted_at},
         )
     )
+    if booking and previous_status == "going" and status != "going":
+        await _promote_waitlist(session, session_id, found.capacity)  # their seat is free
     await session.commit()
-    return RsvpOut(session_id=session_id, status=body.status)
+    return RsvpOut(session_id=session_id, status=status)
 
 
 class AttendanceIn(BaseModel):

@@ -146,16 +146,25 @@ class Rsvp(Base):
 
     __tablename__ = "rsvps"
     __table_args__ = (
-        # waitlist joins this list in step 25.
-        CheckConstraint("status IN ('going', 'not_going', 'maybe')", name="ck_rsvps_status"),
+        CheckConstraint(
+            "status IN ('going', 'not_going', 'maybe', 'waitlist')", name="ck_rsvps_status"
+        ),
+        # A queue position exists exactly while someone is waiting.
+        CheckConstraint(
+            "(status IS NOT DISTINCT FROM 'waitlist') = (waitlisted_at IS NOT NULL)",
+            name="ck_rsvps_waitlisted_at",
+        ),
     )
 
     session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("class_sessions.id"), primary_key=True)
     participant_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("participants.id"), primary_key=True
     )
-    # The plan. NULL = no plan given (someone can attend without having RSVPed).
+    # The plan. NULL = no plan given (someone can attend without having RSVPed). "waitlist" is set by
+    # the server, never by the client: the session was full when they asked for "going".
     status: Mapped[str | None]
+    # When they joined the waitlist (the queue order); NULL for everyone not waiting.
+    waitlisted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # What happened, kept apart from the plan so "said going, did not come" stays visible.
     # NULL = not recorded yet.
     attended: Mapped[bool | None]
