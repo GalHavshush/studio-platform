@@ -205,6 +205,34 @@ class Rsvp(Base):
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class ClassReport(Base):
+    """The coach's report on one session (step 28). One row per session: the primary key is the
+    session, so the database allows at most one. Attendees will only get to see `summary` (step 31);
+    the other three fields are staff-only. The session must be in the report's own studio: the
+    composite foreign key makes the database refuse anything else (27b).
+    ponytail: `author_id` and `submitted_at` describe the latest save; there is no edit history."""
+
+    __tablename__ = "class_reports"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "session_id"],
+            ["class_sessions.tenant_id", "class_sessions.id"],
+            name="fk_class_reports_session_same_tenant",
+        ),
+    )
+
+    session_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    tenant_id: Mapped[uuid.UUID]
+    # Who saved it last (a coach, or an owner correcting it). A user, so the link is global.
+    author_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    # All four are optional text; at least one is filled in (the API checks). NULL = left blank.
+    summary: Mapped[str | None]
+    went_well: Mapped[str | None]
+    needs_work: Mapped[str | None]
+    observations: Mapped[str | None]
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class RefreshToken(Base):
     """A long-lived login credential. Only its SHA-256 hash is stored, never the token itself."""
 
