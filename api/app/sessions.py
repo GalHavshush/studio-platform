@@ -95,15 +95,24 @@ async def _is_staff(session: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.U
     return found is not None
 
 
+# Booking changes (RSVP, capacity edits, cancelling) take this lock on the session row first, so
+# the seat check and the write that follows it cannot interleave with another request's:
+# `FOR NO KEY UPDATE` makes a second one wait until the first commits, and its next statement
+# (the count) then sees the committed result (READ COMMITTED gives each statement a fresh view).
+# "No key" is the weaker variant: it does not block the plain inserts that reference this row
+# through a foreign key (an attendance record), only other changers. One lock type and one row
+# per request, so there is no lock ordering to get wrong.
+# ponytail: it serializes everything that changes one session, RSVP-mode ones too; fine for
+# studio-sized classes, narrow it to booking sessions if contention ever shows up.
 async def _own_session(
     session_id: uuid.UUID, ctx: TenantContext, session: AsyncSession
 ) -> ClassSession:
     """The session to change, or raise: 404 if it is not in this studio, 403 `not_your_session`
     if a coach (not an owner) is not its coach."""
     row = await session.scalar(
-        select(ClassSession).where(
-            ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id
-        )
+        select(ClassSession)
+        .where(ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id)
+        .with_for_update(key_share=True)  # the lock described above
     )
     if row is None:
         raise HTTPException(status_code=404, detail="session_not_found")
@@ -334,11 +343,13 @@ async def rsvp_to_session(
     waiting person is promoted to `going` when a seat frees up. `maybe` and `not_going` never take
     a seat (and take you off the waitlist), and repeating `going` keeps your seat or your place.
     """
+    # Locks the session row: if someone else is booking this session, wait here for them to finish.
     found = (
         await session.execute(
             select(ClassSession.status, ClassSession.capacity, ClassType.attendance_mode)
             .join(ClassType, ClassType.id == ClassSession.class_type_id)
             .where(ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id)
+            .with_for_update(of=ClassSession, key_share=True)
         )
     ).first()
     if found is None:
@@ -365,8 +376,8 @@ async def rsvp_to_session(
     previous_status = previous.status if previous else None
 
     status, waitlisted_at = body.status, None
-    # ponytail: check-then-insert is deliberately naive. Two requests can both see a free seat and
-    # both book it (overbooking); step 26 shows it, step 27 fixes it.
+    # The session row is locked since the first query, so the count below cannot go stale before
+    # the write (step 27; see the note above `_own_session`).
     wants_a_seat = booking and found.capacity is not None and body.status == "going"
     full = (
         wants_a_seat
