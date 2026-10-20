@@ -48,7 +48,7 @@ async def statuses(db_session, session_id) -> list[str]:
     return list(rows)
 
 
-async def test_a_full_session_rejects_the_next_going(client, two_tenants, db_session):
+async def test_a_full_session_does_not_book_the_next_going(client, two_tenants, db_session):
     a = two_tenants.a
     sid = await a_session(db_session, a, capacity=2)
 
@@ -57,9 +57,9 @@ async def test_a_full_session_rejects_the_next_going(client, two_tenants, db_ses
     third = await rsvp(client, two_tenants, a, "member", sid, "going")
 
     assert (first.status_code, second.status_code) == (200, 200)
-    assert third.status_code == 409
-    assert third.json() == {"detail": "session_full"}
-    assert await statuses(db_session, sid) == ["going", "going"]  # the refused one left no row
+    assert third.status_code == 200
+    assert third.json()["status"] == "waitlist"  # no seat left: they wait in line (step 25)
+    assert await statuses(db_session, sid) == ["going", "going", "waitlist"]
 
 
 async def test_maybe_and_not_going_never_take_a_seat(client, two_tenants, db_session):
@@ -77,13 +77,11 @@ async def test_giving_up_a_seat_frees_it_for_someone_else(client, two_tenants, d
     a = two_tenants.a
     sid = await a_session(db_session, a, capacity=1)
     await rsvp(client, two_tenants, a, "coach", sid, "going")
-    refused = await rsvp(client, two_tenants, a, "member", sid, "going")
 
     await rsvp(client, two_tenants, a, "coach", sid, "not_going")
-    accepted = await rsvp(client, two_tenants, a, "member", sid, "going")
+    taken = await rsvp(client, two_tenants, a, "member", sid, "going")
 
-    assert refused.status_code == 409
-    assert accepted.status_code == 200
+    assert taken.json()["status"] == "going"  # a free seat, so a booking and not a waitlist spot
 
 
 async def test_repeating_going_when_full_is_a_no_op(client, two_tenants, db_session):
@@ -105,8 +103,8 @@ async def test_going_after_maybe_needs_a_free_seat(client, two_tenants, db_sessi
 
     response = await rsvp(client, two_tenants, a, "member", sid, "going")
 
-    assert response.status_code == 409
-    assert await statuses(db_session, sid) == ["going", "maybe"]  # still maybe
+    assert response.json()["status"] == "waitlist"
+    assert await statuses(db_session, sid) == ["going", "waitlist"]  # no longer a maybe
 
 
 async def test_seats_are_counted_per_session(client, two_tenants, db_session):
@@ -193,8 +191,8 @@ async def test_lowering_capacity_keeps_existing_bookings(client, two_tenants, db
     newcomer = await rsvp(client, two_tenants, a, "member", sid, "going")
 
     assert lowered.status_code == 200  # nobody is removed
-    assert await statuses(db_session, sid) == ["going", "going"]
-    assert newcomer.status_code == 409
+    assert await statuses(db_session, sid) == ["going", "going", "waitlist"]
+    assert newcomer.json()["status"] == "waitlist"
 
 
 async def test_the_primary_key_rejects_a_duplicate_row(db_session, two_tenants):
