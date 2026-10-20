@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import app.sessions
+import app.bookings
 from app.models import ClassSession, ClassType, Membership, Participant, Rsvp, Tenant, User
 from app.security import create_access_token
 from app.seed import PILOT_TENANT
@@ -73,7 +73,7 @@ def hold_every_count_until_two_have_counted(monkeypatch) -> list[int]:
     """
     barrier = asyncio.Barrier(2)
     observed: list[int] = []
-    real_count = app.sessions._count_going
+    real_count = app.bookings._count_going
 
     async def count_then_wait_for_the_other(session, sid):
         seen = await real_count(session, sid)
@@ -84,7 +84,7 @@ def hold_every_count_until_two_have_counted(monkeypatch) -> list[int]:
             pass  # the other request is blocked (a fix is in place): carry on without it
         return seen
 
-    monkeypatch.setattr(app.sessions, "_count_going", count_then_wait_for_the_other)
+    monkeypatch.setattr(app.bookings, "_count_going", count_then_wait_for_the_other)
     return observed
 
 
@@ -220,7 +220,7 @@ async def test_attendance_is_not_blocked_while_a_change_holds_the_lock(
         starts_in=timedelta(minutes=-5),  # check-in is open
     )
     holding, release = asyncio.Event(), asyncio.Event()
-    real_count = app.sessions._count_going
+    real_count = app.bookings._count_going
 
     async def count_then_pause(session, sid):
         seen = await real_count(session, sid)
@@ -228,7 +228,7 @@ async def test_attendance_is_not_blocked_while_a_change_holds_the_lock(
         await asyncio.wait_for(release.wait(), timeout=10)
         return seen
 
-    monkeypatch.setattr(app.sessions, "_count_going", count_then_pause)
+    monkeypatch.setattr(app.bookings, "_count_going", count_then_pause)
     changes = {
         "rsvp": lambda: rsvp(real_client, tenant_id, people["coach"], session_id, "going"),
         # a capacity change ends in the waitlist promotion, which counts the seats

@@ -5,10 +5,13 @@ from scalar_fastapi import get_scalar_api_reference
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.attendance import router as attendance_router
 from app.auth import router as auth_router
+from app.bookings import router as bookings_router
 from app.class_types import router as class_types_router
 from app.db import get_session
 from app.me import router as me_router
+from app.reports import router as reports_router
 from app.sessions import router as sessions_router
 from app.tenant import router as tenant_router
 
@@ -18,6 +21,9 @@ app.include_router(me_router)  # the logged-in user's own data
 app.include_router(tenant_router)  # the active studio's settings (enabled modules)
 app.include_router(class_types_router)  # what a studio offers (BJJ, Pilates...)
 app.include_router(sessions_router)  # one occurrence of a class: when, and who teaches
+app.include_router(bookings_router)  # RSVPs, seats and the waitlist
+app.include_router(attendance_router)  # who actually came
+app.include_router(reports_router)  # the coach's report on a session
 
 
 @app.get("/health")

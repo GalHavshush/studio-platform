@@ -1,6 +1,10 @@
+"""Class sessions: creating, listing, reading, changing and cancelling them. Booking, attendance
+and reports hang off a session too but live in their own files (bookings.py, attendance.py,
+reports.py); this file holds what they share (`own_session`, `is_staff`, `CoachCtx`)."""
+
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Literal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import (
@@ -11,22 +15,18 @@ from pydantic import (
     StringConstraints,
     model_validator,
 )
-from sqlalchemy import func, select, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bookings import booking_applies, promote_waitlist
 from app.db import get_session
-from app.deps import TenantContext, TenantCtx, require_role, studio_has_module
-from app.models import ClassReport, ClassSession, ClassType, Membership, Participant, Rsvp
+from app.deps import TenantContext, TenantCtx, require_role
+from app.models import ClassSession, ClassType, Membership
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 # So a schedule query cannot pull the whole table. ponytail: fixed cap; add pagination if a studio needs more.
 MAX_RANGE = timedelta(days=62)
-
-# Check-in opens this long before a session starts and stays open afterwards. Not a studio
-# setting yet. ponytail: make it per-studio if studios need different windows.
-CHECKIN_OPENS_BEFORE = timedelta(minutes=15)
 
 # Coaches and owners create sessions (owners can do everything coaches can).
 CoachCtx = Annotated[TenantContext, Depends(require_role("coach"))]
@@ -83,7 +83,7 @@ class SessionOut(BaseModel):
     capacity: int | None
 
 
-async def _is_staff(session: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+async def is_staff(session: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID) -> bool:
     """Whether this user is a coach or owner of the studio, so they can teach a session."""
     found = await session.scalar(
         select(Membership.id).where(
@@ -104,7 +104,7 @@ async def _is_staff(session: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.U
 # per request, so there is no lock ordering to get wrong.
 # ponytail: it serializes everything that changes one session, RSVP-mode ones too; fine for
 # studio-sized classes, narrow it to booking sessions if contention ever shows up.
-async def _own_session(
+async def own_session(
     session_id: uuid.UUID, ctx: TenantContext, session: AsyncSession
 ) -> ClassSession:
     """The session to change, or raise: 404 if it is not in this studio, 403 `not_your_session`
@@ -148,7 +148,7 @@ async def create_session(
     if class_type.archived_at is not None:
         raise HTTPException(status_code=422, detail="class_type_archived")
 
-    if not await _is_staff(session, ctx.tenant_id, coach_id):
+    if not await is_staff(session, ctx.tenant_id, coach_id):
         raise HTTPException(status_code=422, detail="invalid_coach")
 
     row = ClassSession(
@@ -228,14 +228,14 @@ async def update_session(
     and the new coach must be staff of the studio (`422 invalid_coach`). The resulting times must
     still satisfy start < end (`422 invalid_times`). A cancelled session gets `409 session_cancelled`.
     """
-    row = await _own_session(session_id, ctx, session)
+    row = await own_session(session_id, ctx, session)
     changes = body.model_dump(exclude_unset=True)
     if "coach_id" in changes and ctx.role == "coach":
         raise HTTPException(status_code=403, detail="insufficient_role")
     if row.status == "cancelled":
         raise HTTPException(status_code=409, detail="session_cancelled")
 
-    if "coach_id" in changes and not await _is_staff(session, ctx.tenant_id, changes["coach_id"]):
+    if "coach_id" in changes and not await is_staff(session, ctx.tenant_id, changes["coach_id"]):
         raise HTTPException(status_code=422, detail="invalid_coach")
     # Check the result, not the request: sending only ends_at must still end after the stored start.
     if changes.get("ends_at", row.ends_at) <= changes.get("starts_at", row.starts_at):
@@ -248,8 +248,8 @@ async def update_session(
         mode = await session.scalar(
             select(ClassType.attendance_mode).where(ClassType.id == row.class_type_id)
         )
-        if await _booking_applies(session, ctx.tenant_id, mode):
-            await _promote_waitlist(session, row.id, row.capacity)
+        if await booking_applies(session, ctx.tenant_id, mode):
+            await promote_waitlist(session, row.id, row.capacity)
     updated = SessionOut.model_validate(row)  # read before commit, which expires `row`
     await session.commit()
     return updated
@@ -263,7 +263,7 @@ async def cancel_session(
 
     The session stays (reports and notes point at it) with `status: cancelled`.
     """
-    row = await _own_session(session_id, ctx, session)
+    row = await own_session(session_id, ctx, session)
     await session.execute(
         update(ClassSession).where(ClassSession.id == session_id).values(status="cancelled")
     )
@@ -271,287 +271,3 @@ async def cancel_session(
     cancelled = SessionOut.model_validate(row)
     await session.commit()
     return cancelled
-
-
-async def _booking_applies(
-    session: AsyncSession, tenant_id: uuid.UUID, attendance_mode: str
-) -> bool:
-    """Seats and the waitlist only exist for a booking-mode class in a studio that has the module on;
-    otherwise the session behaves as a plain RSVP one."""
-    return attendance_mode == "booking" and await studio_has_module(session, tenant_id, "booking")
-
-
-async def _count_going(session: AsyncSession, session_id: uuid.UUID) -> int:
-    return await session.scalar(
-        select(func.count())
-        .select_from(Rsvp)
-        .where(Rsvp.session_id == session_id, Rsvp.status == "going")
-    )
-
-
-async def _promote_waitlist(
-    session: AsyncSession, session_id: uuid.UUID, capacity: int | None
-) -> None:
-    """Move the earliest waitlisted people to `going` until the seats are full again (everyone if
-    the session is unlimited). Called whenever a seat may have freed up; the single place where a
-    promotion happens, so step 46 can notify the promoted people from here, after the commit.
-    ponytail: ties on waitlisted_at are broken by participant id, which is stable but arbitrary."""
-    waiting = (
-        select(Rsvp.participant_id)
-        .where(Rsvp.session_id == session_id, Rsvp.status == "waitlist")
-        .order_by(Rsvp.waitlisted_at, Rsvp.participant_id)
-    )
-    if capacity is not None:
-        free = capacity - await _count_going(session, session_id)
-        if free <= 0:
-            return
-        waiting = waiting.limit(free)
-    promoted = list(await session.scalars(waiting))
-    if promoted:
-        await session.execute(
-            update(Rsvp)
-            .where(Rsvp.session_id == session_id, Rsvp.participant_id.in_(promoted))
-            .values(status="going", waitlisted_at=None)
-        )
-
-
-class RsvpIn(BaseModel):
-    status: Literal["going", "not_going", "maybe"]
-
-
-class RsvpOut(BaseModel):
-    session_id: uuid.UUID
-    status: str
-
-
-@router.put("/{session_id}/rsvp")
-async def rsvp_to_session(
-    session_id: uuid.UUID,
-    body: RsvpIn,
-    ctx: TenantCtx,
-    session: Annotated[AsyncSession, Depends(get_session)],
-) -> RsvpOut:
-    """Set the caller's own plan for a session: going, not_going or maybe. Any member.
-
-    An upsert: the first call creates the RSVP and later calls change it, so repeating a request is
-    fine. It is only an intention; attendance after the class is a separate step. The RSVP belongs
-    to the caller's participant in this studio, never to one named by the client. A session of
-    another studio gets `404 session_not_found`; a cancelled one gets `409 session_cancelled`.
-
-    In a booking-mode class (module on) a `going` takes one of `capacity` seats. When all are taken
-    the answer is still 200 but the status is `waitlist`: the person waits in line, and the earliest
-    waiting person is promoted to `going` when a seat frees up. `maybe` and `not_going` never take
-    a seat (and take you off the waitlist), and repeating `going` keeps your seat or your place.
-    """
-    # Locks the session row: if someone else is booking this session, wait here for them to finish.
-    found = (
-        await session.execute(
-            select(ClassSession.status, ClassSession.capacity, ClassType.attendance_mode)
-            .join(ClassType, ClassType.id == ClassSession.class_type_id)
-            .where(ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id)
-            .with_for_update(of=ClassSession, key_share=True)
-        )
-    ).first()
-    if found is None:
-        raise HTTPException(status_code=404, detail="session_not_found")
-    if found.status == "cancelled":
-        raise HTTPException(status_code=409, detail="session_cancelled")
-
-    participant_id = await session.scalar(
-        select(Participant.id).where(
-            Participant.tenant_id == ctx.tenant_id, Participant.user_id == ctx.user.id
-        )
-    )
-    if participant_id is None:  # every membership gets a participant, so this should not happen
-        raise HTTPException(status_code=409, detail="no_participant")
-
-    booking = await _booking_applies(session, ctx.tenant_id, found.attendance_mode)
-    previous = (
-        await session.execute(
-            select(Rsvp.status, Rsvp.waitlisted_at).where(
-                Rsvp.session_id == session_id, Rsvp.participant_id == participant_id
-            )
-        )
-    ).first()
-    previous_status = previous.status if previous else None
-
-    status, waitlisted_at = body.status, None
-    # The session row is locked since the first query, so the count below cannot go stale before
-    # the write (step 27; see the note above `_own_session`).
-    wants_a_seat = booking and found.capacity is not None and body.status == "going"
-    full = (
-        wants_a_seat
-        and previous_status != "going"  # someone who holds a seat keeps it
-        and await _count_going(session, session_id) >= found.capacity
-    )
-    if full:  # wait in line; someone already waiting keeps their place
-        status = "waitlist"
-        waitlisted_at = (previous.waitlisted_at if previous else None) or datetime.now(UTC)
-
-    # One atomic statement: a read-then-insert could race with the same member's other request.
-    await session.execute(
-        insert(Rsvp)
-        .values(
-            tenant_id=ctx.tenant_id,
-            session_id=session_id,
-            participant_id=participant_id,
-            status=status,
-            waitlisted_at=waitlisted_at,
-        )
-        .on_conflict_do_update(
-            index_elements=[Rsvp.session_id, Rsvp.participant_id],
-            set_={"status": status, "waitlisted_at": waitlisted_at},
-        )
-    )
-    if booking and previous_status == "going" and status != "going":
-        await _promote_waitlist(session, session_id, found.capacity)  # their seat is free
-    await session.commit()
-    return RsvpOut(session_id=session_id, status=status)
-
-
-class AttendanceIn(BaseModel):
-    attended: bool
-    # Staff only: whose attendance this is. Omitted = the caller's own.
-    participant_id: uuid.UUID | None = None
-
-
-class AttendanceOut(BaseModel):
-    session_id: uuid.UUID
-    participant_id: uuid.UUID
-    attended: bool
-    confirmed_at: datetime
-
-
-@router.post("/{session_id}/attendance")
-async def record_attendance(
-    session_id: uuid.UUID,
-    body: AttendanceIn,
-    ctx: TenantCtx,
-    session: Annotated[AsyncSession, Depends(get_session)],
-) -> AttendanceOut:
-    """Record whether someone actually came (`attended`), as opposed to their RSVP plan.
-
-    Members record their own. An owner can record anyone's on any session, a coach anyone's on
-    sessions they teach (`403 not_your_session` otherwise); a member naming someone else gets
-    `403 insufficient_role`. The person must be in this studio (`404 participant_not_found`).
-    Allowed from 15 minutes before the session starts, with no end (`409 checkin_not_open`
-    before that) and not on a cancelled session (`409 session_cancelled`). Sending it again
-    changes the answer and refreshes `confirmed_at`. A session of another studio gets
-    `404 session_not_found`.
-    """
-    found = (
-        await session.execute(
-            select(ClassSession.status, ClassSession.coach_id, ClassSession.starts_at).where(
-                ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id
-            )
-        )
-    ).first()
-    if found is None:
-        raise HTTPException(status_code=404, detail="session_not_found")
-
-    own_id = await session.scalar(
-        select(Participant.id).where(
-            Participant.tenant_id == ctx.tenant_id, Participant.user_id == ctx.user.id
-        )
-    )
-    if body.participant_id is None or body.participant_id == own_id:
-        participant_id = own_id
-        if participant_id is None:  # every membership gets a participant, so this should not happen
-            raise HTTPException(status_code=409, detail="no_participant")
-    else:
-        if ctx.role == "member":
-            raise HTTPException(status_code=403, detail="insufficient_role")
-        if ctx.role == "coach" and found.coach_id != ctx.user.id:
-            raise HTTPException(status_code=403, detail="not_your_session")
-        participant_id = await session.scalar(
-            select(Participant.id).where(
-                Participant.id == body.participant_id, Participant.tenant_id == ctx.tenant_id
-            )
-        )
-        if participant_id is None:
-            raise HTTPException(status_code=404, detail="participant_not_found")
-
-    if found.status == "cancelled":
-        raise HTTPException(status_code=409, detail="session_cancelled")
-    now = datetime.now(UTC)
-    if now < found.starts_at - CHECKIN_OPENS_BEFORE:
-        raise HTTPException(status_code=409, detail="checkin_not_open")
-
-    # Touches only the attendance columns, so it never overwrites the RSVP plan (and vice versa).
-    await session.execute(
-        insert(Rsvp)
-        .values(
-            tenant_id=ctx.tenant_id,
-            session_id=session_id,
-            participant_id=participant_id,
-            attended=body.attended,
-            confirmed_at=now,
-        )
-        .on_conflict_do_update(
-            index_elements=[Rsvp.session_id, Rsvp.participant_id],
-            set_={"attended": body.attended, "confirmed_at": now},
-        )
-    )
-    await session.commit()
-    return AttendanceOut(
-        session_id=session_id,
-        participant_id=participant_id,
-        attended=body.attended,
-        confirmed_at=now,
-    )
-
-
-ReportText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)]
-
-
-class ReportIn(BaseModel):
-    """The whole report. A field that is left out is cleared (this is a PUT, a full replace)."""
-
-    summary: ReportText | None = None
-    went_well: ReportText | None = None
-    needs_work: ReportText | None = None
-    observations: ReportText | None = None
-
-
-class ReportOut(BaseModel):
-    session_id: uuid.UUID
-    summary: str | None
-    went_well: str | None
-    needs_work: str | None
-    observations: str | None
-    author_id: uuid.UUID
-    submitted_at: datetime
-
-
-@router.put("/{session_id}/report")
-async def write_report(
-    session_id: uuid.UUID,
-    body: ReportIn,
-    ctx: CoachCtx,
-    session: Annotated[AsyncSession, Depends(get_session)],
-) -> ReportOut:
-    """Write the report of a session, or replace the one that is there. The owner writes any
-    session's report, a coach only their own sessions' (`403 not_your_session`).
-
-    There is one report per session, and a PUT replaces all of it: a field that is not sent is
-    cleared. At least one field must have text (`422 empty_report`). A cancelled session gets
-    `409 session_cancelled`; a session of another studio `404 session_not_found`. The author and
-    time are those of the latest save. Attendees will only see `summary` (step 31).
-    """
-    target = await _own_session(session_id, ctx, session)
-    if target.status == "cancelled":
-        raise HTTPException(status_code=409, detail="session_cancelled")
-
-    fields = {name: (text or None) for name, text in body.model_dump().items()}  # blank = left out
-    if not any(fields.values()):
-        raise HTTPException(status_code=422, detail="empty_report")
-
-    now = datetime.now(UTC)
-    saved = {**fields, "author_id": ctx.user.id, "submitted_at": now}
-    await session.execute(
-        insert(ClassReport)
-        .values(tenant_id=ctx.tenant_id, session_id=session_id, **saved)
-        .on_conflict_do_update(index_elements=[ClassReport.session_id], set_=saved)
-    )
-    await session.commit()
-    return ReportOut(session_id=session_id, **saved)
