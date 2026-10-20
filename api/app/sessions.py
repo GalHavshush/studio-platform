@@ -3,13 +3,20 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import AwareDatetime, BaseModel, ConfigDict, StringConstraints, model_validator
-from sqlalchemy import select, update
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    PositiveInt,
+    StringConstraints,
+    model_validator,
+)
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.deps import TenantContext, TenantCtx, require_role
+from app.deps import TenantContext, TenantCtx, require_role, studio_has_module
 from app.models import ClassSession, ClassType, Membership, Participant, Rsvp
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -32,6 +39,8 @@ class SessionIn(BaseModel):
     ends_at: AwareDatetime
     # Omitted = the caller teaches it.
     coach_id: uuid.UUID | None = None
+    # Seats, for booking-mode classes. Omitted = unlimited.
+    capacity: PositiveInt | None = None
 
     @model_validator(mode="after")
     def ends_after_start(self) -> "SessionIn":
@@ -44,15 +53,17 @@ Preview = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200
 
 
 class SessionPatch(BaseModel):
-    """A field that is left out stays unchanged; `preview: null` clears the preview."""
+    """A field that is left out stays unchanged; `preview: null` clears the preview and
+    `capacity: null` makes the session unlimited."""
 
     preview: Preview | None = None
     starts_at: AwareDatetime | None = None
     ends_at: AwareDatetime | None = None
     coach_id: uuid.UUID | None = None
+    capacity: PositiveInt | None = None
 
     @model_validator(mode="after")
-    def only_preview_can_be_cleared(self) -> "SessionPatch":
+    def only_preview_and_capacity_can_be_cleared(self) -> "SessionPatch":
         for field in ("starts_at", "ends_at", "coach_id"):
             if field in self.model_fields_set and getattr(self, field) is None:
                 raise ValueError(f"{field} cannot be null")
@@ -69,6 +80,7 @@ class SessionOut(BaseModel):
     ends_at: datetime
     status: str
     preview: str | None
+    capacity: int | None
 
 
 async def _is_staff(session: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID) -> bool:
@@ -136,6 +148,7 @@ async def create_session(
         coach_id=coach_id,
         starts_at=body.starts_at.astimezone(UTC),
         ends_at=body.ends_at.astimezone(UTC),
+        capacity=body.capacity,
     )
     session.add(row)
     await session.flush()
@@ -267,12 +280,16 @@ async def rsvp_to_session(
     fine. It is only an intention; attendance after the class is a separate step. The RSVP belongs
     to the caller's participant in this studio, never to one named by the client. A session of
     another studio gets `404 session_not_found`; a cancelled one gets `409 session_cancelled`.
+
+    In a booking-mode class (module on) a `going` takes one of `capacity` seats: when all are taken
+    the answer is `409 session_full`. `maybe` and `not_going` never take a seat, and repeating
+    `going` is a no-op.
     """
     found = (
         await session.execute(
-            select(ClassSession.status).where(
-                ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id
-            )
+            select(ClassSession.status, ClassSession.capacity, ClassType.attendance_mode)
+            .join(ClassType, ClassType.id == ClassSession.class_type_id)
+            .where(ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id)
         )
     ).first()
     if found is None:
@@ -287,6 +304,29 @@ async def rsvp_to_session(
     )
     if participant_id is None:  # every membership gets a participant, so this should not happen
         raise HTTPException(status_code=409, detail="no_participant")
+
+    # Booking rules: only when the class type is in booking mode AND the studio has the module on.
+    if (
+        body.status == "going"
+        and found.capacity is not None
+        and found.attendance_mode == "booking"
+        and await studio_has_module(session, ctx.tenant_id, "booking")
+    ):
+        current = await session.scalar(
+            select(Rsvp.status).where(
+                Rsvp.session_id == session_id, Rsvp.participant_id == participant_id
+            )
+        )
+        if current != "going":  # someone who already holds a seat keeps it; nothing to check
+            booked = await session.scalar(
+                select(func.count())
+                .select_from(Rsvp)
+                .where(Rsvp.session_id == session_id, Rsvp.status == "going")
+            )
+            # ponytail: check-then-insert is deliberately naive. Two requests can both see a free
+            # seat and both book it (overbooking); step 26 shows it, step 27 fixes it.
+            if booked >= found.capacity:
+                raise HTTPException(status_code=409, detail="session_full")
 
     # One atomic statement: a read-then-insert could race with the same member's other request.
     await session.execute(
