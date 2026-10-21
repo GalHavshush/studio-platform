@@ -81,8 +81,8 @@ class ClassType(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
     # Indexed: every read of this table is "the rows of this studio".
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
-    # ponytail: names are not unique within a studio, so "Pilates" can be created twice. Add
-    # UniqueConstraint("tenant_id", "name") plus a 409 if that ever bites.
+    # Unique within a studio ignoring case (see the index below), archived types included, so
+    # "Pilates" and "pilates" cannot both exist and unarchiving never collides.
     name: Mapped[str]
     # NULL = active. Set when an owner archives the type; never deleted, because sessions, reports
     # and notes reference it. Archived types are hidden by default and cannot get new sessions.
@@ -96,6 +96,7 @@ class ClassType(Base):
         ),
         # Redundant with the primary key, but a composite foreign key needs it as its target (27b).
         UniqueConstraint("tenant_id", "id", name="uq_class_types_tenant_id_id"),
+        Index("uq_class_types_tenant_id_lower_name", "tenant_id", text("lower(name)"), unique=True),
     )
 
 

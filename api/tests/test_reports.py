@@ -255,3 +255,37 @@ async def test_the_primary_key_allows_one_report_per_session(db_session, two_ten
 
     with pytest.raises(IntegrityError):
         await db_session.flush()
+
+
+async def test_a_session_that_has_not_started_takes_no_report(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    await db_session.execute(
+        text(
+            "UPDATE class_sessions SET starts_at = now() + interval '1 hour', "
+            "ends_at = now() + interval '2 hours' WHERE id = :id"
+        ),
+        {"id": sid},
+    )
+
+    response = await write(client, two_tenants, a, "coach", sid, summary="Planned content")
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "session_not_started"}
+    assert await count(db_session) == 0
+
+
+async def test_a_session_that_just_started_takes_a_report(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    await db_session.execute(
+        text(
+            "UPDATE class_sessions SET starts_at = now() - interval '1 minute', "
+            "ends_at = now() + interval '59 minutes' WHERE id = :id"
+        ),
+        {"id": sid},
+    )
+
+    response = await write(client, two_tenants, a, "coach", sid, summary="Written while teaching")
+
+    assert response.status_code == 200

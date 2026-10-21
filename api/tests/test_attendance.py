@@ -50,7 +50,7 @@ async def row_of(db_session, session_id, participant_id) -> Rsvp | None:
     )
 
 
-# --- the check-in window: opens 15 minutes before the start, never closes ---
+# --- the check-in window: opens 15 minutes before the start; closes for members 24h after the end ---
 
 
 @pytest.mark.parametrize(
@@ -60,7 +60,7 @@ async def row_of(db_session, session_id, participant_id) -> Rsvp | None:
         (timedelta(minutes=16), False),
         (timedelta(minutes=14), True),  # inside the 15-minute window
         (timedelta(0), True),  # just started
-        (timedelta(hours=-3), True),  # long over: no upper limit
+        (timedelta(hours=-3), True),  # over, but a member can still record it
     ],
 )
 async def test_check_in_opens_fifteen_minutes_before_the_start(
@@ -244,7 +244,11 @@ async def test_another_studios_session_is_not_found(client, two_tenants, db_sess
     assert await db_session.scalar(select(func.count()).select_from(Rsvp)) == 0
 
 
-@pytest.mark.parametrize("payload", [{}, {"attended": None}, {"attended": "maybe"}])
+@pytest.mark.parametrize(
+    "payload",
+    [{}, {"attended": None}, {"attended": "maybe"}, {"attended": "yes"}, {"attended": "true"}]
+    + [{"attended": 1}, {"attended": 0}],  # only real booleans: no "yes", no 1
+)
 async def test_attended_must_be_a_boolean(client, two_tenants, db_session, payload):
     a = two_tenants.a
     sid = await a_session(db_session, a, timedelta(minutes=-5))
@@ -256,3 +260,100 @@ async def test_attended_must_be_a_boolean(client, two_tenants, db_session, paylo
     )
 
     assert response.status_code == 422
+
+
+# --- the cap: a member can change their own attendance until 24 hours after the session ends ---
+
+ONE_HOUR = timedelta(hours=1)  # the length of the helper's sessions
+
+
+@pytest.mark.parametrize(
+    ("ended_ago", "allowed"),
+    [
+        (timedelta(hours=23, minutes=59), True),
+        (timedelta(hours=24, minutes=1), False),
+    ],
+)
+async def test_a_member_can_record_attendance_until_a_day_after_the_end(
+    client, two_tenants, db_session, ended_ago, allowed
+):
+    a = two_tenants.a
+    sid = await a_session(db_session, a, -(ended_ago + ONE_HOUR))
+
+    response = await attend(client, two_tenants, a, "member", sid)
+
+    assert response.status_code == (200 if allowed else 409)
+    if not allowed:
+        assert response.json() == {"detail": "checkin_closed"}
+    me = await participant_of(db_session, a, "member")
+    assert (await row_of(db_session, sid, me) is not None) is allowed
+
+
+async def test_after_the_cap_a_members_earlier_answer_cannot_be_changed(
+    client, two_tenants, db_session
+):
+    a = two_tenants.a
+    sid = await a_session(db_session, a, timedelta(minutes=-5))
+    await attend(client, two_tenants, a, "member", sid, attended=True)
+    await db_session.execute(  # time passes: the session ended two days ago
+        text(
+            "UPDATE class_sessions SET starts_at = now() - interval '49 hours', "
+            "ends_at = now() - interval '48 hours' WHERE id = :id"
+        ),
+        {"id": sid},
+    )
+
+    changed = await attend(client, two_tenants, a, "member", sid, attended=False)
+
+    assert changed.status_code == 409
+    me = await participant_of(db_session, a, "member")
+    assert (await row_of(db_session, sid, me)).attended is True
+
+
+@pytest.mark.parametrize("role", ["coach", "owner"])
+async def test_staff_can_record_attendance_long_after_the_cap(
+    client, two_tenants, db_session, role
+):
+    a = two_tenants.a
+    sid = await a_session(db_session, a, timedelta(days=-30))
+    member = await participant_of(db_session, a, "member")
+    mine = await participant_of(db_session, a, role)
+
+    for_member = await attend(client, two_tenants, a, role, sid, participant_id=str(member))
+    for_self = await attend(client, two_tenants, a, role, sid)
+
+    assert (for_member.status_code, for_self.status_code) == (200, 200)
+    assert (await row_of(db_session, sid, member)).attended is True
+    assert (await row_of(db_session, sid, mine)).attended is True
+
+
+@pytest.mark.parametrize(
+    ("ended_ago", "sees_summary"),
+    [
+        (timedelta(hours=23, minutes=59), True),  # the control: inside the cap it does unlock it
+        (timedelta(hours=24, minutes=1), False),
+    ],
+)
+async def test_the_cap_keeps_the_summary_hidden_from_a_late_member(
+    client, two_tenants, db_session, ended_ago, sees_summary
+):
+    a = two_tenants.a
+    sid = await a_session(db_session, a, -(ended_ago + ONE_HOUR))
+    await client.put(
+        f"/sessions/{sid}/report",
+        json={"summary": "Worked on guard passing."},
+        headers=two_tenants.headers(a.users["coach"], a.id),
+    )
+    me = await participant_of(db_session, a, "member")
+    member = two_tenants.headers(a.users["member"], a.id)
+
+    await attend(client, two_tenants, a, "member", sid)
+    report = await client.get(f"/sessions/{sid}/report", headers=member)
+    timeline = await client.get(f"/participants/{me}/timeline", headers=member)
+
+    if sees_summary:
+        assert report.json() == {"session_id": str(sid), "summary": "Worked on guard passing."}
+        assert [i["summary"] for i in timeline.json()["items"]] == ["Worked on guard passing."]
+    else:
+        assert (report.status_code, report.json()) == (404, {"detail": "report_not_found"})
+        assert timeline.json()["items"] == []  # no RSVP, no attendance: not even an entry

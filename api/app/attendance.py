@@ -5,13 +5,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictBool
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.deps import TenantCtx
+from app.deps import TenantCtx, is_staff
 from app.models import ClassSession, Participant, Rsvp
 
 router = APIRouter(prefix="/sessions", tags=["attendance"])
@@ -19,10 +19,14 @@ router = APIRouter(prefix="/sessions", tags=["attendance"])
 # Check-in opens this long before a session starts and stays open afterwards. Not a studio
 # setting yet. ponytail: make it per-studio if studios need different windows.
 CHECKIN_OPENS_BEFORE = timedelta(minutes=15)
+# Members can no longer record or change their own attendance this long after a session ends (the
+# attendance flag unlocks the class summary, so it must not stay editable forever). Staff are not
+# capped: a coach can still correct the record later.
+CHECKIN_CLOSES_AFTER = timedelta(hours=24)
 
 
 class AttendanceIn(BaseModel):
-    attended: bool
+    attended: StrictBool  # a real true/false, not "yes" or 1
     # Staff only: whose attendance this is. Omitted = the caller's own.
     participant_id: uuid.UUID | None = None
 
@@ -46,16 +50,20 @@ async def record_attendance(
     Members record their own. An owner can record anyone's on any session, a coach anyone's on
     sessions they teach (`403 not_your_session` otherwise); a member naming someone else gets
     `403 insufficient_role`. The person must be in this studio (`404 participant_not_found`).
-    Allowed from 15 minutes before the session starts, with no end (`409 checkin_not_open`
-    before that) and not on a cancelled session (`409 session_cancelled`). Sending it again
+    Allowed from 15 minutes before the session starts (`409 checkin_not_open` before that). A
+    member can record it until 24 hours after the session ends (`409 checkin_closed` after that);
+    coaches and owners have no end. Not on a cancelled session (`409 session_cancelled`). Sending it again
     changes the answer and refreshes `confirmed_at`. A session of another studio gets
     `404 session_not_found`.
     """
     found = (
         await session.execute(
-            select(ClassSession.status, ClassSession.coach_id, ClassSession.starts_at).where(
-                ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id
-            )
+            select(
+                ClassSession.status,
+                ClassSession.coach_id,
+                ClassSession.starts_at,
+                ClassSession.ends_at,
+            ).where(ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id)
         )
     ).first()
     if found is None:
@@ -88,6 +96,8 @@ async def record_attendance(
     now = datetime.now(UTC)
     if now < found.starts_at - CHECKIN_OPENS_BEFORE:
         raise HTTPException(status_code=409, detail="checkin_not_open")
+    if not is_staff(ctx) and now > found.ends_at + CHECKIN_CLOSES_AFTER:
+        raise HTTPException(status_code=409, detail="checkin_closed")
 
     # Touches only the attendance columns, so it never overwrites the RSVP plan (and vice versa).
     await session.execute(

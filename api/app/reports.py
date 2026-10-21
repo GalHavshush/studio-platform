@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, StringConstraints, model_validator
+from pydantic import BaseModel, StrictBool, StringConstraints, model_validator
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,11 +14,12 @@ from app.db import get_session
 from app.deps import TenantContext, TenantCtx, is_staff
 from app.models import ClassReport, ClassSession, Participant, ParticipantNote, Rsvp
 from app.sessions import CoachCtx, own_session
+from app.text import NoNul
 
 router = APIRouter(prefix="/sessions", tags=["reports"])
 
 
-ReportText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)]
+ReportText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000), NoNul]
 
 
 REPORT_FIELDS = ("summary", "went_well", "needs_work", "observations")
@@ -26,10 +27,12 @@ REPORT_FIELDS = ("summary", "went_well", "needs_work", "observations")
 
 class NoteIn(BaseModel):
     participant_id: uuid.UUID
-    body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=5000)]
+    body: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=5000), NoNul
+    ]
     # Whether the member the note is about may read it. Fails private: a note that is sent without
     # the flag (including one that was shared before) becomes staff-only.
-    shared_with_member: bool = False
+    shared_with_member: StrictBool = False
 
 
 class ReportIn(BaseModel):
@@ -86,12 +89,14 @@ async def write_report(
     report and its notes are saved in one transaction, so a rejected note means nothing is saved.
     A report needs text in at least one field or at least one note (`422 empty_report`); a note
     about someone who is not in this studio is `422 participant_not_found`. A cancelled session
-    gets `409 session_cancelled`; a session of another studio `404 session_not_found`. The author
+    gets `409 session_cancelled`, one that has not started yet `409 session_not_started`; a session of another studio `404 session_not_found`. The author
     and time are those of the latest save. Attendees will only see `summary` (step 31).
     """
     target = await own_session(session_id, ctx, session)
     if target.status == "cancelled":
         raise HTTPException(status_code=409, detail="session_cancelled")
+    if target.starts_at > datetime.now(UTC):
+        raise HTTPException(status_code=409, detail="session_not_started")
 
     fields = {name: (getattr(body, name) or None) for name in REPORT_FIELDS}  # blank = left out
     if not any(fields.values()) and not body.notes:

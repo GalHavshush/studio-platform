@@ -23,6 +23,7 @@ api/                         FastAPI backend (Python, managed with uv)
 │   ├── tenant.py            GET /tenant (the studio named by X-Tenant-Id, with its enabled modules)
 │   ├── me.py                GET /me (profile + studio memberships of the logged-in user), DELETE /me (delete the account, confirmed with the password)
 │   ├── deps.py              shared dependencies: current_user (verifies the Bearer token), TenantCtx (X-Tenant-Id + membership role), require_role (owner > coach > member), require_module (studio has the module on), is_staff (coach or owner)
+│   ├── text.py              rules shared by every stored free-text field (no NUL characters)
 │   ├── deletion.py          what deleting an account erases, anonymizes and keeps (the policy, in one place)
 │   ├── config.py            settings read from the environment / .env (DATABASE_URL, JWT_SECRET)
 │   ├── db.py                async engine and the per-request session dependency
@@ -34,7 +35,7 @@ api/                         FastAPI backend (Python, managed with uv)
 │   └── versions/            one file per schema change
 ├── tests/
 │   ├── conftest.py          test database, migrated_db, client, real-commit and two-studio fixtures
-│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, refresh, token_families, reuse_detection, tenant_ctx, tenant_isolation, class_types, participants, sessions, rsvps, attendance, modules, capacity, waitlist, booking_race (concurrency and the session row lock), same_studio_links, reports, notes (incl. sharing), report_summaries, timeline, account_deletion, docs
+│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, refresh, token_families, reuse_detection, tenant_ctx, tenant_isolation, class_types, participants, sessions, rsvps, attendance, modules, capacity, waitlist, booking_race (concurrency and the session row lock), same_studio_links, reports, notes (incl. sharing), report_summaries, timeline, account_deletion, nul_characters, docs
 ├── alembic.ini
 ├── pyproject.toml           dependencies and tool settings
 └── .env.example             template for api/.env

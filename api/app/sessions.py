@@ -22,6 +22,7 @@ from app.bookings import booking_applies, promote_waitlist
 from app.db import get_session
 from app.deps import TenantContext, TenantCtx, require_role
 from app.models import ClassSession, ClassType, Membership
+from app.text import NoNul
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -49,7 +50,7 @@ class SessionIn(BaseModel):
         return self
 
 
-Preview = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]
+Preview = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000), NoNul]
 
 
 class SessionPatch(BaseModel):
