@@ -693,3 +693,15 @@ def test_an_unknown_role_gets_the_member_view_not_the_staff_one():
 
     assert is_staff(unknown) is False
     assert is_staff(coach) is True
+
+
+@pytest.mark.parametrize("flag", ["yes", "true", 1, 0, "no"])
+async def test_the_shared_flag_must_be_a_real_boolean(client, two_tenants, db_session, flag):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    maya = await participant(db_session, a, "member")
+
+    response = await write(client, two_tenants, a, "coach", sid, notes=[note(maya, shared=flag)])
+
+    assert response.status_code == 422
+    assert await stored(db_session, sid) == {}
