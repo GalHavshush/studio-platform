@@ -19,8 +19,9 @@ from app.models import (
 BASE = datetime(2026, 1, 1, 18, tzinfo=UTC)
 
 
-async def a_class_type(db_session, studio, name="Open mat") -> uuid.UUID:
-    row = ClassType(tenant_id=studio.id, name=name)
+async def a_class_type(db_session, studio, name=None) -> uuid.UUID:
+    # Names are unique per studio, so a test that needs several gets a different one each time.
+    row = ClassType(tenant_id=studio.id, name=name or f"Open mat {uuid.uuid4().hex[:8]}")
     db_session.add(row)
     await db_session.flush()
     return row.id

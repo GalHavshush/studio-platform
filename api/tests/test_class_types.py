@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import UTC, datetime
 
@@ -5,10 +6,15 @@ import pytest
 from fastapi import Depends, FastAPI, HTTPException
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
+import app.class_types
 from app.db import get_session
 from app.deps import ROLE_RANK, TenantContext, require_role
-from app.models import ClassType
+from app.models import ClassType, Tenant, User
+from app.security import create_access_token
+from app.seed import PILOT_TENANT
 
 
 async def add_class_type(db_session, studio, name) -> ClassType:
@@ -362,7 +368,7 @@ async def test_booking_can_be_set_when_the_studio_has_the_module(client, two_ten
     a = two_tenants.a
     await set_modules(db_session, a, ["booking"])
 
-    created = await create(client, two_tenants, a, attendance_mode="booking")
+    created = await create(client, two_tenants, a, name="Booked", attendance_mode="booking")
     other = (await create(client, two_tenants, a)).json()["id"]
     switched = await update(client, two_tenants, a, other, attendance_mode="booking")
 
@@ -487,3 +493,119 @@ async def test_rsvp_never_needs_the_module_even_when_sent_explicitly(client, two
     assert created.status_code == 201
     assert updated.status_code == 200
     assert updated.json()["attendance_mode"] == "rsvp"
+
+
+# --- names are unique within a studio, ignoring case, archived types included ---
+
+
+@pytest.mark.parametrize("again", ["Pilates", "pilates", "PILATES", "  Pilates  "])
+async def test_a_name_the_studio_already_has_is_refused(client, two_tenants, db_session, again):
+    a = two_tenants.a
+    await create(client, two_tenants, a, name="Pilates")
+
+    response = await create(client, two_tenants, a, name=again)
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "class_type_name_taken"}
+    assert await count(db_session) == 1
+
+
+async def test_two_studios_can_use_the_same_name(client, two_tenants, db_session):
+    a, b = two_tenants.a, two_tenants.b
+
+    first = await create(client, two_tenants, a, name="Pilates")
+    second = await create(client, two_tenants, b, name="Pilates")
+
+    assert (first.status_code, second.status_code) == (201, 201)
+
+
+async def test_an_archived_types_name_stays_taken_until_it_is_renamed(
+    client, two_tenants, db_session
+):
+    a = two_tenants.a
+    old = (await create(client, two_tenants, a, name="Yoga")).json()["id"]
+    await client.post(
+        f"/class-types/{old}/archive", headers=two_tenants.headers(a.users["owner"], a.id)
+    )
+
+    reuse = await create(client, two_tenants, a, name="yoga")
+    unarchived = await client.post(
+        f"/class-types/{old}/unarchive", headers=two_tenants.headers(a.users["owner"], a.id)
+    )
+
+    assert reuse.status_code == 409  # so unarchiving can never collide with a newer type
+    assert unarchived.status_code == 200
+
+
+async def test_renaming_to_another_types_name_is_refused_and_changes_nothing(
+    client, two_tenants, db_session
+):
+    a = two_tenants.a
+    await create(client, two_tenants, a, name="Pilates")
+    other = (await create(client, two_tenants, a, name="Yoga")).json()["id"]
+
+    response = await update(client, two_tenants, a, other, name="PILATES")
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "class_type_name_taken"}
+    row = await db_session.scalar(
+        select(ClassType)
+        .where(ClassType.id == uuid.UUID(other))
+        .execution_options(populate_existing=True)
+    )
+    assert row.name == "Yoga"
+
+
+@pytest.mark.parametrize("new_name", ["Pilates", "PILATES", " pilates "])
+async def test_a_type_can_be_renamed_to_its_own_name_in_another_case(
+    client, two_tenants, db_session, new_name
+):
+    a = two_tenants.a
+    mine = (await create(client, two_tenants, a, name="Pilates")).json()["id"]
+
+    response = await update(client, two_tenants, a, mine, name=new_name)
+
+    assert response.status_code == 200
+    assert response.json()["name"] == new_name.strip()
+
+
+async def test_the_database_enforces_it_too(db_session, two_tenants):
+    a = two_tenants.a
+    await add_class_type(db_session, a, "Pilates")
+    db_session.add(ClassType(tenant_id=a.id, name="pilates"))
+
+    with pytest.raises(IntegrityError) as caught:
+        await db_session.flush()
+
+    assert "uq_class_types_tenant_id_lower_name" in str(caught.value.orig)
+
+
+async def test_two_simultaneous_creates_of_one_name_give_one_201_and_one_409(
+    real_client, committed_engine, monkeypatch
+):
+    """Both requests pass the free-name check (each is held right after it, until both have), so
+    only the unique index can stop the second: it must still be a 409, never a 500."""
+    barrier = asyncio.Barrier(2)
+    real_check = app.class_types._require_free_name
+
+    async def check_then_wait_for_the_other(*args, **kwargs):
+        await real_check(*args, **kwargs)
+        await asyncio.wait_for(barrier.wait(), timeout=5)
+
+    monkeypatch.setattr(app.class_types, "_require_free_name", check_then_wait_for_the_other)
+    async with AsyncSession(committed_engine) as db:
+        tenant_id = await db.scalar(select(Tenant.id).where(Tenant.slug == PILOT_TENANT["slug"]))
+        owner_id = await db.scalar(select(User.id).where(User.email == "owner@example.com"))
+    headers = {
+        "Authorization": f"Bearer {create_access_token(owner_id)}",
+        "X-Tenant-Id": str(tenant_id),
+    }
+
+    responses = await asyncio.gather(
+        *(real_client.post("/class-types", json={"name": "Racing"}, headers=headers) for _ in "ab")
+    )
+
+    assert sorted(r.status_code for r in responses) == [201, 409]
+    assert {r.json().get("detail") for r in responses if r.status_code == 409} == {
+        "class_type_name_taken"
+    }
