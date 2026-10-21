@@ -32,6 +32,9 @@ class User(Base):
     locale: Mapped[str] = mapped_column(server_default="en")
     # Argon2 hash, never the password. NULL = no password login (e.g. Google sign-in, step 53).
     password_hash: Mapped[str | None]
+    # Set when the person deletes their account (step 32b). The row stays, anonymized, so every
+    # record that points at it keeps working; NULL = a normal account.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Tenant(Base):

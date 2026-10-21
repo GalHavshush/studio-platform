@@ -40,9 +40,10 @@ async def current_user(
     except jwt.InvalidTokenError:
         raise _unauthorized("invalid_token")
 
-    # A valid signature only proves we issued the token; the user may have been deleted since.
+    # A valid signature only proves we issued the token; the user may have been deleted since. A
+    # deleted account (step 32b) is refused at once, not when its 15-minute token runs out.
     user = await session.get(User, user_id)
-    if user is None:
+    if user is None or user.deleted_at is not None:
         raise _unauthorized("invalid_token")
     return user
 
