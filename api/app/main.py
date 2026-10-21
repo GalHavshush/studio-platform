@@ -15,6 +15,7 @@ from app.participants import router as participants_router
 from app.reports import router as reports_router
 from app.sessions import router as sessions_router
 from app.tenant import router as tenant_router
+from app.timeline import router as timeline_router
 
 app = FastAPI(title="Studio API")
 app.include_router(auth_router)  # getting a token: login
@@ -26,6 +27,7 @@ app.include_router(bookings_router)  # RSVPs, seats and the waitlist
 app.include_router(attendance_router)  # who actually came
 app.include_router(reports_router)  # the coach's report on a session
 app.include_router(participants_router)  # what the studio knows about a participant
+app.include_router(timeline_router)  # a participant's history, class by class
 
 
 @app.get("/health")
