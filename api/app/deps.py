@@ -116,6 +116,11 @@ def require_role(min_role: str) -> Callable[[TenantContext], Awaitable[TenantCon
     return dependency
 
 
+def is_staff(ctx: TenantContext) -> bool:
+    """Coach or owner. An unknown role ranks below everyone, so it is not staff (least privilege)."""
+    return ROLE_RANK.get(ctx.role, -1) >= ROLE_RANK["coach"]
+
+
 # The optional modules a studio can switch on (tenants.modules). Add a name here with its feature.
 KNOWN_MODULES = {"booking"}
 

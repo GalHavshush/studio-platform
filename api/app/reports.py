@@ -1,4 +1,4 @@
-"""The coach's report on a session, with a private note per attendee."""
+"""The coach's report on a session: writing it (with a private note per attendee) and reading it."""
 
 import uuid
 from datetime import UTC, datetime
@@ -11,7 +11,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models import ClassReport, Participant, ParticipantNote
+from app.deps import TenantContext, TenantCtx, is_staff
+from app.models import ClassReport, ClassSession, Participant, ParticipantNote, Rsvp
 from app.sessions import CoachCtx, own_session
 
 router = APIRouter(prefix="/sessions", tags=["reports"])
@@ -146,7 +147,13 @@ async def write_report(
                     },
                 )
             )
-    notes = await session.execute(
+    result = ReportOut(session_id=session_id, **saved, notes=await _notes_of(session, session_id))
+    await session.commit()
+    return result
+
+
+async def _notes_of(session: AsyncSession, session_id: uuid.UUID) -> list[NoteOut]:
+    rows = await session.execute(
         select(
             ParticipantNote.participant_id,
             ParticipantNote.body,
@@ -155,12 +162,78 @@ async def write_report(
         .where(ParticipantNote.session_id == session_id)
         .order_by(ParticipantNote.created_at, ParticipantNote.id)
     )
-    result = ReportOut(
-        session_id=session_id,
-        **saved,
-        notes=[
-            NoteOut(participant_id=p, body=b, shared_with_member=shared) for p, b, shared in notes
-        ],
+    return [NoteOut(participant_id=p, body=b, shared_with_member=s) for p, b, s in rows]
+
+
+class MemberReport(BaseModel):
+    """All a member ever gets of a report: the summary."""
+
+    session_id: uuid.UUID
+    summary: str
+
+
+def member_visible_summary(ctx: TenantContext, session_id: uuid.UUID):
+    """The query for what a member may read of a session's report: the `summary` and nothing else,
+    and only if they attended (their RSVP row says `attended`, recorded by them or a coach).
+
+    THE one place that rule lives. To let every member read every summary, drop the `Rsvp` join and
+    its condition here; step 32's timeline uses this same function, so it follows. The other three
+    fields are not even selected, so no later mistake can leak them.
+    """
+    return (
+        select(ClassReport.summary)
+        .join(
+            Rsvp,
+            (Rsvp.session_id == ClassReport.session_id) & (Rsvp.tenant_id == ClassReport.tenant_id),
+        )
+        .join(Participant, Participant.id == Rsvp.participant_id)
+        .where(
+            ClassReport.session_id == session_id,
+            ClassReport.tenant_id == ctx.tenant_id,
+            Participant.user_id == ctx.user.id,  # their own attendance, nobody else's
+            Participant.tenant_id == ctx.tenant_id,
+            Rsvp.attended.is_(True),
+        )
     )
-    await session.commit()
-    return result
+
+
+@router.get("/{session_id}/report")
+async def read_report(
+    session_id: uuid.UUID, ctx: TenantCtx, session: Annotated[AsyncSession, Depends(get_session)]
+) -> ReportOut | MemberReport:
+    """Read the report of a session. What you get depends on your role:
+
+    - **Coach or owner:** the whole report (any coach reads all reports) with its notes and their
+      sharing flags, in the shape the `PUT` returns. `404 session_not_found` for a session of
+      another studio, `404 report_not_found` when it has no report yet.
+    - **Member:** only the `summary`, and only for a session they attended. In every other case
+      (no report, no summary, did not attend, attendance `false` or not recorded, a session of
+      another studio or none at all) the same `404 report_not_found`, so a member cannot tell
+      them apart.
+    """
+    if is_staff(ctx):
+        exists = await session.scalar(
+            select(ClassSession.id).where(
+                ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id
+            )
+        )
+        if exists is None:
+            raise HTTPException(status_code=404, detail="session_not_found")
+        report = await session.scalar(
+            select(ClassReport).where(
+                ClassReport.session_id == session_id, ClassReport.tenant_id == ctx.tenant_id
+            )
+        )
+        if report is None:
+            raise HTTPException(status_code=404, detail="report_not_found")
+        return ReportOut(
+            session_id=session_id,
+            **{name: getattr(report, name) for name in REPORT_FIELDS},
+            author_id=report.author_id,
+            submitted_at=report.submitted_at,
+            notes=await _notes_of(session, session_id),
+        )
+    summary = await session.scalar(member_visible_summary(ctx, session_id))
+    if summary is None:  # no row (not attended, no report) or a report without a summary
+        raise HTTPException(status_code=404, detail="report_not_found")
+    return MemberReport(session_id=session_id, summary=summary)

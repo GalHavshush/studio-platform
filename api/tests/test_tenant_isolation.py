@@ -80,6 +80,10 @@ async def _list_notes(client, headers):
     return await client.get(f"/participants/{uuid.uuid4()}/notes", headers=headers)
 
 
+async def _read_report(client, headers):
+    return await client.get(f"/sessions/{uuid.uuid4()}/report", headers=headers)
+
+
 async def _create_session(client, headers):
     # Random ids: this checks who is let in, not what the route does with the body.
     body = {
@@ -114,6 +118,7 @@ TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
     ("PUT", "/sessions/{session_id}/rsvp"): _rsvp,
     ("POST", "/sessions/{session_id}/attendance"): _attendance,
     ("PUT", "/sessions/{session_id}/report"): _write_report,
+    ("GET", "/sessions/{session_id}/report"): _read_report,
     ("GET", "/participants/{participant_id}/notes"): _list_notes,
 }
 
