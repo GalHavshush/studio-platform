@@ -26,6 +26,9 @@ REPORT_FIELDS = ("summary", "went_well", "needs_work", "observations")
 class NoteIn(BaseModel):
     participant_id: uuid.UUID
     body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=5000)]
+    # Whether the member the note is about may read it. Fails private: a note that is sent without
+    # the flag (including one that was shared before) becomes staff-only.
+    shared_with_member: bool = False
 
 
 class ReportIn(BaseModel):
@@ -53,6 +56,7 @@ class ReportIn(BaseModel):
 class NoteOut(BaseModel):
     participant_id: uuid.UUID
     body: str
+    shared_with_member: bool
 
 
 class ReportOut(BaseModel):
@@ -126,6 +130,7 @@ async def write_report(
                         "session_id": session_id,
                         "author_id": ctx.user.id,
                         "body": note.body,
+                        "shared_with_member": note.shared_with_member,
                         "created_at": now,  # the app clock, like every other timestamp
                     }
                     for note in body.notes
@@ -134,16 +139,28 @@ async def write_report(
             await session.execute(
                 new.on_conflict_do_update(
                     index_elements=[ParticipantNote.session_id, ParticipantNote.participant_id],
-                    set_={"body": new.excluded.body, "author_id": new.excluded.author_id},
+                    set_={
+                        "body": new.excluded.body,
+                        "shared_with_member": new.excluded.shared_with_member,
+                        "author_id": new.excluded.author_id,
+                    },
                 )
             )
     notes = await session.execute(
-        select(ParticipantNote.participant_id, ParticipantNote.body)
+        select(
+            ParticipantNote.participant_id,
+            ParticipantNote.body,
+            ParticipantNote.shared_with_member,
+        )
         .where(ParticipantNote.session_id == session_id)
         .order_by(ParticipantNote.created_at, ParticipantNote.id)
     )
     result = ReportOut(
-        session_id=session_id, **saved, notes=[NoteOut(participant_id=p, body=b) for p, b in notes]
+        session_id=session_id,
+        **saved,
+        notes=[
+            NoteOut(participant_id=p, body=b, shared_with_member=shared) for p, b, shared in notes
+        ],
     )
     await session.commit()
     return result
