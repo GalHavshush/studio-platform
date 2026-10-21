@@ -151,7 +151,11 @@ async def login(
     a long-lived refresh token (30 days). Any failure (unknown email, wrong password, account
     without a password) gives the same `401 invalid_credentials`.
     """
-    user = await session.scalar(select(User).where(User.email == body.email.strip().lower()))
+    email = body.email.strip().lower()
+    # A NUL cannot be in any stored email (and Postgres would raise on the lookup): same as unknown.
+    user = (
+        None if "\x00" in email else await session.scalar(select(User).where(User.email == email))
+    )
     # Always run one argon2 verify, in a thread: it is deliberately slow and would otherwise
     # block the event loop (every other request) while it runs.
     stored = user.password_hash if user and user.password_hash else DUMMY_HASH

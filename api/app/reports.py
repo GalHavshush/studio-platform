@@ -14,11 +14,12 @@ from app.db import get_session
 from app.deps import TenantContext, TenantCtx, is_staff
 from app.models import ClassReport, ClassSession, Participant, ParticipantNote, Rsvp
 from app.sessions import CoachCtx, own_session
+from app.text import NoNul
 
 router = APIRouter(prefix="/sessions", tags=["reports"])
 
 
-ReportText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)]
+ReportText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000), NoNul]
 
 
 REPORT_FIELDS = ("summary", "went_well", "needs_work", "observations")
@@ -26,7 +27,9 @@ REPORT_FIELDS = ("summary", "went_well", "needs_work", "observations")
 
 class NoteIn(BaseModel):
     participant_id: uuid.UUID
-    body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=5000)]
+    body: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=5000), NoNul
+    ]
     # Whether the member the note is about may read it. Fails private: a note that is sent without
     # the flag (including one that was shared before) becomes staff-only.
     shared_with_member: bool = False

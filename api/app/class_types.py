@@ -10,13 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.deps import TenantContext, TenantCtx, require_role, studio_has_module
 from app.models import ClassType
+from app.text import NoNul
 
 router = APIRouter(prefix="/class-types", tags=["class types"])
 
 # Only owners change class types; anyone in the studio can read them.
 OwnerCtx = Annotated[TenantContext, Depends(require_role("owner"))]
 
-Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100), NoNul]
 
 
 class ClassTypeIn(BaseModel):
