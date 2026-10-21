@@ -685,8 +685,7 @@ async def test_the_database_defaults_to_private_and_refuses_nothing_in_between(
 
 
 def test_an_unknown_role_gets_the_member_view_not_the_staff_one():
-    from app.deps import TenantContext
-    from app.participants import is_staff
+    from app.deps import TenantContext, is_staff
 
     # head_coach (step 48) must be added to ROLE_RANK before it can see staff-only notes.
     unknown = TenantContext(user=None, tenant_id=uuid.uuid4(), role="head_coach")

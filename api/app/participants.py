@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.deps import ROLE_RANK, TenantContext, TenantCtx
+from app.deps import TenantCtx, is_staff
 from app.models import Participant, ParticipantNote
 
 router = APIRouter(prefix="/participants", tags=["participants"])
@@ -39,11 +39,6 @@ class MemberNote(BaseModel):
     session_id: uuid.UUID | None
     body: str
     created_at: datetime
-
-
-def is_staff(ctx: TenantContext) -> bool:
-    # An unknown role ranks below everyone, so it gets the member view (least privilege).
-    return ROLE_RANK.get(ctx.role, -1) >= ROLE_RANK["coach"]
 
 
 @router.get("/{participant_id}/notes")
