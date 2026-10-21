@@ -118,6 +118,21 @@ async def revoke_family(session: AsyncSession, family_id: uuid.UUID, now: dateti
     return len(result.all())
 
 
+async def revoke_all_families(session: AsyncSession, user_id: uuid.UUID, now: datetime) -> int:
+    """Revoke every still-usable token of every login of this user (all devices); returns how many.
+
+    Same rules as `revoke_family`: callers must hold the user lock, and `revoked_at IS NULL` keeps
+    earlier revocation times. For account deletion now, and password reset (step 51) later.
+    """
+    result = await session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=now)
+        .returning(RefreshToken.id)
+    )
+    return len(result.all())
+
+
 def _invalid_refresh_token() -> HTTPException:
     return HTTPException(
         status_code=401,
