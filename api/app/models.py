@@ -237,7 +237,8 @@ class ParticipantNote(Base):
     """A coach's private note about one participant, written inside a class report (step 29). Staff
     only for now; a per-note "share with the member" toggle comes in step 30. One note per person
     per session (the unique constraint); `session_id` is nullable for notes written outside a
-    class later. Both links are composite, so a note stays in one studio (27b).
+    class later. Both links are composite, so a note stays in one studio (27b). A note is staff-only
+    until a coach marks it `shared_with_member`; then the member it is about can read it.
     ponytail: a changed note keeps its `created_at` and takes the latest author; there is no
     per-note edit history."""
 
@@ -267,6 +268,9 @@ class ParticipantNote(Base):
     session_id: Mapped[uuid.UUID | None]
     author_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     body: Mapped[str]
+    # Staff-only unless a coach shares it (step 30). Fails private: false by default, and the
+    # member's view filters on it in the query itself.
+    shared_with_member: Mapped[bool] = mapped_column(server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

@@ -47,8 +47,11 @@ async def participant(db_session, studio, role) -> uuid.UUID:
     )
 
 
-def note(participant_id, body="Good progress."):
-    return {"participant_id": str(participant_id), "body": body}
+def note(participant_id, body="Good progress.", shared=None):
+    payload = {"participant_id": str(participant_id), "body": body}
+    if shared is not None:
+        payload["shared_with_member"] = shared
+    return payload
 
 
 async def write(client, two_tenants, studio, role, session_id, **fields):
@@ -117,7 +120,9 @@ async def test_omitting_notes_leaves_the_existing_ones_alone(client, two_tenants
     response = await write(client, two_tenants, a, "coach", sid, summary="Fixed a typo.")
 
     assert response.status_code == 200
-    assert response.json()["notes"] == [{"participant_id": str(maya), "body": "Good progress."}]
+    assert response.json()["notes"] == [
+        {"participant_id": str(maya), "body": "Good progress.", "shared_with_member": False}
+    ]
     assert await stored(db_session, sid) == {maya: "Good progress."}
 
 
@@ -352,19 +357,14 @@ async def test_staff_read_all_notes_about_a_participant_newest_first(
         assert [n["body"] for n in response.json()] == ["newer", "older"]
     newer = by_owner.json()[0]
     assert (newer["session_id"], newer["author_id"]) == (str(second), str(a.users["owner"]))
-    assert set(newer) == {"id", "session_id", "author_id", "body", "created_at"}
-
-
-async def test_members_cannot_read_notes_yet(client, two_tenants, db_session):
-    a = two_tenants.a
-    sid = await a_session(db_session, a)
-    maya = await participant(db_session, a, "member")
-    await write(client, two_tenants, a, "coach", sid, summary="x", notes=[note(maya, "private")])
-
-    own = await read_notes(client, two_tenants, a, "member", maya)  # even about themselves, for now
-
-    assert own.status_code == 403
-    assert own.json() == {"detail": "insufficient_role"}
+    assert set(newer) == {
+        "id",
+        "session_id",
+        "author_id",
+        "body",
+        "shared_with_member",
+        "created_at",
+    }
 
 
 async def test_a_participant_without_notes_has_an_empty_list(client, two_tenants, db_session):
@@ -475,3 +475,222 @@ async def test_one_note_per_person_per_session(db_session, two_tenants):
     with pytest.raises(IntegrityError) as refused:
         await db_session.flush()
     assert "uq_participant_notes_session_participant" in str(refused.value)
+
+
+# --- notes a coach shared with the member they are about ---
+
+
+async def as_member(client, two_tenants, studio, participant_id, role="member"):
+    return await read_notes(client, two_tenants, studio, role, participant_id)
+
+
+async def test_a_note_is_staff_only_unless_it_is_shared(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    maya = await participant(db_session, a, "member")
+
+    response = await write(client, two_tenants, a, "coach", sid, summary="x", notes=[note(maya)])
+
+    assert response.json()["notes"][0]["shared_with_member"] is False
+    row = await db_session.scalar(select(ParticipantNote).execution_options(populate_existing=True))
+    assert row.shared_with_member is False
+
+
+async def test_a_member_sees_only_the_notes_shared_with_them(client, two_tenants, db_session):
+    a = two_tenants.a
+    first, second, third = [await a_session(db_session, a) for _ in range(3)]
+    maya = await participant(db_session, a, "member")
+    await write(
+        client, two_tenants, a, "coach", first, summary="x", notes=[note(maya, "private A", False)]
+    )
+    await write(
+        client, two_tenants, a, "coach", second, summary="x", notes=[note(maya, "for Maya", True)]
+    )
+    await write(
+        client, two_tenants, a, "coach", third, summary="x", notes=[note(maya, "private B")]
+    )
+
+    response = await as_member(client, two_tenants, a, maya)
+
+    assert response.status_code == 200
+    assert [n["body"] for n in response.json()] == [
+        "for Maya"
+    ]  # no private note, whatever the order
+    assert "private" not in response.text
+
+
+async def test_a_member_never_sees_the_author_or_the_flag(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    maya = await participant(db_session, a, "member")
+    await write(client, two_tenants, a, "coach", sid, summary="x", notes=[note(maya, "hi", True)])
+
+    response = await as_member(client, two_tenants, a, maya)
+
+    assert set(response.json()[0]) == {"id", "session_id", "body", "created_at"}
+    assert str(a.users["coach"]) not in response.text
+
+
+async def test_a_member_with_nothing_shared_gets_an_empty_list(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    maya = await participant(db_session, a, "member")
+
+    no_notes_at_all = await as_member(client, two_tenants, a, maya)
+    await write(client, two_tenants, a, "coach", sid, summary="x", notes=[note(maya, "secret")])
+    private_only = await as_member(client, two_tenants, a, maya)
+
+    # Both are 200 [], so a member cannot tell "no notes" from "notes that were not shared".
+    assert (no_notes_at_all.status_code, no_notes_at_all.json()) == (200, [])
+    assert (private_only.status_code, private_only.json()) == (200, [])
+    assert private_only.text == no_notes_at_all.text
+
+
+async def test_a_member_never_sees_notes_about_another_member(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    maya = await participant(db_session, a, "member")
+    cody = await participant(db_session, a, "coach")
+    olive = await participant(db_session, a, "owner")
+    await write(
+        client,
+        two_tenants,
+        a,
+        "owner",
+        sid,
+        summary="x",
+        notes=[
+            note(cody, "shared with Cody", True),
+            note(olive, "about Olive", True),
+            note(maya, "mine", True),
+        ],
+    )
+
+    about_cody = await as_member(client, two_tenants, a, cody)
+    about_olive = await as_member(client, two_tenants, a, olive)
+    nonexistent = await as_member(client, two_tenants, a, uuid.uuid4())
+    mine = await as_member(client, two_tenants, a, maya)
+
+    for response in (about_cody, about_olive):
+        assert response.status_code == 404  # even though those notes ARE shared (with someone else)
+        assert response.json() == {"detail": "participant_not_found"}
+        assert response.text == nonexistent.text  # indistinguishable from "no such participant"
+    assert [n["body"] for n in mine.json()] == ["mine"]
+
+
+async def test_unsharing_hides_a_note_at_once_and_sharing_shows_it_again(
+    client, two_tenants, db_session
+):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    maya = await participant(db_session, a, "member")
+
+    async def member_sees():
+        return [n["body"] for n in (await as_member(client, two_tenants, a, maya)).json()]
+
+    await write(client, two_tenants, a, "coach", sid, summary="x", notes=[note(maya, "n", True)])
+    shared = await member_sees()
+    await write(client, two_tenants, a, "coach", sid, summary="x", notes=[note(maya, "n", False)])
+    unshared = await member_sees()
+    await write(client, two_tenants, a, "coach", sid, summary="x", notes=[note(maya, "n", True)])
+    reshared = await member_sees()
+
+    assert (shared, unshared, reshared) == (["n"], [], ["n"])
+
+
+async def test_resending_a_shared_note_without_the_flag_makes_it_private(
+    client, two_tenants, db_session
+):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    maya = await participant(db_session, a, "member")
+    await write(client, two_tenants, a, "coach", sid, summary="x", notes=[note(maya, "n", True)])
+
+    await write(
+        client, two_tenants, a, "coach", sid, summary="x", notes=[note(maya, "n")]
+    )  # no flag
+
+    assert (await as_member(client, two_tenants, a, maya)).json() == []  # fails private
+
+
+async def test_staff_see_every_note_with_its_flag(client, two_tenants, db_session):
+    a = two_tenants.a
+    first, second = await a_session(db_session, a), await a_session(db_session, a)
+    maya = await participant(db_session, a, "member")
+    await write(
+        client, two_tenants, a, "coach", first, summary="x", notes=[note(maya, "private", False)]
+    )
+    await write(
+        client, two_tenants, a, "coach", second, summary="x", notes=[note(maya, "shared", True)]
+    )
+
+    for role in ("owner", "coach"):
+        response = await read_notes(client, two_tenants, a, role, maya)
+        assert [(n["body"], n["shared_with_member"]) for n in response.json()] == [
+            ("shared", True),
+            ("private", False),
+        ]
+
+
+async def test_a_note_shared_in_one_studio_is_invisible_in_another(client, two_tenants, db_session):
+    a, b = two_tenants.a, two_tenants.b
+    user_id = a.users["member"]  # one person, a member of both studios
+    db_session.add(Membership(tenant_id=b.id, user_id=user_id, role="member"))
+    db_session.add(Participant(tenant_id=b.id, user_id=user_id, name="Same person"))
+    await db_session.flush()
+    in_a = await participant(db_session, a, "member")
+    in_b = await db_session.scalar(
+        select(Participant.id).where(Participant.tenant_id == b.id, Participant.user_id == user_id)
+    )
+    sid_a, sid_b = await a_session(db_session, a), await a_session(db_session, b)
+    await write(
+        client, two_tenants, a, "coach", sid_a, summary="x", notes=[note(in_a, "A's note", True)]
+    )
+    await write(
+        client, two_tenants, b, "coach", sid_b, summary="x", notes=[note(in_b, "B's note", False)]
+    )
+
+    seen_in_b = await client.get(
+        f"/participants/{in_b}/notes", headers=two_tenants.headers(user_id, b.id)
+    )
+    crossed = await client.get(  # A's participant id through B's header
+        f"/participants/{in_a}/notes", headers=two_tenants.headers(user_id, b.id)
+    )
+
+    assert seen_in_b.json() == []  # A's shared note does not leak, B's note is private
+    assert crossed.status_code == 404
+
+
+async def test_the_database_defaults_to_private_and_refuses_nothing_in_between(
+    db_session, two_tenants
+):
+    a = two_tenants.a
+    sid, maya = await a_session(db_session, a), await participant(db_session, a, "member")
+    db_session.add(
+        ParticipantNote(
+            tenant_id=a.id,
+            participant_id=maya,
+            session_id=sid,
+            author_id=a.users["coach"],
+            body="x",
+        )
+    )
+    await db_session.flush()
+
+    flag = await db_session.scalar(select(ParticipantNote.shared_with_member))
+    with pytest.raises(IntegrityError):
+        await db_session.execute(text("UPDATE participant_notes SET shared_with_member = NULL"))
+
+    assert flag is False
+
+
+def test_an_unknown_role_gets_the_member_view_not_the_staff_one():
+    from app.deps import TenantContext
+    from app.participants import is_staff
+
+    # head_coach (step 48) must be added to ROLE_RANK before it can see staff-only notes.
+    unknown = TenantContext(user=None, tenant_id=uuid.uuid4(), role="head_coach")
+    coach = TenantContext(user=None, tenant_id=uuid.uuid4(), role="coach")
+
+    assert is_staff(unknown) is False
+    assert is_staff(coach) is True
