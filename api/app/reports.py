@@ -172,23 +172,24 @@ class MemberReport(BaseModel):
     summary: str
 
 
-def member_visible_summary(ctx: TenantContext, session_id: uuid.UUID):
-    """The query for what a member may read of a session's report: the `summary` and nothing else,
-    and only if they attended (their RSVP row says `attended`, recorded by them or a coach).
+def member_visible_summaries(ctx: TenantContext, session_ids: list[uuid.UUID]):
+    """The query for what a member may read of reports: `(session_id, summary)` and nothing else,
+    only for sessions they attended (their RSVP row says `attended`, recorded by them or a coach).
 
-    THE one place that rule lives. To let every member read every summary, drop the `Rsvp` join and
-    its condition here; step 32's timeline uses this same function, so it follows. The other three
-    fields are not even selected, so no later mistake can leak them.
+    THE one place that rule lives; it takes a list so a page of the timeline (step 32) and the
+    single-report route share it. To let every member read every summary, drop the `Rsvp` join and
+    its condition here. The other three fields are not even selected, so no later mistake can
+    leak them.
     """
     return (
-        select(ClassReport.summary)
+        select(ClassReport.session_id, ClassReport.summary)
         .join(
             Rsvp,
             (Rsvp.session_id == ClassReport.session_id) & (Rsvp.tenant_id == ClassReport.tenant_id),
         )
         .join(Participant, Participant.id == Rsvp.participant_id)
         .where(
-            ClassReport.session_id == session_id,
+            ClassReport.session_id.in_(session_ids),
             ClassReport.tenant_id == ctx.tenant_id,
             Participant.user_id == ctx.user.id,  # their own attendance, nobody else's
             Participant.tenant_id == ctx.tenant_id,
@@ -233,7 +234,8 @@ async def read_report(
             submitted_at=report.submitted_at,
             notes=await _notes_of(session, session_id),
         )
-    summary = await session.scalar(member_visible_summary(ctx, session_id))
+    row = (await session.execute(member_visible_summaries(ctx, [session_id]))).first()
+    summary = row.summary if row else None
     if summary is None:  # no row (not attended, no report) or a report without a summary
         raise HTTPException(status_code=404, detail="report_not_found")
     return MemberReport(session_id=session_id, summary=summary)
