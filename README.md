@@ -107,7 +107,11 @@ Milestone 1 (the coaching core, above) is complete. Next: an Expo / React Native
 ```
 .github/workflows/ci.yml     CI: ruff + pytest for the API, tsc for the app, on every push and pull request
 docker-compose.yml           local Postgres (port 5434)
-app/                         Expo (React Native, TypeScript) client: screens in src/app (expo-router), `npm run typecheck`
+app/                         Expo (React Native, TypeScript) client
+├── src/app/                 screens (expo-router: one file = one route)
+├── src/api/                 the typed API client: client.ts, schema.d.ts (generated), contract-check.ts (calls that must NOT compile)
+├── openapi.json             snapshot of the API's schema, the input of the generated types
+└── .env.example             EXPO_PUBLIC_API_URL, the API address the app calls
 api/                         FastAPI backend (Python, managed with uv)
 ├── app/
 │   ├── main.py              FastAPI app, the /health endpoint, the /scalar docs page, mounts the routers
@@ -122,6 +126,7 @@ api/                         FastAPI backend (Python, managed with uv)
 │   ├── tenant.py            GET /tenant (the studio named by X-Tenant-Id, with its enabled modules)
 │   ├── me.py                GET /me (profile + studio memberships of the logged-in user), DELETE /me (delete the account, confirmed with the password)
 │   ├── deps.py              shared dependencies: current_user (verifies the Bearer token), TenantCtx (X-Tenant-Id + membership role), require_role (owner > coach > member), require_module (studio has the module on), is_staff (coach or owner)
+│   ├── export_openapi.py    writes the API's OpenAPI schema to a file (python -m app.export_openapi; used by the app's npm run gen:api)
 │   ├── text.py              rules shared by every stored free-text field (no NUL characters)
 │   ├── deletion.py          what deleting an account erases, anonymizes and keeps (the policy, in one place)
 │   ├── config.py            settings read from the environment / .env (DATABASE_URL, JWT_SECRET)
@@ -134,7 +139,7 @@ api/                         FastAPI backend (Python, managed with uv)
 │   └── versions/            one file per schema change
 ├── tests/
 │   ├── conftest.py          test database, migrated_db, client, real-commit and two-studio fixtures
-│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, refresh, token_families, reuse_detection, tenant_ctx, tenant_isolation, class_types, participants, sessions, rsvps, attendance, modules, capacity, waitlist, booking_race (concurrency and the session row lock), same_studio_links, reports, notes (incl. sharing), report_summaries, timeline, account_deletion, nul_characters, docs
+│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, refresh, token_families, reuse_detection, tenant_ctx, tenant_isolation, class_types, participants, sessions, rsvps, attendance, modules, capacity, waitlist, booking_race (concurrency and the session row lock), same_studio_links, reports, notes (incl. sharing), report_summaries, timeline, account_deletion, nul_characters, openapi_snapshot, docs
 ├── alembic.ini
 ├── pyproject.toml           dependencies and tool settings
 └── .env.example             template for api/.env
@@ -166,5 +171,14 @@ uv run alembic current          # which revision the database is at
 uv run python -m app.seed      # create the pilot studio + owner, coach, member (safe to re-run)
 ```
 
+## App commands (run inside `app/`)
+```bash
+npm install              # first time
+npx expo start           # dev server; i = iOS simulator, or scan the QR code with Expo Go on a phone
+npm run typecheck        # tsc --noEmit (also runs in CI)
+npm run gen:api          # after changing an API route or field: refresh openapi.json and the generated types
+cp .env.example .env     # the API address; restart expo after changing it
+```
+
 ## CI
-GitHub Actions (`.github/workflows/ci.yml`) runs two jobs on every push and pull request: the API job (`ruff check` and `pytest` against a Postgres service container) and the app job (`npm ci` and `tsc --noEmit`).
+GitHub Actions (`.github/workflows/ci.yml`) runs two jobs on every push and pull request: the API job (`ruff check` and `pytest` against a Postgres service container) and the app job (`npm ci` and `tsc --noEmit`, which also checks the typed API client). A test in the API suite fails if `app/openapi.json` is out of date.
