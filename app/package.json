@@ -10,6 +10,7 @@
     "expo-splash-screen": "~58.0.11",
     "expo-status-bar": "~58.0.4",
     "expo-system-ui": "~58.0.6",
+    "openapi-fetch": "^0.17.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.0",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
+    "openapi-typescript": "^7.13.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -30,7 +32,13 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "gen:api": "(cd ../api && uv run python -m app.export_openapi ../app/openapi.json) && openapi-typescript openapi.json -o src/api/schema.d.ts"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
+  }
 }

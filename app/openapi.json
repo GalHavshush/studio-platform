@@ -1,0 +1,2600 @@
+{
+  "components": {
+    "schemas": {
+      "AttendanceIn": {
+        "properties": {
+          "attended": {
+            "title": "Attended",
+            "type": "boolean"
+          },
+          "participant_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participant Id"
+          }
+        },
+        "required": [
+          "attended"
+        ],
+        "title": "AttendanceIn",
+        "type": "object"
+      },
+      "AttendanceOut": {
+        "properties": {
+          "attended": {
+            "title": "Attended",
+            "type": "boolean"
+          },
+          "confirmed_at": {
+            "format": "date-time",
+            "title": "Confirmed At",
+            "type": "string"
+          },
+          "participant_id": {
+            "format": "uuid",
+            "title": "Participant Id",
+            "type": "string"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "participant_id",
+          "attended",
+          "confirmed_at"
+        ],
+        "title": "AttendanceOut",
+        "type": "object"
+      },
+      "ClassTypeIn": {
+        "properties": {
+          "attendance_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "rsvp",
+                  "booking"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attendance Mode"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ClassTypeIn",
+        "type": "object"
+      },
+      "ClassTypeOut": {
+        "properties": {
+          "archived_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
+          "attendance_mode": {
+            "title": "Attendance Mode",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "attendance_mode",
+          "archived_at"
+        ],
+        "title": "ClassTypeOut",
+        "type": "object"
+      },
+      "DeleteAccountRequest": {
+        "properties": {
+          "password": {
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "DeleteAccountRequest",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "type": "object"
+      },
+      "LogoutRequest": {
+        "properties": {
+          "refresh_token": {
+            "title": "Refresh Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ],
+        "title": "LogoutRequest",
+        "type": "object"
+      },
+      "MeResponse": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "locale": {
+            "title": "Locale",
+            "type": "string"
+          },
+          "memberships": {
+            "items": {
+              "$ref": "#/components/schemas/MembershipOut"
+            },
+            "title": "Memberships",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name",
+          "locale",
+          "memberships"
+        ],
+        "title": "MeResponse",
+        "type": "object"
+      },
+      "MemberNote": {
+        "description": "A note as the member it is about sees it. Only shared notes ever reach this model, so it has\nno flag, and no author: the member needs neither.",
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "body",
+          "created_at"
+        ],
+        "title": "MemberNote",
+        "type": "object"
+      },
+      "MemberReport": {
+        "description": "All a member ever gets of a report: the summary.",
+        "properties": {
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "summary"
+        ],
+        "title": "MemberReport",
+        "type": "object"
+      },
+      "MemberTimeline": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MemberTimelineItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "MemberTimeline",
+        "type": "object"
+      },
+      "MemberTimelineItem": {
+        "properties": {
+          "attended": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attended"
+          },
+          "booking": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking"
+          },
+          "class_type_name": {
+            "title": "Class Type Name",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineNote"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          }
+        },
+        "required": [
+          "session_id",
+          "starts_at",
+          "class_type_name",
+          "status",
+          "booking",
+          "attended",
+          "summary",
+          "notes"
+        ],
+        "title": "MemberTimelineItem",
+        "type": "object"
+      },
+      "MembershipOut": {
+        "properties": {
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "tenant": {
+            "$ref": "#/components/schemas/TenantOut"
+          }
+        },
+        "required": [
+          "tenant",
+          "role"
+        ],
+        "title": "MembershipOut",
+        "type": "object"
+      },
+      "NoteIn": {
+        "properties": {
+          "body": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "participant_id": {
+            "format": "uuid",
+            "title": "Participant Id",
+            "type": "string"
+          },
+          "shared_with_member": {
+            "default": false,
+            "title": "Shared With Member",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "participant_id",
+          "body"
+        ],
+        "title": "NoteIn",
+        "type": "object"
+      },
+      "NoteOut": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "participant_id": {
+            "format": "uuid",
+            "title": "Participant Id",
+            "type": "string"
+          },
+          "shared_with_member": {
+            "title": "Shared With Member",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "participant_id",
+          "body",
+          "shared_with_member"
+        ],
+        "title": "NoteOut",
+        "type": "object"
+      },
+      "RefreshRequest": {
+        "properties": {
+          "refresh_token": {
+            "title": "Refresh Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ],
+        "title": "RefreshRequest",
+        "type": "object"
+      },
+      "ReportIn": {
+        "description": "The whole report. A field that is left out is cleared (this is a PUT, a full replace).\n\n`notes` is the exception: left out, the session's existing notes stay as they are (so fixing the\nsummary cannot wipe them); a list means exactly these notes for this session, which adds,\nchanges and removes (`[]` removes them all).",
+        "properties": {
+          "needs_work": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needs Work"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NoteIn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "observations": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observations"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "went_well": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Went Well"
+          }
+        },
+        "title": "ReportIn",
+        "type": "object"
+      },
+      "ReportOut": {
+        "properties": {
+          "author_id": {
+            "format": "uuid",
+            "title": "Author Id",
+            "type": "string"
+          },
+          "needs_work": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needs Work"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/NoteOut"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "observations": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observations"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "went_well": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Went Well"
+          }
+        },
+        "required": [
+          "session_id",
+          "summary",
+          "went_well",
+          "needs_work",
+          "observations",
+          "author_id",
+          "submitted_at",
+          "notes"
+        ],
+        "title": "ReportOut",
+        "type": "object"
+      },
+      "RsvpIn": {
+        "properties": {
+          "status": {
+            "enum": [
+              "going",
+              "not_going",
+              "maybe"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "RsvpIn",
+        "type": "object"
+      },
+      "RsvpOut": {
+        "properties": {
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "status"
+        ],
+        "title": "RsvpOut",
+        "type": "object"
+      },
+      "SessionIn": {
+        "properties": {
+          "capacity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "class_type_id": {
+            "format": "uuid",
+            "title": "Class Type Id",
+            "type": "string"
+          },
+          "coach_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coach Id"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "class_type_id",
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "SessionIn",
+        "type": "object"
+      },
+      "SessionOut": {
+        "properties": {
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "class_type_id": {
+            "format": "uuid",
+            "title": "Class Type Id",
+            "type": "string"
+          },
+          "coach_id": {
+            "format": "uuid",
+            "title": "Coach Id",
+            "type": "string"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "class_type_id",
+          "coach_id",
+          "starts_at",
+          "ends_at",
+          "status",
+          "preview",
+          "capacity"
+        ],
+        "title": "SessionOut",
+        "type": "object"
+      },
+      "SessionPatch": {
+        "description": "A field that is left out stays unchanged; `preview: null` clears the preview and\n`capacity: null` makes the session unlimited.",
+        "properties": {
+          "capacity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "coach_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coach Id"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview"
+          },
+          "starts_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts At"
+          }
+        },
+        "title": "SessionPatch",
+        "type": "object"
+      },
+      "StaffNote": {
+        "description": "A note as staff see it: everything, including who wrote it and whether it is shared.",
+        "properties": {
+          "author_id": {
+            "format": "uuid",
+            "title": "Author Id",
+            "type": "string"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "shared_with_member": {
+            "title": "Shared With Member",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "author_id",
+          "body",
+          "shared_with_member",
+          "created_at"
+        ],
+        "title": "StaffNote",
+        "type": "object"
+      },
+      "StaffTimeline": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StaffTimelineItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "StaffTimeline",
+        "type": "object"
+      },
+      "StaffTimelineItem": {
+        "properties": {
+          "attended": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attended"
+          },
+          "booking": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking"
+          },
+          "class_type_name": {
+            "title": "Class Type Name",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/StaffTimelineNote"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          }
+        },
+        "required": [
+          "session_id",
+          "starts_at",
+          "class_type_name",
+          "status",
+          "booking",
+          "attended",
+          "summary",
+          "notes"
+        ],
+        "title": "StaffTimelineItem",
+        "type": "object"
+      },
+      "StaffTimelineNote": {
+        "properties": {
+          "author_id": {
+            "format": "uuid",
+            "title": "Author Id",
+            "type": "string"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "shared_with_member": {
+            "title": "Shared With Member",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "body",
+          "created_at",
+          "author_id",
+          "shared_with_member"
+        ],
+        "title": "StaffTimelineNote",
+        "type": "object"
+      },
+      "TenantDetail": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "modules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Modules",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "modules"
+        ],
+        "title": "TenantDetail",
+        "type": "object"
+      },
+      "TenantOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ],
+        "title": "TenantOut",
+        "type": "object"
+      },
+      "TimelineNote": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "body",
+          "created_at"
+        ],
+        "title": "TimelineNote",
+        "type": "object"
+      },
+      "TokenResponse": {
+        "properties": {
+          "access_token": {
+            "title": "Access Token",
+            "type": "string"
+          },
+          "refresh_token": {
+            "title": "Refresh Token",
+            "type": "string"
+          },
+          "token_type": {
+            "default": "bearer",
+            "title": "Token Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token",
+          "refresh_token"
+        ],
+        "title": "TokenResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "Studio API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "description": "Exchange email + password for tokens.\n\nReturns a short-lived access token (JWT, 15 min) to send as `Authorization: Bearer ...`, and\na long-lived refresh token (30 days). Any failure (unknown email, wrong password, account\nwithout a password) gives the same `401 invalid_credentials`.",
+        "operationId": "login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "description": "Log out: end this login by revoking the refresh token's whole family (the token itself and\nany it was rotated into or from), so none of them can be used again. Other devices' logins are\nnot affected.\n\nSend the refresh token in the body; no Bearer header is needed, since the access token has\noften expired by now. Always `204` for a well-formed request, including unknown or already\nrevoked tokens. The access token stays valid until it expires, so the client should discard it.",
+        "operationId": "logout_auth_logout_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "description": "Trade a refresh token for a new access token and a new refresh token.\n\nSend the refresh token in the body; no Bearer header is needed, since the access token has\nexpired. The old refresh token is used up (revoked and replaced), so the client must store\nthe new one. Unknown, expired and already-used tokens all give the same\n`401 invalid_refresh_token`.\n\nPresenting an already-used token again counts as theft: the whole login (every token of that\ndevice) is revoked and the user must log in again. This includes two simultaneous refreshes\nwith the same token, so clients must send one refresh at a time. Reuse is only noticed when the\nold token is presented; a thief who refreshes first and is never contradicted stays signed in\nuntil the tokens expire.",
+        "operationId": "refresh_auth_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Refresh",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/class-types": {
+      "get": {
+        "description": "The class types of the studio named by `X-Tenant-Id`, ordered by name. Any member.\n\nArchived ones are hidden unless `?include_archived=true`.",
+        "operationId": "list_class_types_class_types_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include_archived",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Archived",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ClassTypeOut"
+                  },
+                  "title": "Response List Class Types Class Types Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Class Types",
+        "tags": [
+          "class types"
+        ]
+      },
+      "post": {
+        "description": "Create a class type in the studio named by `X-Tenant-Id`. Owner only.\n\nThe studio comes from the verified header, never from the body. `attendance_mode` defaults to\n`rsvp`; `booking` needs the studio's booking module (`403 module_disabled`). A name the studio\nalready has, in any letter case and even on an archived type, is `409 class_type_name_taken`.",
+        "operationId": "create_class_type_class_types_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassTypeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassTypeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Class Type",
+        "tags": [
+          "class types"
+        ]
+      }
+    },
+    "/class-types/{class_type_id}": {
+      "put": {
+        "description": "Rename a class type of this studio, and optionally change its attendance mode. Owner only.\n\nAn omitted `attendance_mode` leaves the mode as it is; switching to `booking` needs the booking\nmodule (`403 module_disabled`). A name another class type of the studio has is\n`409 class_type_name_taken` (renaming to its own name, or only changing its case, is fine).\n\nA class type of another studio gets the same `404 class_type_not_found` as one that does not\nexist, so ids cannot be probed.",
+        "operationId": "update_class_type_class_types__class_type_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "class_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Class Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassTypeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassTypeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Class Type",
+        "tags": [
+          "class types"
+        ]
+      }
+    },
+    "/class-types/{class_type_id}/archive": {
+      "post": {
+        "description": "Hide a class type and stop new sessions from using it. Owner only; repeating is fine (200).\n\nExisting sessions, reports and notes are untouched. Another studio's class type gets the same\n`404 class_type_not_found` as a missing one.",
+        "operationId": "archive_class_type_class_types__class_type_id__archive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "class_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Class Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassTypeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Archive Class Type",
+        "tags": [
+          "class types"
+        ]
+      }
+    },
+    "/class-types/{class_type_id}/unarchive": {
+      "post": {
+        "description": "Make an archived class type active again. Owner only; repeating is fine (200).",
+        "operationId": "unarchive_class_type_class_types__class_type_id__unarchive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "class_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Class Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassTypeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Unarchive Class Type",
+        "tags": [
+          "class types"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/me": {
+      "delete": {
+        "description": "Delete the logged-in user's own account, confirmed with their current password.\n\nThis cannot be undone. Everything that identifies them is erased or anonymized in one\ntransaction (see `app/deletion.py` for exactly what), and every login of theirs stops working\nat once. A wrong password is `403 invalid_password`; an account without a password cannot be\nconfirmed yet (`409 reauthentication_unavailable`; Google/Apple accounts, step 53); the only\nowner of a studio that still has other members gets `409 transfer_ownership_first`.",
+        "operationId": "delete_me_me_delete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Me",
+        "tags": [
+          "me"
+        ]
+      },
+      "get": {
+        "description": "The logged-in user's profile and the studios they belong to, with their role in each.\n\nRequires `Authorization: Bearer <access token>`; otherwise `401`.",
+        "operationId": "me_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Me",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/participants/{participant_id}/notes": {
+      "get": {
+        "description": "The notes written about a participant, newest first. What you get depends on your role:\n\n- **Coach or owner:** every note about any participant of the studio (any coach reads all\n  notes), with who wrote each and whether it is shared.\n- **Member:** only their own participant, and only the notes a coach shared with them, without\n  author or flag. The filter is in the query, so a private note is never even fetched.\n\nA participant of another studio, a missing one, and (for a member) anyone but themselves all\nget the same `404 participant_not_found`, so ids cannot be probed. A member with nothing shared\ngets `200 []`, which looks the same as having no notes at all.\nponytail: no pagination yet; the timeline (step 32) brings cursor pagination.",
+        "operationId": "list_notes_participants__participant_id__notes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "participant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Participant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/StaffNote"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/MemberNote"
+                      },
+                      "type": "array"
+                    }
+                  ],
+                  "title": "Response List Notes Participants  Participant Id  Notes Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Notes",
+        "tags": [
+          "participants"
+        ]
+      }
+    },
+    "/participants/{participant_id}/timeline": {
+      "get": {
+        "description": "The classes a participant is connected to, newest first (upcoming ones first), a page at a\ntime: pass the previous response's `next_cursor` to continue (`null` = the last page).\n\n- **Coach or owner:** any participant of the studio. A class appears when the participant has\n  an RSVP or attendance row for it, or a note. Every note is shown with its author and whether\n  it is shared, and so is the summary of any class that has a report.\n- **Member:** only their own participant, otherwise `404 participant_not_found` (the same as\n  for an id that does not exist). A class appears only through their own RSVP or attendance\n  row, or a note shared with them, so a class with nothing but a private note never shows up\n  (even an empty entry would reveal that such a note exists). Only shared notes are shown, and\n  the summary only for classes they attended (`member_visible_summaries`).\n\nThe page is found by position (`starts_at`, `id`) and not by counting rows (`OFFSET`), so it\nstays correct when new classes appear while someone scrolls, and it costs the same on page 50\nas on page 1. A malformed `cursor` is `422 invalid_cursor`.",
+        "operationId": "timeline_participants__participant_id__timeline_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "participant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Participant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/StaffTimeline"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MemberTimeline"
+                    }
+                  ],
+                  "title": "Response Timeline Participants  Participant Id  Timeline Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Timeline",
+        "tags": [
+          "timeline"
+        ]
+      }
+    },
+    "/sessions": {
+      "get": {
+        "description": "The studio's sessions that start in `[from, to)`, earliest first. Any member.\n\nBoth times need an offset. `from` is included and `to` is not, so back-to-back ranges neither\noverlap nor miss a session. Invalid ranges get `422 invalid_range` (`to` not after `from`) or\n`422 range_too_long` (over 62 days).",
+        "operationId": "list_sessions_sessions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionOut"
+                  },
+                  "title": "Response List Sessions Sessions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Sessions",
+        "tags": [
+          "sessions"
+        ]
+      },
+      "post": {
+        "description": "Create a session in the studio named by `X-Tenant-Id`. Coach or owner.\n\nA coach can only create their own sessions (`403 not_your_session` if they name someone\nelse); an owner can name any coach or owner of the studio (`422 invalid_coach` otherwise).\nTimes are stored in UTC. A class type of another studio gets `404 class_type_not_found`; an\narchived one gets `422 class_type_archived`.",
+        "operationId": "create_session_sessions_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Session",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/sessions/{session_id}": {
+      "get": {
+        "description": "One session of this studio. Any member.\n\nA session of another studio gets the same `404 session_not_found` as one that does not exist,\nso ids cannot be probed.",
+        "operationId": "get_session_by_id_sessions__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Session By Id",
+        "tags": [
+          "sessions"
+        ]
+      },
+      "patch": {
+        "description": "Change a session's preview, times or coach. The owner edits any session, a coach only their own.\n\nOnly the fields in the body change. Changing the coach is owner-only (`403 insufficient_role`)\nand the new coach must be staff of the studio (`422 invalid_coach`). The resulting times must\nstill satisfy start < end (`422 invalid_times`). A cancelled session gets `409 session_cancelled`.",
+        "operationId": "update_session_sessions__session_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Session",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/sessions/{session_id}/attendance": {
+      "post": {
+        "description": "Record whether someone actually came (`attended`), as opposed to their RSVP plan.\n\nMembers record their own. An owner can record anyone's on any session, a coach anyone's on\nsessions they teach (`403 not_your_session` otherwise); a member naming someone else gets\n`403 insufficient_role`. The person must be in this studio (`404 participant_not_found`).\nAllowed from 15 minutes before the session starts (`409 checkin_not_open` before that). A\nmember can record it until 24 hours after the session ends (`409 checkin_closed` after that);\ncoaches and owners have no end. Not on a cancelled session (`409 session_cancelled`). Sending it again\nchanges the answer and refreshes `confirmed_at`. A session of another studio gets\n`404 session_not_found`.",
+        "operationId": "record_attendance_sessions__session_id__attendance_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttendanceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Record Attendance",
+        "tags": [
+          "attendance"
+        ]
+      }
+    },
+    "/sessions/{session_id}/cancel": {
+      "post": {
+        "description": "Cancel a session. The owner cancels any, a coach only their own. Repeating it is fine (200).\n\nThe session stays (reports and notes point at it) with `status: cancelled`.",
+        "operationId": "cancel_session_sessions__session_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Cancel Session",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/sessions/{session_id}/report": {
+      "get": {
+        "description": "Read the report of a session. What you get depends on your role:\n\n- **Coach or owner:** the whole report (any coach reads all reports) with its notes and their\n  sharing flags, in the shape the `PUT` returns. `404 session_not_found` for a session of\n  another studio, `404 report_not_found` when it has no report yet.\n- **Member:** only the `summary`, and only for a session they attended. In every other case\n  (no report, no summary, did not attend, attendance `false` or not recorded, a session of\n  another studio or none at all) the same `404 report_not_found`, so a member cannot tell\n  them apart.",
+        "operationId": "read_report_sessions__session_id__report_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReportOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MemberReport"
+                    }
+                  ],
+                  "title": "Response Read Report Sessions  Session Id  Report Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Report",
+        "tags": [
+          "reports"
+        ]
+      },
+      "put": {
+        "description": "Write the report of a session, with a private note per attendee, or replace what is there.\nThe owner writes any session's, a coach only their own sessions' (`403 not_your_session`).\n\nThere is one report per session, and a PUT replaces all of it: a field that is not sent is\ncleared. Notes are different: left out they stay, a list replaces them (see `ReportIn`). The\nreport and its notes are saved in one transaction, so a rejected note means nothing is saved.\nA report needs text in at least one field or at least one note (`422 empty_report`); a note\nabout someone who is not in this studio is `422 participant_not_found`. A cancelled session\ngets `409 session_cancelled`, one that has not started yet `409 session_not_started`; a session of another studio `404 session_not_found`. The author\nand time are those of the latest save. Attendees will only see `summary` (step 31).",
+        "operationId": "write_report_sessions__session_id__report_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Write Report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/sessions/{session_id}/rsvp": {
+      "put": {
+        "description": "Set the caller's own plan for a session: going, not_going or maybe. Any member.\n\nAn upsert: the first call creates the RSVP and later calls change it, so repeating a request is\nfine. It is only an intention; attendance after the class is a separate step. The RSVP belongs\nto the caller's participant in this studio, never to one named by the client. A session of\nanother studio gets `404 session_not_found`; a cancelled one gets `409 session_cancelled`.\n\nIn a booking-mode class (module on) a `going` takes one of `capacity` seats. When all are taken\nthe answer is still 200 but the status is `waitlist`: the person waits in line, and the earliest\nwaiting person is promoted to `going` when a seat frees up. `maybe` and `not_going` never take\na seat (and take you off the waitlist), and repeating `going` keeps your seat or your place.",
+        "operationId": "rsvp_to_session_sessions__session_id__rsvp_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RsvpIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsvpOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Rsvp To Session",
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/tenant": {
+      "get": {
+        "description": "The studio named by `X-Tenant-Id`, with the optional modules it has switched on. Any member.\n\nStudio-level facts live here and the user's own data lives in `/me`. The studio comes from the\nverified membership, so there is no id in the path to get wrong.",
+        "operationId": "get_tenant_tenant_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Tenant",
+        "tags": [
+          "tenant"
+        ]
+      }
+    }
+  }
+}
