@@ -105,8 +105,9 @@ Milestone 1 (the coaching core, above) is complete. Next: an Expo / React Native
 <summary><b>Project structure</b></summary>
 
 ```
-.github/workflows/ci.yml     CI: ruff + pytest on every push and pull request
+.github/workflows/ci.yml     CI: ruff + pytest for the API, tsc for the app, on every push and pull request
 docker-compose.yml           local Postgres (port 5434)
+app/                         Expo (React Native, TypeScript) client: screens in src/app (expo-router), `npm run typecheck`
 api/                         FastAPI backend (Python, managed with uv)
 ├── app/
 │   ├── main.py              FastAPI app, the /health endpoint, the /scalar docs page, mounts the routers
@@ -143,6 +144,7 @@ api/                         FastAPI backend (Python, managed with uv)
 
 ## Requirements
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) (`brew install uv`)
+- [Node.js](https://nodejs.org/) 24+ (for the app in `app/`)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (runs the local Postgres)
 
 ## Database commands (run at the repo root)
@@ -165,4 +167,4 @@ uv run python -m app.seed      # create the pilot studio + owner, coach, member 
 ```
 
 ## CI
-GitHub Actions (`.github/workflows/ci.yml`) runs `ruff check` and `pytest` against a Postgres service container on every push and pull request.
+GitHub Actions (`.github/workflows/ci.yml`) runs two jobs on every push and pull request: the API job (`ruff check` and `pytest` against a Postgres service container) and the app job (`npm ci` and `tsc --noEmit`).
