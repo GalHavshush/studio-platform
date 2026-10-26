@@ -108,7 +108,8 @@ Milestone 1 (the coaching core, above) is complete. Next: an Expo / React Native
 .github/workflows/ci.yml     CI: ruff + pytest for the API, tsc for the app, on every push and pull request
 docker-compose.yml           local Postgres (port 5434)
 app/                         Expo (React Native, TypeScript) client
-├── src/app/                 screens (expo-router: one file = one route)
+├── src/app/                 screens (expo-router: one file = one route): _layout (provider + guarded routes), login, index (home)
+├── src/auth/                tokens.ts (secure storage of the two tokens), session.tsx (sign-in state: provider and useSession)
 ├── src/api/                 the typed API client: client.ts, schema.d.ts (generated), contract-check.ts (calls that must NOT compile)
 ├── openapi.json             snapshot of the API's schema, the input of the generated types
 └── .env.example             EXPO_PUBLIC_API_URL, the API address the app calls

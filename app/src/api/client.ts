@@ -7,3 +7,18 @@ import type { paths } from "./schema";
 const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export const api = createClient<paths>({ baseUrl });
+
+// Kept in memory so adding the header does not read the secure storage on every request. The
+// session provider sets it at sign-in and at startup, and clears it at sign-out.
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+}
+
+api.use({
+  onRequest({ request }) {
+    if (accessToken) request.headers.set("Authorization", `Bearer ${accessToken}`);
+    return request;
+  },
+});
