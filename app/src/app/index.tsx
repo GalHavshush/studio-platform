@@ -1,30 +1,32 @@
-import { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { api } from "@/api/client";
+import { useSession } from "@/auth/session";
 
-export default function Index() {
-  const [status, setStatus] = useState("API: checking...");
-
-  useEffect(() => {
-    // The first real call through the generated client; `data` is typed from the API's schema.
-    api
-      .GET("/health")
-      .then(({ data }) => setStatus(data ? `API: ${data.status}` : "API: error"))
-      .catch(() => setStatus("API: unreachable"));
-  }, []);
+export default function Home() {
+  const { user, signOut } = useSession();
 
   return (
     <View style={styles.container}>
-      <Text>{status}</Text>
+      <Text style={styles.name}>{user?.name}</Text>
+      <Text>{user?.email}</Text>
+      <View style={styles.memberships}>
+        {user?.memberships.map((m) => (
+          <Text key={m.tenant.id}>
+            {m.tenant.name}: {m.role}
+          </Text>
+        ))}
+      </View>
+      <Pressable style={styles.button} onPress={signOut}>
+        <Text style={styles.buttonText}>Sign out</Text>
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  container: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 8 },
+  name: { fontSize: 22, fontWeight: "600" },
+  memberships: { marginVertical: 12, alignItems: "center", gap: 4 },
+  button: { backgroundColor: "#208AEF", borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24 },
+  buttonText: { color: "white", fontSize: 16, fontWeight: "600" },
 });
