@@ -40,6 +40,9 @@ export const api = createClient<paths>({ baseUrl, fetch: auth.fetch });
 // session provider sets it at sign-in and at startup, and clears it at sign-out.
 export const setAccessToken = auth.setAccessToken;
 
+// The studio the user is working in: sent as `X-Tenant-Id` on every call that is about one studio.
+export const setTenantId = auth.setTenantId;
+
 // The session provider listens here to go back to the login screen when a refresh is refused.
 export function setSessionExpiredListener(listener: (() => void) | null): void {
   sessionExpiredListener = listener;

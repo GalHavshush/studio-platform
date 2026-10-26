@@ -8,9 +8,10 @@ import {
   type ReactNode,
 } from "react";
 
-import { api, setAccessToken, setSessionExpiredListener } from "@/api/client";
+import { api, setAccessToken, setSessionExpiredListener, setTenantId } from "@/api/client";
 import type { components } from "@/api/schema";
 
+import { clearTenantId, loadTenantId, saveTenantId } from "./tenant-id";
 import { clearTokens, loadTokens, saveTokens } from "./tokens";
 
 type Me = components["schemas"]["MeResponse"];
@@ -19,9 +20,17 @@ export type Status = "loading" | "signedOut" | "signedIn";
 // What a sign-in attempt can end in; the login screen turns each into a message.
 export type SignInResult = "ok" | "invalid" | "unreachable" | "error";
 
+// The studio the user is working in: who they are there, and what it has switched on.
+export type Studio = { id: string; name: string; role: string; modules: string[] };
+// What choosing a studio can end in; the picker turns a failure into a message.
+export type SelectResult = "ok" | "unreachable" | "error";
+
 type Session = {
   status: Status;
   user: Me | null;
+  studio: Studio | null;
+  selectStudio: (id: string) => Promise<SelectResult>;
+  leaveStudio: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<SignInResult>;
   signOut: () => Promise<void>;
 };
@@ -40,15 +49,49 @@ async function fetchMe(): Promise<Me | "unauthorized" | "failed"> {
   }
 }
 
+// Asks the API for the studio's details with the studio set as current, so the header is sent.
+async function fetchStudio(me: Me, id: string): Promise<Studio | SelectResult> {
+  const membership = me.memberships.find((m) => m.tenant.id === id);
+  if (!membership) return "error";
+  setTenantId(id);
+  try {
+    const { data } = await api.GET("/tenant");
+    if (data) {
+      return { id, name: data.name, role: membership.role, modules: data.modules };
+    }
+  } catch {
+    setTenantId(null);
+    return "unreachable";
+  }
+  setTenantId(null);
+  return "error";
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("loading");
   const [user, setUser] = useState<Me | null>(null);
+  const [studio, setStudio] = useState<Studio | null>(null);
+
+  // Right after we know who the user is: a single membership is chosen for them, otherwise the
+  // studio used last time is picked again if they still belong to it. Failing that, the picker.
+  const enterStudioAutomatically = useCallback(async (me: Me) => {
+    let id = me.memberships.length === 1 ? me.memberships[0].tenant.id : null;
+    if (!id) {
+      const saved = await loadTenantId().catch(() => null);
+      if (saved && me.memberships.some((m) => m.tenant.id === saved)) id = saved;
+    }
+    if (!id) return;
+    const result = await fetchStudio(me, id);
+    if (typeof result !== "string") setStudio(result);
+  }, []);
 
   // A refresh the server refuses (the login was revoked, or the refresh token expired) ends the
   // session wherever it happens: back to the login screen.
   useEffect(() => {
     setSessionExpiredListener(() => {
       setUser(null);
+      setStudio(null);
+      setTenantId(null);
       setStatus("signedOut");
     });
     return () => setSessionExpiredListener(null);
@@ -74,13 +117,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       if (cancelled) return;
       if (!me) setAccessToken(null);
+      else await enterStudioAutomatically(me);
+      if (cancelled) return;
       setUser(me);
       setStatus(me ? "signedIn" : "signedOut");
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [enterStudioAutomatically]);
 
   const signIn = useCallback(async (email: string, password: string): Promise<SignInResult> => {
     try {
@@ -94,20 +139,41 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         await clearTokens();
         return me === "failed" ? "unreachable" : "error";
       }
+      await enterStudioAutomatically(me);
       setUser(me);
       setStatus("signedIn");
       return "ok";
     } catch {
       return "unreachable"; // fetch throws when there is no answer at all
     }
+  }, [enterStudioAutomatically]);
+
+  const selectStudio = useCallback(
+    async (id: string): Promise<SelectResult> => {
+      if (!user) return "error";
+      const result = await fetchStudio(user, id);
+      if (typeof result === "string") return result;
+      await saveTenantId(id).catch(() => {}); // only a convenience: failing to remember is fine
+      setStudio(result);
+      return "ok";
+    },
+    [user],
+  );
+
+  const leaveStudio = useCallback(async () => {
+    setTenantId(null);
+    setStudio(null);
+    await clearTenantId().catch(() => {});
   }, []);
 
   const signOut = useCallback(async () => {
     const tokens = await loadTokens().catch(() => null);
     // Sign out locally first: it must work with no network, and the screen should not wait.
     setAccessToken(null);
-    await clearTokens().catch(() => {});
+    setTenantId(null);
+    await Promise.all([clearTokens().catch(() => {}), clearTenantId().catch(() => {})]);
     setUser(null);
+    setStudio(null);
     setStatus("signedOut");
     if (tokens) {
       // Best effort: tell the server to end this login (revokes its refresh tokens).
@@ -118,8 +184,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ status, user, signIn, signOut }),
-    [status, user, signIn, signOut],
+    () => ({ status, user, studio, selectStudio, leaveStudio, signIn, signOut }),
+    [status, user, studio, selectStudio, leaveStudio, signIn, signOut],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
