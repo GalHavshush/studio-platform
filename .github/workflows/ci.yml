@@ -45,3 +45,4 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      - run: npm test

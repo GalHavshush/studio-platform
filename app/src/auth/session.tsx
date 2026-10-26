@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { api, setAccessToken } from "@/api/client";
+import { api, setAccessToken, setSessionExpiredListener } from "@/api/client";
 import type { components } from "@/api/schema";
 
 import { clearTokens, loadTokens, saveTokens } from "./tokens";
@@ -43,6 +43,16 @@ async function fetchMe(): Promise<Me | "unauthorized" | "failed"> {
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("loading");
   const [user, setUser] = useState<Me | null>(null);
+
+  // A refresh the server refuses (the login was revoked, or the refresh token expired) ends the
+  // session wherever it happens: back to the login screen.
+  useEffect(() => {
+    setSessionExpiredListener(() => {
+      setUser(null);
+      setStatus("signedOut");
+    });
+    return () => setSessionExpiredListener(null);
+  }, []);
 
   // Restore the session at app start: stored token, then ask the API who it belongs to.
   useEffect(() => {
