@@ -8,6 +8,7 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
  * one, a refresh token works once. `log` records what happened, in order. */
 function setup(options: { refresh?: "ok" | "rejected" | "unreachable"; saveFails?: boolean; empty?: boolean } = {}) {
   const log: string[] = [];
+  const tenants: (string | null)[] = []; // the X-Tenant-Id of each request that reached the server
   let stored: Tokens | null = options.empty ? null : { access: "a0", refresh: "r1" };
   let valid = "a1";
   let usedRefresh = false;
@@ -19,6 +20,7 @@ function setup(options: { refresh?: "ok" | "rejected" | "unreachable"; saveFails
     baseFetch: async (request) => {
       const path = new URL(request.url).pathname;
       log.push(`${request.method} ${path} ${request.headers.get("Authorization")}`);
+      tenants.push(request.headers.get("X-Tenant-Id"));
       const wait = hold?.(request);
       if (wait) await wait;
       if (path.startsWith("/auth/")) return new Response(null, { status: 401 });
@@ -50,6 +52,7 @@ function setup(options: { refresh?: "ok" | "rejected" | "unreachable"; saveFails
 
   return {
     log,
+    tenants,
     expired,
     auth,
     get stored() {
@@ -203,4 +206,37 @@ test("with no stored tokens a 401 is just returned", async () => {
   expect(response.status).toBe(401);
   expect(t.refreshCalls()).toBe(0);
   expect(t.expired).not.toHaveBeenCalled();
+});
+
+test("a request about a studio carries X-Tenant-Id, and none after the studio is cleared", async () => {
+  const t = setup();
+  t.auth.setAccessToken("a1");
+  t.auth.setTenantId("studio-1");
+
+  await t.auth.fetch(get());
+  t.auth.setTenantId(null);
+  await t.auth.fetch(get());
+
+  expect(t.tenants).toEqual(["studio-1", null]);
+});
+
+test("calls that are not about one studio never carry X-Tenant-Id", async () => {
+  const t = setup();
+  t.auth.setAccessToken("a1");
+  t.auth.setTenantId("studio-1");
+
+  for (const path of ["/me", "/health", "/auth/login", "/auth/refresh", "/auth/logout"]) {
+    await t.auth.fetch(get(path));
+  }
+
+  expect(t.tenants).toEqual([null, null, null, null, null]);
+});
+
+test("the request sent again after a refresh still carries X-Tenant-Id", async () => {
+  const t = setup();
+  t.auth.setTenantId("studio-1");
+
+  await t.auth.fetch(get());
+
+  expect(t.tenants).toEqual(["studio-1", "studio-1"]); // the first try (401) and the retry
 });

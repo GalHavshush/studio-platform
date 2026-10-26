@@ -16,6 +16,9 @@ export type AuthFetchDeps = {
 // A 401 on these is an answer, not an expired token (a wrong password, a spent refresh token).
 const NEVER_REFRESH = ["/auth/login", "/auth/refresh", "/auth/logout"];
 
+// The calls that are not about one studio: no `X-Tenant-Id` on them.
+const NO_TENANT = (path: string) => path.startsWith("/auth/") || path === "/me" || path === "/health";
+
 /**
  * A `fetch` that signs requests with the access token and, when the server answers 401, trades the
  * refresh token for new tokens and sends the request once more.
@@ -26,10 +29,14 @@ const NEVER_REFRESH = ["/auth/login", "/auth/refresh", "/auth/logout"];
  */
 export function createAuthFetch(deps: AuthFetchDeps) {
   let accessToken: string | null = null;
+  let tenantId: string | null = null;
   let refreshing: Promise<string | null> | null = null;
 
   function authorize(request: Request, token: string | null): Request {
     if (token) request.headers.set("Authorization", `Bearer ${token}`);
+    if (tenantId && !NO_TENANT(new URL(request.url).pathname)) {
+      request.headers.set("X-Tenant-Id", tenantId);
+    }
     return request;
   }
 
@@ -78,6 +85,9 @@ export function createAuthFetch(deps: AuthFetchDeps) {
     fetch: authFetch,
     setAccessToken(token: string | null) {
       accessToken = token;
+    },
+    setTenantId(id: string | null) {
+      tenantId = id;
     },
   };
 }

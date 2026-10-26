@@ -8,7 +8,7 @@ import { SessionProvider, useSession } from "@/auth/session";
 SplashScreen.preventAutoHideAsync();
 
 function Navigator() {
-  const { status } = useSession();
+  const { status, studio } = useSession();
 
   useEffect(() => {
     if (status !== "loading") SplashScreen.hide();
@@ -20,8 +20,11 @@ function Navigator() {
   // and the router moves to the one that is left.
   return (
     <Stack>
-      <Stack.Protected guard={status === "signedIn"}>
+      <Stack.Protected guard={status === "signedIn" && studio !== null}>
         <Stack.Screen name="index" options={{ title: "Studio" }} />
+      </Stack.Protected>
+      <Stack.Protected guard={status === "signedIn" && studio === null}>
+        <Stack.Screen name="select-studio" options={{ title: "Studio" }} />
       </Stack.Protected>
       <Stack.Protected guard={status === "signedOut"}>
         <Stack.Screen name="login" options={{ title: "Sign in" }} />
