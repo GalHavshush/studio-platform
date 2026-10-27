@@ -31,6 +31,7 @@ async def test_every_member_sees_their_own_studios_modules(client, two_tenants, 
         "id": str(a.id),
         "name": "studio-a",
         "slug": "studio-a",
+        "timezone": "UTC",
         "modules": ["booking"],
     }
     assert other.json()["modules"] == []  # A's flags do not leak into B
@@ -41,8 +42,19 @@ async def test_a_new_studio_has_no_modules(client, two_tenants):
 
     response = await client.get("/tenant", headers=two_tenants.headers(a.users["member"], a.id))
 
-    assert set(response.json()) == {"id", "name", "slug", "modules"}
+    assert set(response.json()) == {"id", "name", "slug", "timezone", "modules"}
     assert response.json()["modules"] == []
+
+
+async def test_a_studio_reports_its_own_timezone(client, two_tenants, db_session):
+    a, b = two_tenants.a, two_tenants.b
+    (await db_session.get(Tenant, a.id)).timezone = "Asia/Jerusalem"
+    await db_session.flush()
+
+    mine = await client.get("/tenant", headers=two_tenants.headers(a.users["member"], a.id))
+    other = await client.get("/tenant", headers=two_tenants.headers(b.users["member"], b.id))
+
+    assert (mine.json()["timezone"], other.json()["timezone"]) == ("Asia/Jerusalem", "UTC")
 
 
 async def test_the_studio_comes_from_the_header(client, two_tenants, db_session):

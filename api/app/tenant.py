@@ -19,6 +19,7 @@ class TenantDetail(BaseModel):
     id: uuid.UUID
     name: str
     slug: str
+    timezone: str  # IANA name; times are UTC instants and this is how a client shows them
     modules: list[str]
 
 
@@ -26,7 +27,7 @@ class TenantDetail(BaseModel):
 async def get_tenant(
     ctx: TenantCtx, session: Annotated[AsyncSession, Depends(get_session)]
 ) -> TenantDetail:
-    """The studio named by `X-Tenant-Id`, with the optional modules it has switched on. Any member.
+    """The studio named by `X-Tenant-Id`, with its timezone and the optional modules it has switched on. Any member.
 
     Studio-level facts live here and the user's own data lives in `/me`. The studio comes from the
     verified membership, so there is no id in the path to get wrong.
