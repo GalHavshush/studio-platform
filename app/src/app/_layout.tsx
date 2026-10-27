@@ -21,7 +21,7 @@ function Navigator() {
   return (
     <Stack>
       <Stack.Protected guard={status === "signedIn" && studio !== null}>
-        <Stack.Screen name="index" options={{ title: "Studio" }} />
+        <Stack.Screen name="index" options={{ headerShown: false }} />
       </Stack.Protected>
       <Stack.Protected guard={status === "signedIn" && studio === null}>
         <Stack.Screen name="select-studio" options={{ title: "Studio" }} />
