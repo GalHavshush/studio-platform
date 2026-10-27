@@ -21,7 +21,13 @@ export type Status = "loading" | "signedOut" | "signedIn";
 export type SignInResult = "ok" | "invalid" | "unreachable" | "error";
 
 // The studio the user is working in: who they are there, and what it has switched on.
-export type Studio = { id: string; name: string; role: string; modules: string[] };
+export type Studio = {
+  id: string;
+  name: string;
+  role: string;
+  timezone: string;
+  modules: string[];
+};
 // What choosing a studio can end in; the picker turns a failure into a message.
 export type SelectResult = "ok" | "unreachable" | "error";
 
@@ -57,7 +63,13 @@ async function fetchStudio(me: Me, id: string): Promise<Studio | SelectResult> {
   try {
     const { data } = await api.GET("/tenant");
     if (data) {
-      return { id, name: data.name, role: membership.role, modules: data.modules };
+      return {
+        id,
+        name: data.name,
+        role: membership.role,
+        timezone: data.timezone,
+        modules: data.modules,
+      };
     }
   } catch {
     setTenantId(null);
