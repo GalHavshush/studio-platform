@@ -1040,12 +1040,17 @@
           "slug": {
             "title": "Slug",
             "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
           }
         },
         "required": [
           "id",
           "name",
           "slug",
+          "timezone",
           "modules"
         ],
         "title": "TenantDetail",
@@ -2543,7 +2548,7 @@
     },
     "/tenant": {
       "get": {
-        "description": "The studio named by `X-Tenant-Id`, with the optional modules it has switched on. Any member.\n\nStudio-level facts live here and the user's own data lives in `/me`. The studio comes from the\nverified membership, so there is no id in the path to get wrong.",
+        "description": "The studio named by `X-Tenant-Id`, with its timezone and the optional modules it has switched on. Any member.\n\nStudio-level facts live here and the user's own data lives in `/me`. The studio comes from the\nverified membership, so there is no id in the path to get wrong.",
         "operationId": "get_tenant_tenant_get",
         "parameters": [
           {

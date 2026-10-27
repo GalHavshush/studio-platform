@@ -493,7 +493,7 @@ export interface paths {
         };
         /**
          * Get Tenant
-         * @description The studio named by `X-Tenant-Id`, with the optional modules it has switched on. Any member.
+         * @description The studio named by `X-Tenant-Id`, with its timezone and the optional modules it has switched on. Any member.
          *
          *     Studio-level facts live here and the user's own data lives in `/me`. The studio comes from the
          *     verified membership, so there is no id in the path to get wrong.
@@ -934,6 +934,8 @@ export interface components {
             name: string;
             /** Slug */
             slug: string;
+            /** Timezone */
+            timezone: string;
         };
         /** TenantOut */
         TenantOut: {
