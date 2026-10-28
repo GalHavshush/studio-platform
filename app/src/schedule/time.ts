@@ -79,3 +79,17 @@ export function formatDay(dayStart: number, now: number, timeZone: string): stri
     month: "short",
   }).format(new Date(dayStart));
 }
+
+const dateFormat = (instant: number, timeZone: string) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "short", day: "numeric", month: "short" }).format(
+    new Date(instant),
+  );
+
+/** "Tue 3 Nov, 01:00-02:00", or with both dates when the session ends on another studio day. */
+export function formatRange(start: number, end: number, timeZone: string): string {
+  const from = `${dateFormat(start, timeZone)}, ${formatTime(start, timeZone)}`;
+  if (dayKey(start, timeZone) === dayKey(end, timeZone)) {
+    return `${from}\u2013${formatTime(end, timeZone)}`;
+  }
+  return `${from} \u2013 ${dateFormat(end, timeZone)}, ${formatTime(end, timeZone)}`;
+}

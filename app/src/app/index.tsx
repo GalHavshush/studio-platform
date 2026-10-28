@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -39,6 +40,7 @@ export default function Home() {
 function Schedule(props: { studio: Studio; canSwitch: boolean; onSwitch: () => void; onSignOut: () => void }) {
   const { studio } = props;
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const schedule = useSchedule(studio.timezone);
   const days = useMemo(
     () => groupByDay(schedule.sessions, studio.timezone),
@@ -98,13 +100,16 @@ function Schedule(props: { studio: Studio; canSwitch: boolean; onSwitch: () => v
           ListEmptyComponent={<Text style={styles.empty}>No sessions in this period.</Text>}
           renderSectionHeader={({ section }) => <Text style={styles.day}>{section.title}</Text>}
           renderItem={({ item }) => (
-            <View style={styles.row}>
+            <Pressable
+              style={styles.row}
+              onPress={() => router.push({ pathname: "/session/[id]", params: { id: item.id } })}
+            >
               <Text style={styles.time}>{formatTime(Date.parse(item.starts_at), studio.timezone)}</Text>
               <Text style={[styles.name, item.status === "cancelled" && styles.cancelled]}>
                 {schedule.classTypeNames[item.class_type_id] ?? "Class"}
               </Text>
               {item.status === "cancelled" && <Text style={styles.badge}>cancelled</Text>}
-            </View>
+            </Pressable>
           )}
         />
       )}
