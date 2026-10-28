@@ -1,12 +1,14 @@
 import * as SecureStore from "expo-secure-store";
 
+import type { Key } from "@/i18n/en";
+
 // Light, dark, or whatever the phone is set to.
 export type Preference = "system" | "light" | "dark";
 
-export const PREFERENCES: { value: Preference; label: string }[] = [
-  { value: "system", label: "System" },
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
+export const PREFERENCES: { value: Preference; label: Key }[] = [
+  { value: "system", label: "common.system" },
+  { value: "light", label: "appearance.light" },
+  { value: "dark", label: "appearance.dark" },
 ];
 
 /** Anything stored that is not one of the three (nothing saved, or an old value) means System. */

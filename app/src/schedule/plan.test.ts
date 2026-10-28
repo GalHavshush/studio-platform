@@ -1,11 +1,15 @@
+import { makeTranslator } from "@/i18n/translate";
+
 import { confirmation, outcomeMessage, planLabel, seatsText, selectedChoice } from "./plan";
 
+const t = makeTranslator("en");
+
 test("each plan has its own words, and no plan reads as not answered", () => {
-  expect(planLabel("going")).toBe("Going");
-  expect(planLabel("maybe")).toBe("Maybe");
-  expect(planLabel("not_going")).toBe("Not going");
-  expect(planLabel("waitlist")).toBe("On the waiting list");
-  expect(planLabel(null)).toBe("not answered");
+  expect(planLabel(t, "going")).toBe("Going");
+  expect(planLabel(t, "maybe")).toBe("Maybe");
+  expect(planLabel(t, "not_going")).toBe("Not going");
+  expect(planLabel(t, "waitlist")).toBe("On the waiting list");
+  expect(planLabel(t, null)).toBe("not answered");
 });
 
 test("a button is highlighted for each plan, and a waitlisted person has Going highlighted", () => {
@@ -17,32 +21,32 @@ test("a button is highlighted for each plan, and a waitlisted person has Going h
 });
 
 test("seats are counted out loud, with one seat in the singular", () => {
-  expect(seatsText(5, null)).toBe("5 seats left");
-  expect(seatsText(1, null)).toBe("1 seat left");
+  expect(seatsText(t, 5, null)).toBe("5 seats left");
+  expect(seatsText(t, 1, null)).toBe("1 seat left");
 });
 
 test("a full class says what going will do for this person", () => {
-  expect(seatsText(0, null)).toBe("Full: going puts you on the waiting list");
-  expect(seatsText(0, "maybe")).toBe("Full: going puts you on the waiting list");
-  expect(seatsText(0, "going")).toBe("Full, and you have a seat");
-  expect(seatsText(0, "waitlist")).toBe("Full, you're on the waiting list");
+  expect(seatsText(t, 0, null)).toBe("Full: going puts you on the waiting list");
+  expect(seatsText(t, 0, "maybe")).toBe("Full: going puts you on the waiting list");
+  expect(seatsText(t, 0, "going")).toBe("Full, and you have a seat");
+  expect(seatsText(t, 0, "waitlist")).toBe("Full, you're on the waiting list");
 });
 
 test("a class without seats says nothing about seats", () => {
-  expect(seatsText(null, "going")).toBeNull();
+  expect(seatsText(t, null, "going")).toBeNull();
 });
 
 test("going with seats left asks to book one", () => {
-  expect(confirmation("going", null, 3)).toEqual({
+  expect(confirmation(t, "going", null, 3)).toEqual({
     title: "Book a seat?",
     message: "3 seats left.",
     confirm: "Book",
   });
-  expect(confirmation("going", "maybe", 1).message).toBe("1 seat left.");
+  expect(confirmation(t, "going", "maybe", 1).message).toBe("1 seat left.");
 });
 
 test("going on a full class asks to join the waiting list", () => {
-  expect(confirmation("going", null, 0)).toEqual({
+  expect(confirmation(t, "going", null, 0)).toEqual({
     title: "Join the waiting list?",
     message: "This class is full. You'll get a seat if one opens.",
     confirm: "Join the waiting list",
@@ -50,29 +54,29 @@ test("going on a full class asks to join the waiting list", () => {
 });
 
 test("giving up a seat or a place in line says so", () => {
-  expect(confirmation("maybe", "going", 2).title).toBe("Give up your seat?");
-  expect(confirmation("not_going", "going", 0).title).toBe("Give up your seat?");
-  expect(confirmation("maybe", "waitlist", 0).title).toBe("Leave the waiting list?");
-  expect(confirmation("not_going", "waitlist", 0).message).toBe("You'll lose your place in line.");
+  expect(confirmation(t, "maybe", "going", 2).title).toBe("Give up your seat?");
+  expect(confirmation(t, "not_going", "going", 0).title).toBe("Give up your seat?");
+  expect(confirmation(t, "maybe", "waitlist", 0).title).toBe("Leave the waiting list?");
+  expect(confirmation(t, "not_going", "waitlist", 0).message).toBe("You'll lose your place in line.");
 });
 
 test("other changes get a plain question", () => {
-  expect(confirmation("maybe", null, 4)).toEqual({
+  expect(confirmation(t, "maybe", null, 4)).toEqual({
     title: 'Change your plan to "Maybe"?',
     message: "",
     confirm: "Maybe",
   });
-  expect(confirmation("not_going", "maybe", 4).confirm).toBe("Not going");
+  expect(confirmation(t, "not_going", "maybe", 4).confirm).toBe("Not going");
 });
 
 test("a booking class with no seat limit never talks about seats", () => {
-  expect(confirmation("going", null, null).title).toBe('Change your plan to "Going"?');
-  expect(confirmation("maybe", "going", null).title).toBe('Change your plan to "Maybe"?');
+  expect(confirmation(t, "going", null, null).title).toBe('Change your plan to "Going"?');
+  expect(confirmation(t, "maybe", "going", null).title).toBe('Change your plan to "Maybe"?');
 });
 
 test("each way an RSVP can fail has its own message, and success has none", () => {
-  expect(outcomeMessage("ok")).toBeNull();
-  expect(outcomeMessage("cancelled")).toBe("This session was cancelled.");
-  expect(outcomeMessage("unreachable")).toBe("Can't reach the server.");
-  expect(outcomeMessage("error")).toBe("Something went wrong. Try again.");
+  expect(outcomeMessage(t, "ok")).toBeNull();
+  expect(outcomeMessage(t, "cancelled")).toBe("This session was cancelled.");
+  expect(outcomeMessage(t, "unreachable")).toBe("Can't reach the server.");
+  expect(outcomeMessage(t, "error")).toBe("Something went wrong. Try again.");
 });

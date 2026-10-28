@@ -5,7 +5,7 @@ import { Text } from "@/components/text";
 import { useTheme } from "@/theme/use-theme";
 
 // The round back button on the orange header, in place of the system navigation bar.
-export function BackButton({ label = "Back" }: { label?: string }) {
+export function BackButton({ label }: { label: string }) {
   const router = useRouter();
   const { colors } = useTheme();
   return (

@@ -3,6 +3,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/button";
 import { Text } from "@/components/text";
+import { LANGUAGES } from "@/i18n/translate";
+import { useLanguage } from "@/i18n/use-language";
 import { PREFERENCES } from "@/theme/preference";
 import { radius, space } from "@/theme/tokens";
 import { usePreference } from "@/theme/use-preference";
@@ -21,12 +23,13 @@ export function AccountSheet({ visible, onClose, onSwitchStudio, onSignOut }: Pr
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { preference, setPreference } = usePreference();
+  const { t, choice, setChoice } = useLanguage();
 
   return (
     <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
       {/* Tapping the dimmed area closes the sheet. */}
       <Pressable
-        accessibilityLabel="Close"
+        accessibilityLabel={t("account.close")}
         accessibilityRole="button"
         onPress={onClose}
         style={styles.backdrop}
@@ -40,29 +43,50 @@ export function AccountSheet({ visible, onClose, onSwitchStudio, onSignOut }: Pr
         {onSwitchStudio && (
           <Button
             variant="choice"
-            title="Switch studio"
+            title={t("account.switchStudio")}
             onPress={() => {
               onClose();
               onSwitchStudio();
             }}
           />
         )}
-        <Text variant="eyebrow">Appearance</Text>
+        <Text variant="eyebrow">{t("account.appearance")}</Text>
         <View style={styles.options}>
           {PREFERENCES.map((p) => (
             <View key={p.value} style={styles.option}>
               <Button
                 variant="choice"
-                title={p.label}
+                title={t(p.label)}
                 selected={p.value === preference}
                 onPress={() => setPreference(p.value)}
               />
             </View>
           ))}
         </View>
+        <Text variant="eyebrow">{t("account.language")}</Text>
+        <View style={styles.options}>
+          <View style={styles.option}>
+            <Button
+              variant="choice"
+              title={t("common.system")}
+              selected={choice === "system"}
+              onPress={() => setChoice("system")}
+            />
+          </View>
+          {LANGUAGES.map((l) => (
+            <View key={l.value} style={styles.option}>
+              <Button
+                variant="choice"
+                title={l.name}
+                selected={l.value === choice}
+                onPress={() => setChoice(l.value)}
+              />
+            </View>
+          ))}
+        </View>
         <Button
           variant="link"
-          title="Sign out"
+          title={t("account.signOut")}
           onPress={() => {
             onClose();
             onSignOut();

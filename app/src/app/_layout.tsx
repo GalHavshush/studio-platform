@@ -10,16 +10,18 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 
 import { SessionProvider, useSession } from "@/auth/session";
+import { LanguageProvider, useLanguage } from "@/i18n/use-language";
 import { PreferenceProvider, usePreference } from "@/theme/use-preference";
 import { useTheme } from "@/theme/use-theme";
 
 // Keep the native splash screen up until we know whether a stored session exists, the font is
-// ready and the saved appearance has been read (so the first frame already has the right colours).
+// ready and the saved appearance and language have been read (so the first frame is already right).
 SplashScreen.preventAutoHideAsync();
 
 function Navigator() {
   const { status, studio } = useSession();
-  const { loaded } = usePreference();
+  const { loaded: preferenceLoaded } = usePreference();
+  const { loaded: languageLoaded } = useLanguage();
   const { colors } = useTheme();
   // `error` is true if a font could not load: show the app in the system font rather than never.
   const [fontsLoaded, fontError] = useFonts({
@@ -28,7 +30,7 @@ function Navigator() {
     Figtree_700Bold,
     Figtree_800ExtraBold,
   });
-  const ready = status !== "loading" && loaded && (fontsLoaded || fontError !== null);
+  const ready = status !== "loading" && preferenceLoaded && languageLoaded && (fontsLoaded || fontError !== null);
 
   useEffect(() => {
     if (ready) SplashScreen.hide();
@@ -59,9 +61,11 @@ function Navigator() {
 export default function RootLayout() {
   return (
     <PreferenceProvider>
-      <SessionProvider>
-        <Navigator />
-      </SessionProvider>
+      <LanguageProvider>
+        <SessionProvider>
+          <Navigator />
+        </SessionProvider>
+      </LanguageProvider>
     </PreferenceProvider>
   );
 }

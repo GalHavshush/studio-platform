@@ -1,3 +1,5 @@
+import { makeTranslator } from "@/i18n/translate";
+
 import { groupRsvps, type RsvpEntry } from "./rsvp-list";
 
 const entry = (name: string, status: string, position: number | null = null): RsvpEntry => ({
@@ -17,7 +19,8 @@ test("the groups come in the order going, waiting list, maybe, not going", () =>
   ]);
 
   expect(groups.map((g) => g.key)).toEqual(["going", "waitlist", "maybe", "not_going"]);
-  expect(groups.map((g) => g.title)).toEqual(["Going", "Waiting list", "Maybe", "Not going"]);
+  const t = makeTranslator("en");
+  expect(groups.map((g) => t(g.titleKey))).toEqual(["Going", "Waiting list", "Maybe", "Not going"]);
 });
 
 test("an empty group is left out", () => {

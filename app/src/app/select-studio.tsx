@@ -6,18 +6,22 @@ import { Logo } from "@/components/logo";
 import { Pill } from "@/components/pill";
 import { Hero, Screen, Sheet } from "@/components/screen";
 import { Text } from "@/components/text";
+import { roleLabel } from "@/auth/role";
 import { useSession, type SelectResult } from "@/auth/session";
+import type { Key } from "@/i18n/en";
+import { useT } from "@/i18n/use-language";
 import { radius, space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
-const MESSAGES: Record<Exclude<SelectResult, "ok">, string> = {
-  unreachable: "Can't reach the server.",
-  error: "Something went wrong. Try again.",
+const MESSAGES: Record<Exclude<SelectResult, "ok">, Key> = {
+  unreachable: "common.cantReach",
+  error: "common.wentWrong",
 };
 
 export default function SelectStudio() {
   const { user, selectStudio, signOut } = useSession();
   const { colors } = useTheme();
+  const t = useT();
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const memberships = user?.memberships ?? [];
@@ -29,7 +33,7 @@ export default function SelectStudio() {
     const result = await selectStudio(id);
     // On success this screen is replaced, so only a failure touches its state again.
     if (result !== "ok") {
-      setError(MESSAGES[result]);
+      setError(t(MESSAGES[result]));
       setBusyId(null);
     }
   }
@@ -39,16 +43,16 @@ export default function SelectStudio() {
       <Hero>
         <Logo size={96} />
         <Text variant="display" color="onAccent">
-          {memberships.length === 0 ? "No studio\nyet" : "Choose your\nstudio"}
+          {t(memberships.length === 0 ? "studios.titleNone" : "studios.title")}
         </Text>
       </Hero>
       <Sheet>
-        {memberships.length === 0 && <Text>You are not a member of any studio yet.</Text>}
+        {memberships.length === 0 && <Text>{t("studios.none")}</Text>}
         {memberships.map((m) => (
           <Pressable
             key={m.tenant.id}
             accessibilityRole="button"
-            accessibilityLabel={`${m.tenant.name}, ${m.role}`}
+            accessibilityLabel={t("studios.cardLabel", { name: m.tenant.name, role: roleLabel(t, m.role) })}
             disabled={busyId !== null}
             onPress={() => choose(m.tenant.id)}
             style={[
@@ -59,7 +63,7 @@ export default function SelectStudio() {
           >
             <View style={styles.cardText}>
               <Text variant="title">{m.tenant.name}</Text>
-              <Pill label={m.role.charAt(0).toUpperCase() + m.role.slice(1)} />
+              <Pill label={roleLabel(t, m.role)} />
             </View>
             <Text variant="title" color="textMuted">
               ›
@@ -71,7 +75,7 @@ export default function SelectStudio() {
             {error}
           </Text>
         )}
-        <Button title="Sign out" variant="link" onPress={signOut} />
+        <Button title={t("account.signOut")} variant="link" onPress={signOut} />
       </Sheet>
     </Screen>
   );
