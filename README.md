@@ -122,7 +122,7 @@ api/                         FastAPI backend (Python, managed with uv)
 │   ├── auth.py              POST /auth/login (access + refresh token), POST /auth/refresh, POST /auth/logout
 │   ├── class_types.py       GET/POST /class-types, PUT /class-types/{id}, POST /class-types/{id}/archive and /unarchive (a studio's class types; writes are owner-only; archived ones are hidden by default; each has an attendance mode, rsvp or booking)
 │   ├── sessions.py          POST/GET /sessions, GET/PATCH /sessions/{id}, POST /sessions/{id}/cancel; the helpers the other session files share (own_session, is_staff)
-│   ├── bookings.py          PUT /sessions/{id}/rsvp (going / not_going / maybe; seats are limited in booking mode, with a waitlist and its promotion)
+│   ├── bookings.py          PUT /sessions/{id}/rsvp (going / not_going / maybe; seats are limited in booking mode, with a waitlist and its promotion), GET /sessions/{id}/rsvps (staff only: who is coming, in order, with waiting-list positions)
 │   ├── attendance.py        POST /sessions/{id}/attendance (attended or not; check-in opens 15 min before start)
 │   ├── reports.py           PUT /sessions/{id}/report (the coach's class report, with a private note per attendee, saved in one transaction), GET /sessions/{id}/report (staff: the whole report; a member: only the summary, and only if they attended)
 │   ├── participants.py      GET /participants/{id}/notes (the notes coaches wrote about a participant: staff see all, a member only the notes shared with them about themselves)

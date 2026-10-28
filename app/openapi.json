@@ -637,6 +637,42 @@
         "title": "RsvpCounts",
         "type": "object"
       },
+      "RsvpEntry": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "participant_id": {
+            "format": "uuid",
+            "title": "Participant Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "waitlist_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waitlist Position"
+          }
+        },
+        "required": [
+          "participant_id",
+          "name",
+          "status",
+          "waitlist_position"
+        ],
+        "title": "RsvpEntry",
+        "type": "object"
+      },
       "RsvpIn": {
         "properties": {
           "status": {
@@ -2686,6 +2722,75 @@
           }
         ],
         "summary": "Rsvp To Session",
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/sessions/{session_id}/rsvps": {
+      "get": {
+        "description": "Who is coming to a session, for coaches and owners (a member gets `403 insufficient_role`).\n\nOne entry per person with a plan, by name and never by email: going first, then the waiting\nlist in queue order, then maybe, then not going; by name inside each of the others. People with\nno plan (attendance recorded without an RSVP) are left out. A cancelled session can still be\nread. A session of another studio gets the same `404 session_not_found` as a missing one.\n\nThe waiting list is ordered as `promote_waitlist` picks people (`waitlisted_at`, ties by\nparticipant id), so position 1 is who gets the next free seat.\nponytail: no pagination, the list is bounded by the studio's size; add a cursor if a studio\never has thousands of RSVPs on one class.",
+        "operationId": "list_rsvps_sessions__session_id__rsvps_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RsvpEntry"
+                  },
+                  "title": "Response List Rsvps Sessions  Session Id  Rsvps Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Rsvps",
         "tags": [
           "bookings"
         ]

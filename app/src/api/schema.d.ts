@@ -487,6 +487,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sessions/{session_id}/rsvps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rsvps
+         * @description Who is coming to a session, for coaches and owners (a member gets `403 insufficient_role`).
+         *
+         *     One entry per person with a plan, by name and never by email: going first, then the waiting
+         *     list in queue order, then maybe, then not going; by name inside each of the others. People with
+         *     no plan (attendance recorded without an RSVP) are left out. A cancelled session can still be
+         *     read. A session of another studio gets the same `404 session_not_found` as a missing one.
+         *
+         *     The waiting list is ordered as `promote_waitlist` picks people (`waitlisted_at`, ties by
+         *     participant id), so position 1 is who gets the next free seat.
+         *     ponytail: no pagination, the list is bounded by the studio's size; add a cursor if a studio
+         *     ever has thousands of RSVPs on one class.
+         */
+        get: operations["list_rsvps_sessions__session_id__rsvps_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tenant": {
         parameters: {
             query?: never;
@@ -777,6 +807,20 @@ export interface components {
              * @default 0
              */
             waitlist: number;
+        };
+        /** RsvpEntry */
+        RsvpEntry: {
+            /** Name */
+            name: string;
+            /**
+             * Participant Id
+             * Format: uuid
+             */
+            participant_id: string;
+            /** Status */
+            status: string;
+            /** Waitlist Position */
+            waitlist_position: number | null;
         };
         /** RsvpIn */
         RsvpIn: {
@@ -1791,6 +1835,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RsvpOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_rsvps_sessions__session_id__rsvps_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RsvpEntry"][];
                 };
             };
             /** @description Validation Error */

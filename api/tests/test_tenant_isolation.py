@@ -107,6 +107,10 @@ async def _get_session(client, headers):
     return await client.get(f"/sessions/{uuid.uuid4()}", headers=headers)
 
 
+async def _list_rsvps(client, headers):
+    return await client.get(f"/sessions/{uuid.uuid4()}/rsvps", headers=headers)
+
+
 TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
     ("GET", "/tenant"): _get_tenant,
     ("GET", "/class-types"): _list_class_types,
@@ -120,6 +124,7 @@ TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
     ("PATCH", "/sessions/{session_id}"): _update_session,
     ("POST", "/sessions/{session_id}/cancel"): _cancel_session,
     ("PUT", "/sessions/{session_id}/rsvp"): _rsvp,
+    ("GET", "/sessions/{session_id}/rsvps"): _list_rsvps,
     ("POST", "/sessions/{session_id}/attendance"): _attendance,
     ("PUT", "/sessions/{session_id}/report"): _write_report,
     ("GET", "/sessions/{session_id}/report"): _read_report,
