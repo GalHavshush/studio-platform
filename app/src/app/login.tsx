@@ -1,6 +1,11 @@
-import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Keyboard, KeyboardAvoidingView, Platform } from "react-native";
 
+import { Button } from "@/components/button";
+import { Logo } from "@/components/logo";
+import { Hero, Screen, Sheet } from "@/components/screen";
+import { Text } from "@/components/text";
+import { TextField } from "@/components/text-field";
 import { useSession, type SignInResult } from "@/auth/session";
 
 const MESSAGES: Record<Exclude<SignInResult, "ok">, string> = {
@@ -9,8 +14,24 @@ const MESSAGES: Record<Exclude<SignInResult, "ok">, string> = {
   error: "Something went wrong. Try again.",
 };
 
+// The orange block shrinks when the keyboard opens, so the logo is dropped to keep the title in view.
+function useKeyboardOpen() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const ios = Platform.OS === "ios";
+    const show = Keyboard.addListener(ios ? "keyboardWillShow" : "keyboardDidShow", () => setOpen(true));
+    const hide = Keyboard.addListener(ios ? "keyboardWillHide" : "keyboardDidHide", () => setOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  return open;
+}
+
 export default function Login() {
   const { signIn } = useSession();
+  const keyboardOpen = useKeyboardOpen();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -31,49 +52,50 @@ export default function Login() {
   }
 
   return (
-    <View style={styles.container}>
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="email-address"
-        autoComplete="email"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoComplete="current-password"
-        onSubmitEditing={submit}
-      />
-      {error && <Text style={styles.error}>{error}</Text>}
-      <Pressable
-        style={[styles.button, !canSubmit && styles.buttonDisabled]}
-        onPress={submit}
-        disabled={!canSubmit}
+    <Screen accent>
+      {/* Lifts the sheet above the keyboard; the orange block shrinks to make room. */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Text style={styles.buttonText}>{busy ? "Signing in..." : "Sign in"}</Text>
-      </Pressable>
-    </View>
+        <Hero>
+          {!keyboardOpen && <Logo size={128} />}
+          <Text variant="display" color="onAccent">
+            {"Welcome\nback"}
+          </Text>
+        </Hero>
+        <Sheet>
+          <TextField
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            autoComplete="email"
+          />
+          <TextField
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="current-password"
+            onSubmitEditing={submit}
+          />
+          {error && (
+            <Text color="danger" accessibilityRole="alert">
+              {error}
+            </Text>
+          )}
+          <Button
+            title={busy ? "Signing in..." : "Sign in"}
+            onPress={submit}
+            disabled={!canSubmit}
+          />
+        </Sheet>
+      </KeyboardAvoidingView>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 24, gap: 12 },
-  input: {
-    borderWidth: 1,
-    borderColor: "#c4c4c4",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-  },
-  error: { color: "#b00020" },
-  button: { backgroundColor: "#208AEF", borderRadius: 8, padding: 14, alignItems: "center" },
-  buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: "white", fontSize: 16, fontWeight: "600" },
-});
