@@ -1,7 +1,14 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
+import { Button } from "@/components/button";
+import { Logo } from "@/components/logo";
+import { Pill } from "@/components/pill";
+import { Hero, Screen, Sheet } from "@/components/screen";
+import { Text } from "@/components/text";
 import { useSession, type SelectResult } from "@/auth/session";
+import { radius, space } from "@/theme/tokens";
+import { useTheme } from "@/theme/use-theme";
 
 const MESSAGES: Record<Exclude<SelectResult, "ok">, string> = {
   unreachable: "Can't reach the server.",
@@ -10,6 +17,7 @@ const MESSAGES: Record<Exclude<SelectResult, "ok">, string> = {
 
 export default function SelectStudio() {
   const { user, selectStudio, signOut } = useSession();
+  const { colors } = useTheme();
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const memberships = user?.memberships ?? [];
@@ -27,38 +35,58 @@ export default function SelectStudio() {
   }
 
   return (
-    <View style={styles.container}>
-      {memberships.length === 0 ? (
-        <Text style={styles.title}>You are not a member of any studio yet.</Text>
-      ) : (
-        <>
-          <Text style={styles.title}>Choose your studio</Text>
-          {memberships.map((m) => (
-            <Pressable
-              key={m.tenant.id}
-              style={[styles.studio, busyId !== null && styles.disabled]}
-              onPress={() => choose(m.tenant.id)}
-            >
-              <Text style={styles.studioName}>{m.tenant.name}</Text>
-              <Text>{m.role}</Text>
-            </Pressable>
-          ))}
-        </>
-      )}
-      {error && <Text style={styles.error}>{error}</Text>}
-      <Pressable onPress={signOut}>
-        <Text style={styles.link}>Sign out</Text>
-      </Pressable>
-    </View>
+    <Screen accent>
+      <Hero>
+        <Logo size={96} />
+        <Text variant="display" color="onAccent">
+          {memberships.length === 0 ? "No studio\nyet" : "Choose your\nstudio"}
+        </Text>
+      </Hero>
+      <Sheet>
+        {memberships.length === 0 && <Text>You are not a member of any studio yet.</Text>}
+        {memberships.map((m) => (
+          <Pressable
+            key={m.tenant.id}
+            accessibilityRole="button"
+            accessibilityLabel={`${m.tenant.name}, ${m.role}`}
+            disabled={busyId !== null}
+            onPress={() => choose(m.tenant.id)}
+            style={[
+              styles.card,
+              { backgroundColor: colors.surface },
+              busyId !== null && styles.disabled,
+            ]}
+          >
+            <View style={styles.cardText}>
+              <Text variant="title">{m.tenant.name}</Text>
+              <Pill label={m.role} />
+            </View>
+            <Text variant="title" color="textMuted">
+              ›
+            </Text>
+          </Pressable>
+        ))}
+        {error && (
+          <Text color="danger" accessibilityRole="alert">
+            {error}
+          </Text>
+        )}
+        <Button title="Sign out" variant="link" onPress={signOut} />
+      </Sheet>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 24, gap: 12 },
-  title: { fontSize: 22, fontWeight: "600", textAlign: "center", marginBottom: 12 },
-  studio: { borderWidth: 1, borderColor: "#208AEF", borderRadius: 8, padding: 16, gap: 4 },
-  studioName: { fontSize: 18, fontWeight: "600" },
+  card: {
+    minHeight: 88,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.lg,
+    padding: space.lg,
+    paddingHorizontal: space.xl - 4,
+    borderRadius: radius.lg,
+  },
+  cardText: { flex: 1, gap: space.sm },
   disabled: { opacity: 0.5 },
-  error: { color: "#B00020", textAlign: "center" },
-  link: { color: "#208AEF", textAlign: "center", marginTop: 12 },
 });
