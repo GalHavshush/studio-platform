@@ -2,8 +2,9 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
 
-from app.models import ClassSession, ClassType, Membership, Participant, Tenant, User
+from app.models import ClassSession, ClassType, Membership, Participant, Rsvp, Tenant, User
 
 COUNTS_OF_NOBODY = {"going": 0, "maybe": 0, "not_going": 0, "waitlist": 0}
 
@@ -171,3 +172,102 @@ async def test_the_coach_name_is_shown_but_never_their_email(client, two_tenants
 
     assert body["coach_name"] == "coach of studio-a"
     assert "example.com" not in str(body)  # no email anywhere in the response
+
+
+# --- seats_left: the one number every member gets ---
+
+
+async def seats_left(client, two_tenants, studio, user, session_id):
+    return (await detail(client, two_tenants, studio, user, session_id))["seats_left"]
+
+
+async def test_seats_left_counts_down_as_people_say_going(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a, capacity=2, booking=True)
+    assert await seats_left(client, two_tenants, a, "member", sid) == 2
+
+    await rsvp(client, two_tenants, a, "member", sid, "going")
+    assert await seats_left(client, two_tenants, a, "member", sid) == 1
+
+    await rsvp(client, two_tenants, a, "coach", sid, "going")
+    assert await seats_left(client, two_tenants, a, "member", sid) == 0
+
+
+@pytest.mark.parametrize("role", ["owner", "coach", "member"])
+async def test_every_member_gets_seats_left(client, two_tenants, db_session, role):
+    a = two_tenants.a
+    sid = await a_session(db_session, a, capacity=3, booking=True)
+
+    assert await seats_left(client, two_tenants, a, role, sid) == 3
+
+
+async def test_a_waitlisted_person_does_not_take_a_seat(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a, capacity=1, booking=True)
+    await rsvp(client, two_tenants, a, "coach", sid, "going")
+    assert await rsvp(client, two_tenants, a, "member", sid, "going") == "waitlist"
+
+    assert await seats_left(client, two_tenants, a, "member", sid) == 0  # not -1
+
+
+async def test_maybe_and_not_going_do_not_take_a_seat(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a, capacity=2, booking=True)
+    await rsvp(client, two_tenants, a, "member", sid, "maybe")
+    await rsvp(client, two_tenants, a, "coach", sid, "not_going")
+
+    assert await seats_left(client, two_tenants, a, "member", sid) == 2
+
+
+async def test_seats_left_is_never_negative(client, two_tenants, db_session):
+    # Capacity cannot be lowered under the going count through the API, but the column allows it.
+    a = two_tenants.a
+    sid = await a_session(db_session, a, capacity=1, booking=True)
+    for role in ("member", "coach"):
+        participant = await db_session.scalar(
+            select(Participant.id).where(Participant.user_id == a.users[role])
+        )
+        db_session.add(
+            Rsvp(session_id=sid, participant_id=participant, tenant_id=a.id, status="going")
+        )
+    await db_session.flush()
+
+    assert await seats_left(client, two_tenants, a, "member", sid) == 0
+
+
+async def test_seats_left_only_counts_this_session(client, two_tenants, db_session):
+    a = two_tenants.a
+    this_one = await a_session(db_session, a, capacity=2, booking=True)
+    other_one = await a_session(db_session, a, capacity=2, booking=True)
+    await rsvp(client, two_tenants, a, "member", other_one, "going")
+
+    assert await seats_left(client, two_tenants, a, "member", this_one) == 2
+
+
+async def enable_booking_module(db_session, studio):
+    (await db_session.get(Tenant, studio.id)).modules = ["booking"]
+    await db_session.flush()
+
+
+async def test_no_seats_left_for_an_rsvp_mode_class(client, two_tenants, db_session):
+    a = two_tenants.a
+    await enable_booking_module(db_session, a)  # the module is on; the class is still RSVP mode
+    sid = await a_session(db_session, a, capacity=5)
+
+    assert await seats_left(client, two_tenants, a, "member", sid) is None
+
+
+async def test_no_seats_left_for_an_unlimited_class(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a, capacity=None, booking=True)  # booking mode, module on
+
+    assert await seats_left(client, two_tenants, a, "member", sid) is None
+
+
+async def test_no_seats_left_when_the_booking_module_is_off(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a, capacity=5, booking=True)
+    (await db_session.get(Tenant, a.id)).modules = []  # booking mode and a limit, but module off
+    await db_session.flush()
+
+    assert await seats_left(client, two_tenants, a, "member", sid) is None

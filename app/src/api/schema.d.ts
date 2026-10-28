@@ -341,7 +341,8 @@ export interface paths {
         /**
          * Get Session By Id
          * @description One session of this studio, with its class type's name, the coach's name, the caller's own
-         *     RSVP and, for coaches and owners, how many chose each plan. Any member.
+         *     RSVP, the seats left (booking classes with a limit) and, for coaches and owners, how many chose
+         *     each plan. Any member.
          *
          *     The coach's name is visible to every member; their email never is. `my_rsvp` is the caller's
          *     own plan (`going`, `not_going`, `maybe`, `waitlist`) or null. A session of another studio gets
@@ -799,7 +800,8 @@ export interface components {
          * SessionDetail
          * @description One session with what a screen needs to show it: names instead of ids, and the caller's
          *     own plan. `rsvp_counts` is for coaches and owners; a member gets null, so nobody learns what
-         *     the others chose, not even as a total.
+         *     the others chose, not even as a total. `seats_left` is the one number every member gets: free
+         *     seats in a booking class with a seat limit, null when there are no seats to count.
          */
         SessionDetail: {
             /** Attendance Mode */
@@ -835,6 +837,8 @@ export interface components {
             /** Preview */
             preview: string | null;
             rsvp_counts: components["schemas"]["RsvpCounts"] | null;
+            /** Seats Left */
+            seats_left: number | null;
             /**
              * Starts At
              * Format: date-time

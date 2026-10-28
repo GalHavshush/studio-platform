@@ -18,7 +18,7 @@ from pydantic import (
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bookings import booking_applies, promote_waitlist
+from app.bookings import _count_going, booking_applies, promote_waitlist
 from app.db import get_session
 from app.deps import TenantContext, TenantCtx, require_role
 from app.models import ClassSession, ClassType, Membership, Participant, Rsvp, User
@@ -96,13 +96,15 @@ class RsvpCounts(BaseModel):
 class SessionDetail(SessionOut):
     """One session with what a screen needs to show it: names instead of ids, and the caller's
     own plan. `rsvp_counts` is for coaches and owners; a member gets null, so nobody learns what
-    the others chose, not even as a total."""
+    the others chose, not even as a total. `seats_left` is the one number every member gets: free
+    seats in a booking class with a seat limit, null when there are no seats to count."""
 
     class_type_name: str
     attendance_mode: str
     coach_name: str
     my_rsvp: str | None
     rsvp_counts: RsvpCounts | None
+    seats_left: int | None
 
 
 async def is_staff(session: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID) -> bool:
@@ -223,7 +225,8 @@ async def get_session_by_id(
     session_id: uuid.UUID, ctx: TenantCtx, session: Annotated[AsyncSession, Depends(get_session)]
 ) -> SessionDetail:
     """One session of this studio, with its class type's name, the coach's name, the caller's own
-    RSVP and, for coaches and owners, how many chose each plan. Any member.
+    RSVP, the seats left (booking classes with a limit) and, for coaches and owners, how many chose
+    each plan. Any member.
 
     The coach's name is visible to every member; their email never is. `my_rsvp` is the caller's
     own plan (`going`, `not_going`, `maybe`, `waitlist`) or null. A session of another studio gets
@@ -269,6 +272,12 @@ async def get_session_by_id(
         )
         counts = RsvpCounts(**dict(rows.all()))
 
+    # Seats exist only in a booking class (module on) with a limit. A plain read: the RSVP route
+    # decides under the row lock, so a number a moment old here does no harm.
+    seats_left = None
+    if row.capacity is not None and await booking_applies(session, ctx.tenant_id, attendance_mode):
+        seats_left = max(row.capacity - await _count_going(session, session_id), 0)
+
     return SessionDetail(
         **SessionOut.model_validate(row).model_dump(),
         class_type_name=class_type_name,
@@ -276,6 +285,7 @@ async def get_session_by_id(
         coach_name=coach_name,
         my_rsvp=my_rsvp,
         rsvp_counts=counts,
+        seats_left=seats_left,
     )
 
 

@@ -675,7 +675,7 @@
         "type": "object"
       },
       "SessionDetail": {
-        "description": "One session with what a screen needs to show it: names instead of ids, and the caller's\nown plan. `rsvp_counts` is for coaches and owners; a member gets null, so nobody learns what\nthe others chose, not even as a total.",
+        "description": "One session with what a screen needs to show it: names instead of ids, and the caller's\nown plan. `rsvp_counts` is for coaches and owners; a member gets null, so nobody learns what\nthe others chose, not even as a total. `seats_left` is the one number every member gets: free\nseats in a booking class with a seat limit, null when there are no seats to count.",
         "properties": {
           "attendance_mode": {
             "title": "Attendance Mode",
@@ -752,6 +752,17 @@
               }
             ]
           },
+          "seats_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seats Left"
+          },
           "starts_at": {
             "format": "date-time",
             "title": "Starts At",
@@ -775,7 +786,8 @@
           "attendance_mode",
           "coach_name",
           "my_rsvp",
-          "rsvp_counts"
+          "rsvp_counts",
+          "seats_left"
         ],
         "title": "SessionDetail",
         "type": "object"
@@ -2182,7 +2194,7 @@
     },
     "/sessions/{session_id}": {
       "get": {
-        "description": "One session of this studio, with its class type's name, the coach's name, the caller's own\nRSVP and, for coaches and owners, how many chose each plan. Any member.\n\nThe coach's name is visible to every member; their email never is. `my_rsvp` is the caller's\nown plan (`going`, `not_going`, `maybe`, `waitlist`) or null. A session of another studio gets\nthe same `404 session_not_found` as one that does not exist, so ids cannot be probed.",
+        "description": "One session of this studio, with its class type's name, the coach's name, the caller's own\nRSVP, the seats left (booking classes with a limit) and, for coaches and owners, how many chose\neach plan. Any member.\n\nThe coach's name is visible to every member; their email never is. `my_rsvp` is the caller's\nown plan (`going`, `not_going`, `maybe`, `waitlist`) or null. A session of another studio gets\nthe same `404 session_not_found` as one that does not exist, so ids cannot be probed.",
         "operationId": "get_session_by_id_sessions__session_id__get",
         "parameters": [
           {
