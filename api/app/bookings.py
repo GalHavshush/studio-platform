@@ -12,15 +12,17 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func, select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.deps import TenantCtx, studio_has_module
+from app.deps import TenantContext, TenantCtx, require_role, studio_has_module
 from app.models import ClassSession, ClassType, Participant, Rsvp
 
 router = APIRouter(prefix="/sessions", tags=["bookings"])
+
+CoachCtx = Annotated[TenantContext, Depends(require_role("coach"))]
 
 
 async def booking_applies(
@@ -63,6 +65,78 @@ async def promote_waitlist(
             .where(Rsvp.session_id == session_id, Rsvp.participant_id.in_(promoted))
             .values(status="going", waitlisted_at=None)
         )
+
+
+class RsvpEntry(BaseModel):
+    participant_id: uuid.UUID
+    name: str
+    status: str
+    # 1, 2, 3... for people on the waiting list, null for everyone else
+    waitlist_position: int | None
+
+
+@router.get("/{session_id}/rsvps")
+async def list_rsvps(
+    session_id: uuid.UUID,
+    ctx: CoachCtx,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[RsvpEntry]:
+    """Who is coming to a session, for coaches and owners (a member gets `403 insufficient_role`).
+
+    One entry per person with a plan, by name and never by email: going first, then the waiting
+    list in queue order, then maybe, then not going; by name inside each of the others. People with
+    no plan (attendance recorded without an RSVP) are left out. A cancelled session can still be
+    read. A session of another studio gets the same `404 session_not_found` as a missing one.
+
+    The waiting list is ordered as `promote_waitlist` picks people (`waitlisted_at`, ties by
+    participant id), so position 1 is who gets the next free seat.
+    ponytail: no pagination, the list is bounded by the studio's size; add a cursor if a studio
+    ever has thousands of RSVPs on one class.
+    """
+    exists = await session.scalar(
+        select(ClassSession.id).where(
+            ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id
+        )
+    )
+    if exists is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+
+    group = case(
+        (Rsvp.status == "going", 0),
+        (Rsvp.status == "waitlist", 1),
+        (Rsvp.status == "maybe", 2),
+        else_=3,
+    )
+    # Counted over the whole session (the filter is in the WHERE below), so only waiting people
+    # get a number: for everyone else the CASE gives null.
+    position = case(
+        (
+            Rsvp.status == "waitlist",
+            func.row_number().over(
+                partition_by=Rsvp.status == "waitlist",
+                order_by=(Rsvp.waitlisted_at, Rsvp.participant_id),
+            ),
+        )
+    )
+    rows = await session.execute(
+        select(Rsvp.participant_id, Participant.name, Rsvp.status, position.label("position"))
+        .join(Participant, Participant.id == Rsvp.participant_id)
+        .where(
+            Rsvp.session_id == session_id,
+            Rsvp.tenant_id == ctx.tenant_id,
+            Rsvp.status.is_not(None),
+        )
+        .order_by(group, position, Participant.name, Rsvp.participant_id)
+    )
+    return [
+        RsvpEntry(
+            participant_id=r.participant_id,
+            name=r.name,
+            status=r.status,
+            waitlist_position=r.position,
+        )
+        for r in rows
+    ]
 
 
 class RsvpIn(BaseModel):
