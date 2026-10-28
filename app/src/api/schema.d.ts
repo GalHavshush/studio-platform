@@ -340,10 +340,12 @@ export interface paths {
         };
         /**
          * Get Session By Id
-         * @description One session of this studio. Any member.
+         * @description One session of this studio, with its class type's name, the coach's name, the caller's own
+         *     RSVP and, for coaches and owners, how many chose each plan. Any member.
          *
-         *     A session of another studio gets the same `404 session_not_found` as one that does not exist,
-         *     so ids cannot be probed.
+         *     The coach's name is visible to every member; their email never is. `my_rsvp` is the caller's
+         *     own plan (`going`, `not_going`, `maybe`, `waitlist`) or null. A session of another studio gets
+         *     the same `404 session_not_found` as one that does not exist, so ids cannot be probed.
          */
         get: operations["get_session_by_id_sessions__session_id__get"];
         put?: never;
@@ -749,6 +751,32 @@ export interface components {
             /** Went Well */
             went_well: string | null;
         };
+        /**
+         * RsvpCounts
+         * @description How many people chose each plan. Counts only: never who.
+         */
+        RsvpCounts: {
+            /**
+             * Going
+             * @default 0
+             */
+            going: number;
+            /**
+             * Maybe
+             * @default 0
+             */
+            maybe: number;
+            /**
+             * Not Going
+             * @default 0
+             */
+            not_going: number;
+            /**
+             * Waitlist
+             * @default 0
+             */
+            waitlist: number;
+        };
         /** RsvpIn */
         RsvpIn: {
             /**
@@ -764,6 +792,54 @@ export interface components {
              * Format: uuid
              */
             session_id: string;
+            /** Status */
+            status: string;
+        };
+        /**
+         * SessionDetail
+         * @description One session with what a screen needs to show it: names instead of ids, and the caller's
+         *     own plan. `rsvp_counts` is for coaches and owners; a member gets null, so nobody learns what
+         *     the others chose, not even as a total.
+         */
+        SessionDetail: {
+            /** Attendance Mode */
+            attendance_mode: string;
+            /** Capacity */
+            capacity: number | null;
+            /**
+             * Class Type Id
+             * Format: uuid
+             */
+            class_type_id: string;
+            /** Class Type Name */
+            class_type_name: string;
+            /**
+             * Coach Id
+             * Format: uuid
+             */
+            coach_id: string;
+            /** Coach Name */
+            coach_name: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** My Rsvp */
+            my_rsvp: string | null;
+            /** Preview */
+            preview: string | null;
+            rsvp_counts: components["schemas"]["RsvpCounts"] | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
             /** Status */
             status: string;
         };
@@ -1496,7 +1572,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SessionOut"];
+                    "application/json": components["schemas"]["SessionDetail"];
                 };
             };
             /** @description Validation Error */

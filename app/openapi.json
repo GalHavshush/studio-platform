@@ -610,6 +610,33 @@
         "title": "ReportOut",
         "type": "object"
       },
+      "RsvpCounts": {
+        "description": "How many people chose each plan. Counts only: never who.",
+        "properties": {
+          "going": {
+            "default": 0,
+            "title": "Going",
+            "type": "integer"
+          },
+          "maybe": {
+            "default": 0,
+            "title": "Maybe",
+            "type": "integer"
+          },
+          "not_going": {
+            "default": 0,
+            "title": "Not Going",
+            "type": "integer"
+          },
+          "waitlist": {
+            "default": 0,
+            "title": "Waitlist",
+            "type": "integer"
+          }
+        },
+        "title": "RsvpCounts",
+        "type": "object"
+      },
       "RsvpIn": {
         "properties": {
           "status": {
@@ -645,6 +672,112 @@
           "status"
         ],
         "title": "RsvpOut",
+        "type": "object"
+      },
+      "SessionDetail": {
+        "description": "One session with what a screen needs to show it: names instead of ids, and the caller's\nown plan. `rsvp_counts` is for coaches and owners; a member gets null, so nobody learns what\nthe others chose, not even as a total.",
+        "properties": {
+          "attendance_mode": {
+            "title": "Attendance Mode",
+            "type": "string"
+          },
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "class_type_id": {
+            "format": "uuid",
+            "title": "Class Type Id",
+            "type": "string"
+          },
+          "class_type_name": {
+            "title": "Class Type Name",
+            "type": "string"
+          },
+          "coach_id": {
+            "format": "uuid",
+            "title": "Coach Id",
+            "type": "string"
+          },
+          "coach_name": {
+            "title": "Coach Name",
+            "type": "string"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "my_rsvp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Rsvp"
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview"
+          },
+          "rsvp_counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RsvpCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "class_type_id",
+          "coach_id",
+          "starts_at",
+          "ends_at",
+          "status",
+          "preview",
+          "capacity",
+          "class_type_name",
+          "attendance_mode",
+          "coach_name",
+          "my_rsvp",
+          "rsvp_counts"
+        ],
+        "title": "SessionDetail",
         "type": "object"
       },
       "SessionIn": {
@@ -2049,7 +2182,7 @@
     },
     "/sessions/{session_id}": {
       "get": {
-        "description": "One session of this studio. Any member.\n\nA session of another studio gets the same `404 session_not_found` as one that does not exist,\nso ids cannot be probed.",
+        "description": "One session of this studio, with its class type's name, the coach's name, the caller's own\nRSVP and, for coaches and owners, how many chose each plan. Any member.\n\nThe coach's name is visible to every member; their email never is. `my_rsvp` is the caller's\nown plan (`going`, `not_going`, `maybe`, `waitlist`) or null. A session of another studio gets\nthe same `404 session_not_found` as one that does not exist, so ids cannot be probed.",
         "operationId": "get_session_by_id_sessions__session_id__get",
         "parameters": [
           {
@@ -2084,7 +2217,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SessionOut"
+                  "$ref": "#/components/schemas/SessionDetail"
                 }
               }
             },
