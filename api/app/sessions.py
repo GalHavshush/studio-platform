@@ -15,13 +15,13 @@ from pydantic import (
     StringConstraints,
     model_validator,
 )
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bookings import booking_applies, promote_waitlist
 from app.db import get_session
 from app.deps import TenantContext, TenantCtx, require_role
-from app.models import ClassSession, ClassType, Membership
+from app.models import ClassSession, ClassType, Membership, Participant, Rsvp, User
 from app.text import NoNul
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -82,6 +82,27 @@ class SessionOut(BaseModel):
     status: str
     preview: str | None
     capacity: int | None
+
+
+class RsvpCounts(BaseModel):
+    """How many people chose each plan. Counts only: never who."""
+
+    going: int = 0
+    maybe: int = 0
+    not_going: int = 0
+    waitlist: int = 0
+
+
+class SessionDetail(SessionOut):
+    """One session with what a screen needs to show it: names instead of ids, and the caller's
+    own plan. `rsvp_counts` is for coaches and owners; a member gets null, so nobody learns what
+    the others chose, not even as a total."""
+
+    class_type_name: str
+    attendance_mode: str
+    coach_name: str
+    my_rsvp: str | None
+    rsvp_counts: RsvpCounts | None
 
 
 async def is_staff(session: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID) -> bool:
@@ -200,20 +221,62 @@ async def list_sessions(
 @router.get("/{session_id}")
 async def get_session_by_id(
     session_id: uuid.UUID, ctx: TenantCtx, session: Annotated[AsyncSession, Depends(get_session)]
-) -> SessionOut:
-    """One session of this studio. Any member.
+) -> SessionDetail:
+    """One session of this studio, with its class type's name, the coach's name, the caller's own
+    RSVP and, for coaches and owners, how many chose each plan. Any member.
 
-    A session of another studio gets the same `404 session_not_found` as one that does not exist,
-    so ids cannot be probed.
+    The coach's name is visible to every member; their email never is. `my_rsvp` is the caller's
+    own plan (`going`, `not_going`, `maybe`, `waitlist`) or null. A session of another studio gets
+    the same `404 session_not_found` as one that does not exist, so ids cannot be probed.
     """
-    row = await session.scalar(
-        select(ClassSession).where(
-            ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id
+    found = (
+        await session.execute(
+            select(ClassSession, ClassType.name, ClassType.attendance_mode, User.name)
+            .join(
+                ClassType,
+                (ClassType.id == ClassSession.class_type_id)
+                & (ClassType.tenant_id == ClassSession.tenant_id),
+            )
+            .join(User, User.id == ClassSession.coach_id)
+            .where(ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id)
+        )
+    ).first()
+    if found is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    row, class_type_name, attendance_mode, coach_name = found
+
+    # The caller's own RSVP, through their own participant in this studio (never an id from the client).
+    my_rsvp = await session.scalar(
+        select(Rsvp.status)
+        .join(Participant, Participant.id == Rsvp.participant_id)
+        .where(
+            Rsvp.session_id == session_id,
+            Rsvp.tenant_id == ctx.tenant_id,
+            Participant.user_id == ctx.user.id,
         )
     )
-    if row is None:
-        raise HTTPException(status_code=404, detail="session_not_found")
-    return SessionOut.model_validate(row)
+
+    counts = None
+    if ctx.role in ("coach", "owner"):
+        rows = await session.execute(
+            select(Rsvp.status, func.count())
+            .where(
+                Rsvp.session_id == session_id,
+                Rsvp.tenant_id == ctx.tenant_id,
+                Rsvp.status.is_not(None),  # someone who attended without a plan has no status
+            )
+            .group_by(Rsvp.status)
+        )
+        counts = RsvpCounts(**dict(rows.all()))
+
+    return SessionDetail(
+        **SessionOut.model_validate(row).model_dump(),
+        class_type_name=class_type_name,
+        attendance_mode=attendance_mode,
+        coach_name=coach_name,
+        my_rsvp=my_rsvp,
+        rsvp_counts=counts,
+    )
 
 
 @router.patch("/{session_id}")

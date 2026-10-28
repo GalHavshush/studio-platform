@@ -323,7 +323,7 @@ async def test_the_longest_allowed_range_works(client, two_tenants):
 @pytest.mark.parametrize("role", ["owner", "coach", "member"])
 async def test_every_member_gets_one_session_by_id(client, two_tenants, db_session, role):
     a = two_tenants.a
-    ct = await add_class_type(db_session, a)
+    ct = await add_class_type(db_session, a, name="Open mat")
     session_id = await add_session(db_session, a, ct, "2026-10-20T15:00:00+00:00")
 
     response = await client.get(
@@ -331,6 +331,7 @@ async def test_every_member_gets_one_session_by_id(client, two_tenants, db_sessi
     )
 
     assert response.status_code == 200
+    staff = role != "member"  # only coaches and owners get the RSVP counts
     assert response.json() == {
         "id": str(session_id),
         "class_type_id": str(ct),
@@ -340,6 +341,11 @@ async def test_every_member_gets_one_session_by_id(client, two_tenants, db_sessi
         "status": "scheduled",
         "preview": None,
         "capacity": None,
+        "class_type_name": "Open mat",
+        "attendance_mode": "rsvp",
+        "coach_name": "coach of studio-a",
+        "my_rsvp": None,
+        "rsvp_counts": {"going": 0, "maybe": 0, "not_going": 0, "waitlist": 0} if staff else None,
     }
 
 
