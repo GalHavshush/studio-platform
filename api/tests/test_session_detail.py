@@ -99,6 +99,71 @@ async def test_someone_elses_plan_is_never_my_rsvp(client, two_tenants, db_sessi
     assert (await detail(client, two_tenants, a, "member", sid))["my_rsvp"] is None
 
 
+# --- my_attended: the caller's own attendance, apart from the plan ---
+
+
+async def record_attendance(db_session, studio, user, session_id, attended, status=None):
+    """Write the attendance straight into the row (the route has a time window the fixed date of
+    these sessions is long past); `status` is the plan, if the person also answered one."""
+    participant = await db_session.scalar(
+        select(Participant.id).where(
+            Participant.tenant_id == studio.id, Participant.user_id == studio.users[user]
+        )
+    )
+    db_session.add(
+        Rsvp(
+            session_id=session_id,
+            participant_id=participant,
+            tenant_id=studio.id,
+            status=status,
+            attended=attended,
+            confirmed_at=datetime.now(UTC),
+        )
+    )
+    await db_session.flush()
+
+
+async def test_my_attended_is_null_until_something_is_recorded(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    assert (await detail(client, two_tenants, a, "member", sid))["my_attended"] is None
+
+    await rsvp(client, two_tenants, a, "member", sid, "going")  # a plan is not attendance
+
+    assert (await detail(client, two_tenants, a, "member", sid))["my_attended"] is None
+
+
+@pytest.mark.parametrize("attended", [True, False])
+async def test_my_attended_is_the_recorded_answer(client, two_tenants, db_session, attended):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    await record_attendance(db_session, a, "member", sid, attended)
+
+    body = await detail(client, two_tenants, a, "member", sid)
+
+    assert body["my_attended"] is attended
+    assert body["my_rsvp"] is None  # attended without ever answering a plan
+
+
+async def test_attendance_and_plan_are_independent(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    await record_attendance(db_session, a, "member", sid, False, status="going")
+
+    body = await detail(client, two_tenants, a, "member", sid)
+
+    assert (body["my_rsvp"], body["my_attended"]) == ("going", False)  # said going, did not come
+
+
+async def test_someone_elses_attendance_is_never_my_attended(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    await record_attendance(db_session, a, "coach", sid, True)
+
+    assert (await detail(client, two_tenants, a, "member", sid))["my_attended"] is None
+    assert (await detail(client, two_tenants, a, "coach", sid))["my_attended"] is True
+
+
 # --- rsvp_counts: for coaches and owners only ---
 
 

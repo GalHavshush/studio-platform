@@ -345,6 +345,7 @@ async def test_every_member_gets_one_session_by_id(client, two_tenants, db_sessi
         "attendance_mode": "rsvp",
         "coach_name": "coach of studio-a",
         "my_rsvp": None,
+        "my_attended": None,
         "rsvp_counts": {"going": 0, "maybe": 0, "not_going": 0, "waitlist": 0} if staff else None,
         "seats_left": None,  # an RSVP-mode class has no seats
     }
