@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/button";
 import { Logo } from "@/components/logo";
+import { PersonRow } from "@/components/person-row";
 import { Pill } from "@/components/pill";
 import { Hero, Screen } from "@/components/screen";
 import { Text } from "@/components/text";
@@ -21,9 +22,11 @@ import {
   type Choice,
   type RsvpOutcome,
 } from "@/schedule/plan";
+import type { GroupKey } from "@/schedule/rsvp-list";
 import { formatRange } from "@/schedule/time";
+import { useRsvpList } from "@/schedule/use-rsvp-list";
 import { useSessionDetail, type SessionDetail } from "@/schedule/use-session";
-import { space } from "@/theme/tokens";
+import { space, type ColorName } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
 export default function SessionScreen() {
@@ -80,6 +83,14 @@ export default function SessionScreen() {
   );
 }
 
+// The small dot beside each group title, in the colour of the matching count tile.
+const DOT: Record<GroupKey, ColorName> = {
+  going: "accent",
+  waitlist: "textMuted",
+  maybe: "soft",
+  not_going: "primary",
+};
+
 type DetailsProps = {
   session: SessionDetail;
   stale: boolean;
@@ -88,7 +99,9 @@ type DetailsProps = {
 
 function Details({ session, stale, rsvp }: DetailsProps) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const counts = session.rsvp_counts;
+  const list = useRsvpList(session.id);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const cancelled = session.status === "cancelled";
@@ -99,6 +112,7 @@ function Details({ session, stale, rsvp }: DetailsProps) {
     setSaving(true);
     setMessage(null);
     const outcome = await rsvp(choice);
+    if (outcome === "ok") void list.reload(); // the staff member's own name may have moved
     setSaving(false);
     setMessage(outcomeMessage(outcome));
   }
@@ -141,6 +155,37 @@ function Details({ session, stale, rsvp }: DetailsProps) {
             <Tile figure label="Not going" value={String(counts.not_going)} tone="primary" />
             <Tile figure label="Waiting" value={String(counts.waitlist)} tone="muted" />
           </View>
+          <Button
+            variant="choice"
+            title={list.state.status === "closed" ? "See who is coming" : "Hide the list"}
+            onPress={list.toggle}
+          />
+          {list.state.status === "loading" && <ActivityIndicator color={colors.textMuted} />}
+          {list.state.status === "error" && (
+            <View style={styles.listMessage}>
+              <Text color="danger" accessibilityRole="alert">
+                Couldn't load the list.
+              </Text>
+              <Button variant="link" title="Try again" onPress={list.retry} />
+            </View>
+          )}
+          {list.state.status === "ready" && list.state.groups.length === 0 && (
+            <Text color="textMuted">Nobody has answered yet.</Text>
+          )}
+          {list.state.status === "ready" &&
+            list.state.groups.map((g) => (
+              <View key={g.key} style={styles.people}>
+                <View style={styles.groupTitle}>
+                  <View style={[styles.dot, { backgroundColor: colors[DOT[g.key]] }]} />
+                  <Text variant="eyebrow">
+                    {g.title} · {g.entries.length}
+                  </Text>
+                </View>
+                {g.entries.map((e) => (
+                  <PersonRow key={e.participant_id} name={e.name} position={e.waitlist_position} />
+                ))}
+              </View>
+            ))}
         </View>
       )}
 
@@ -187,6 +232,10 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
   details: { flexGrow: 1, padding: space.xl, gap: space.xl },
   tiles: { flexDirection: "row", gap: space.md },
+  listMessage: { alignItems: "center", gap: space.xs },
+  people: { gap: space.sm },
+  groupTitle: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingTop: space.sm },
+  dot: { width: 10, height: 10, borderRadius: 5 },
   group: { gap: space.md },
   spacer: { flexGrow: 1 },
   planHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
