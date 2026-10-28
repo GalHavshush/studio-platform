@@ -21,6 +21,8 @@ const PAIRS: [ColorName, ColorName][] = [
   ["text", "surfaceMuted"],
   ["textMuted", "background"],
   ["textMuted", "surface"],
+  ["textMuted", "surfaceMuted"],
+  ["background", "text"], // the "ink" pill
   ["onPrimary", "primary"],
   ["soft", "primary"],
   ["onAccent", "accent"],

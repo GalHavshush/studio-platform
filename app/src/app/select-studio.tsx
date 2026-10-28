@@ -59,7 +59,7 @@ export default function SelectStudio() {
           >
             <View style={styles.cardText}>
               <Text variant="title">{m.tenant.name}</Text>
-              <Pill label={m.role} />
+              <Pill label={m.role.charAt(0).toUpperCase() + m.role.slice(1)} />
             </View>
             <Text variant="title" color="textMuted">
               ›

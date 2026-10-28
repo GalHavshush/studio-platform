@@ -1,19 +1,21 @@
 import { useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  ActivityIndicator,
-  Pressable,
-  RefreshControl,
-  SectionList,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
 
+import { AccountSheet } from "@/components/account-sheet";
+import { Button } from "@/components/button";
+import { Logo } from "@/components/logo";
+import { Pill } from "@/components/pill";
+import { Row } from "@/components/row";
+import { Hero, Screen } from "@/components/screen";
+import { Text } from "@/components/text";
 import { useSession, type Studio } from "@/auth/session";
+import { chipTone } from "@/schedule/chip";
 import { useSchedule, type ScheduledSession } from "@/schedule/use-schedule";
 import { dayKey, formatDay, formatTime, startOfDay } from "@/schedule/time";
+import { space } from "@/theme/tokens";
+import { useTheme } from "@/theme/use-theme";
 
 type Day = { key: string; title: string; data: ScheduledSession[] };
 
@@ -31,114 +33,151 @@ function groupByDay(sessions: ScheduledSession[], timeZone: string): Day[] {
   return days;
 }
 
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
 export default function Home() {
   const { studio, user, leaveStudio, signOut } = useSession();
   // The guard in the layout only shows this screen when a studio is chosen.
-  return <Schedule studio={studio as Studio} canSwitch={(user?.memberships.length ?? 0) > 1} onSwitch={leaveStudio} onSignOut={signOut} />;
+  return (
+    <Schedule
+      studio={studio as Studio}
+      initial={user?.name.charAt(0).toUpperCase() || "?"}
+      canSwitch={(user?.memberships.length ?? 0) > 1}
+      onSwitch={leaveStudio}
+      onSignOut={signOut}
+    />
+  );
 }
 
-function Schedule(props: { studio: Studio; canSwitch: boolean; onSwitch: () => void; onSignOut: () => void }) {
+type Props = {
+  studio: Studio;
+  initial: string;
+  canSwitch: boolean;
+  onSwitch: () => void;
+  onSignOut: () => void;
+};
+
+function Schedule(props: Props) {
   const { studio } = props;
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const schedule = useSchedule(studio.timezone);
+  const [menuOpen, setMenuOpen] = useState(false);
   const days = useMemo(
     () => groupByDay(schedule.sessions, studio.timezone),
     [schedule.sessions, studio.timezone],
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Text style={styles.studio}>{studio.name}</Text>
-        <Text>Your role: {studio.role}</Text>
-        <View style={styles.links}>
-          {props.canSwitch && (
-            <Pressable onPress={props.onSwitch}>
-              <Text style={styles.link}>Switch studio</Text>
-            </Pressable>
-          )}
-          <Pressable onPress={props.onSignOut}>
-            <Text style={styles.link}>Sign out</Text>
+    <Screen>
+      <Hero compact>
+        <View style={styles.top}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Account menu"
+            onPress={() => setMenuOpen(true)}
+            style={[styles.avatar, { backgroundColor: colors.primary }]}
+          >
+            <Text variant="title" color="soft">
+              {props.initial}
+            </Text>
           </Pressable>
+          <Logo size={64} />
         </View>
-      </View>
+        <View style={styles.titles}>
+          <Pill label={capitalize(studio.role)} tone="ink" />
+          <Text variant="heading" color="onAccent">
+            {studio.name}
+          </Text>
+        </View>
+      </Hero>
 
-      {schedule.status === "loading" && <ActivityIndicator style={styles.center} />}
+      {schedule.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
       {schedule.status === "error" && (
         <View style={styles.center}>
-          <Text style={styles.error}>Couldn't load the schedule.</Text>
-          <Pressable onPress={schedule.refresh}>
-            <Text style={styles.link}>Try again</Text>
-          </Pressable>
+          <Text color="danger" accessibilityRole="alert">
+            Couldn't load the schedule.
+          </Text>
+          <Button variant="link" title="Try again" onPress={schedule.refresh} />
         </View>
       )}
       {schedule.status === "ready" && (
         <SectionList
           sections={days}
           keyExtractor={(s) => s.id}
+          contentContainerStyle={{
+            paddingHorizontal: space.xl,
+            paddingTop: space.lg,
+            paddingBottom: insets.bottom + space.xl,
+          }}
+          ItemSeparatorComponent={() => <View style={styles.gap} />}
           refreshControl={
             <RefreshControl refreshing={schedule.busy === "refresh"} onRefresh={schedule.refresh} />
           }
           ListHeaderComponent={
-            <MoreButton
-              label="Show earlier"
+            <Button
+              variant="outline"
+              title="Show earlier"
               busy={schedule.busy === "earlier"}
               onPress={schedule.showEarlier}
             />
           }
           ListFooterComponent={
-            <View>
-              {schedule.error && <Text style={styles.error}>Couldn't load. Try again.</Text>}
-              <MoreButton
-                label="Show later"
+            <View style={styles.footer}>
+              {schedule.error && (
+                <Text color="danger" accessibilityRole="alert">
+                  Couldn't load. Try again.
+                </Text>
+              )}
+              <Button
+                variant="outline"
+                title="Show later"
                 busy={schedule.busy === "later"}
                 onPress={schedule.showLater}
               />
             </View>
           }
-          ListEmptyComponent={<Text style={styles.empty}>No sessions in this period.</Text>}
-          renderSectionHeader={({ section }) => <Text style={styles.day}>{section.title}</Text>}
-          renderItem={({ item }) => (
-            <Pressable
-              style={styles.row}
-              onPress={() => router.push({ pathname: "/session/[id]", params: { id: item.id } })}
-            >
-              <Text style={styles.time}>{formatTime(Date.parse(item.starts_at), studio.timezone)}</Text>
-              <Text style={[styles.name, item.status === "cancelled" && styles.cancelled]}>
-                {schedule.classTypeNames[item.class_type_id] ?? "Class"}
-              </Text>
-              {item.status === "cancelled" && <Text style={styles.badge}>cancelled</Text>}
-            </Pressable>
+          ListEmptyComponent={
+            <Text color="textMuted" style={styles.empty}>
+              No sessions in this period.
+            </Text>
+          }
+          renderSectionHeader={({ section }) => (
+            <Text variant="eyebrow" style={styles.day}>
+              {section.title}
+            </Text>
           )}
+          renderItem={({ item }) => (
+            <Row
+              time={formatTime(Date.parse(item.starts_at), studio.timezone)}
+              title={schedule.classTypeNames[item.class_type_id] ?? "Class"}
+              tone={chipTone(item.class_type_id)}
+              cancelled={item.status === "cancelled"}
+              onPress={() => router.push({ pathname: "/session/[id]", params: { id: item.id } })}
+            />
+          )}
+          stickySectionHeadersEnabled={false}
         />
       )}
-    </View>
-  );
-}
 
-function MoreButton(props: { label: string; busy: boolean; onPress: () => void }) {
-  return (
-    <Pressable style={styles.more} onPress={props.onPress} disabled={props.busy}>
-      {props.busy ? <ActivityIndicator /> : <Text style={styles.link}>{props.label}</Text>}
-    </Pressable>
+      <AccountSheet
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onSwitchStudio={props.canSwitch ? props.onSwitch : undefined}
+        onSignOut={props.onSignOut}
+      />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { padding: 16, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: "#999" },
-  studio: { fontSize: 20, fontWeight: "600" },
-  links: { flexDirection: "row", gap: 16, marginTop: 4 },
-  link: { color: "#208AEF", fontSize: 16 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
-  error: { color: "#B00020", textAlign: "center", padding: 8 },
-  empty: { textAlign: "center", padding: 24 },
-  more: { padding: 16, alignItems: "center" },
-  day: { fontSize: 16, fontWeight: "600", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4, backgroundColor: "#f2f2f2", color: "#222" },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
-  time: { fontVariant: ["tabular-nums"], fontSize: 16, width: 52 },
-  name: { fontSize: 16, flexShrink: 1 },
-  cancelled: { textDecorationLine: "line-through", color: "#777" },
-  badge: { fontSize: 12, color: "#B00020" },
+  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  avatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  titles: { gap: space.sm },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
+  gap: { height: space.sm },
+  footer: { gap: space.sm, paddingTop: space.lg },
+  empty: { textAlign: "center", padding: space.xl },
+  day: { paddingTop: space.xl, paddingBottom: space.sm },
 });
