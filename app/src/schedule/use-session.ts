@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema";
 
+import { attendOutcome, type AttendOutcome } from "./attendance";
 import type { Choice, RsvpOutcome } from "./plan";
 
 export type SessionDetail = components["schemas"]["SessionDetail"];
@@ -63,5 +64,25 @@ export function useSessionDetail(id: string) {
     [id, load],
   );
 
-  return { ...state, retry: () => load(), rsvp };
+  // Like the RSVP: the server judges (the window, a cancelled class), the screen waits for its answer.
+  const attend = useCallback(
+    async (attended: boolean): Promise<AttendOutcome> => {
+      try {
+        const { error, response } = await api.POST("/sessions/{session_id}/attendance", {
+          params: { path: { session_id: id } },
+          body: { attended },
+        });
+        if (response.ok) {
+          await load(true);
+          return "ok";
+        }
+        return attendOutcome(response.status, (error as { detail?: unknown } | undefined)?.detail);
+      } catch {
+        return "unreachable"; // fetch throws when there is no answer at all
+      }
+    },
+    [id, load],
+  );
+
+  return { ...state, retry: () => load(), rsvp, attend };
 }
