@@ -95,14 +95,17 @@ class RsvpCounts(BaseModel):
 
 class SessionDetail(SessionOut):
     """One session with what a screen needs to show it: names instead of ids, and the caller's
-    own plan. `rsvp_counts` is for coaches and owners; a member gets null, so nobody learns what
-    the others chose, not even as a total. `seats_left` is the one number every member gets: free
+    own plan and own attendance (`my_attended`: true, false, or null when nothing is recorded; kept
+    apart from the plan, so someone can have attended without ever answering). `rsvp_counts` is for
+    coaches and owners; a member gets null, so nobody learns what the others chose, not even as a
+    total. `seats_left` is the one number every member gets: free
     seats in a booking class with a seat limit, null when there are no seats to count."""
 
     class_type_name: str
     attendance_mode: str
     coach_name: str
     my_rsvp: str | None
+    my_attended: bool | None
     rsvp_counts: RsvpCounts | None
     seats_left: int | None
 
@@ -225,11 +228,13 @@ async def get_session_by_id(
     session_id: uuid.UUID, ctx: TenantCtx, session: Annotated[AsyncSession, Depends(get_session)]
 ) -> SessionDetail:
     """One session of this studio, with its class type's name, the coach's name, the caller's own
-    RSVP, the seats left (booking classes with a limit) and, for coaches and owners, how many chose
+    RSVP and attendance, the seats left (booking classes with a limit) and, for coaches and owners, how many chose
     each plan. Any member.
 
     The coach's name is visible to every member; their email never is. `my_rsvp` is the caller's
-    own plan (`going`, `not_going`, `maybe`, `waitlist`) or null. A session of another studio gets
+    own plan (`going`, `not_going`, `maybe`, `waitlist`) or null; `my_attended` is whether they
+    themselves said they came (true, false, or null when not recorded), a separate fact from the
+    plan, and never anyone else's. A session of another studio gets
     the same `404 session_not_found` as one that does not exist, so ids cannot be probed.
     """
     found = (
@@ -248,16 +253,19 @@ async def get_session_by_id(
         raise HTTPException(status_code=404, detail="session_not_found")
     row, class_type_name, attendance_mode, coach_name = found
 
-    # The caller's own RSVP, through their own participant in this studio (never an id from the client).
-    my_rsvp = await session.scalar(
-        select(Rsvp.status)
-        .join(Participant, Participant.id == Rsvp.participant_id)
-        .where(
-            Rsvp.session_id == session_id,
-            Rsvp.tenant_id == ctx.tenant_id,
-            Participant.user_id == ctx.user.id,
+    # The caller's own plan and attendance, through their own participant in this studio (never an
+    # id from the client). No row at all means neither was ever recorded.
+    mine = (
+        await session.execute(
+            select(Rsvp.status, Rsvp.attended)
+            .join(Participant, Participant.id == Rsvp.participant_id)
+            .where(
+                Rsvp.session_id == session_id,
+                Rsvp.tenant_id == ctx.tenant_id,
+                Participant.user_id == ctx.user.id,
+            )
         )
-    )
+    ).first()
 
     counts = None
     if ctx.role in ("coach", "owner"):
@@ -283,7 +291,8 @@ async def get_session_by_id(
         class_type_name=class_type_name,
         attendance_mode=attendance_mode,
         coach_name=coach_name,
-        my_rsvp=my_rsvp,
+        my_rsvp=mine.status if mine else None,
+        my_attended=mine.attended if mine else None,
         rsvp_counts=counts,
         seats_left=seats_left,
     )

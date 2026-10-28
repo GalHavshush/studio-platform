@@ -23,9 +23,17 @@ import {
   type Choice,
   type RsvpOutcome,
 } from "@/schedule/plan";
+import {
+  ATTENDANCE_CHOICES,
+  attendMessage,
+  attendanceState,
+  attendanceText,
+  type AttendOutcome,
+} from "@/schedule/attendance";
 import { canWriteReport } from "@/schedule/report";
 import type { GroupKey } from "@/schedule/rsvp-list";
 import { formatRange } from "@/schedule/time";
+import { useNow } from "@/schedule/use-now";
 import { useRsvpList } from "@/schedule/use-rsvp-list";
 import { useSessionDetail, type SessionDetail } from "@/schedule/use-session";
 import { space, type ColorName } from "@/theme/tokens";
@@ -82,7 +90,7 @@ export default function SessionScreen() {
           <Button variant="link" title={t("common.tryAgain")} onPress={detail.retry} />
         </View>
       )}
-      {ready && <Details session={detail.session} stale={detail.stale} rsvp={detail.rsvp} />}
+      {ready && <Details session={detail.session} stale={detail.stale} rsvp={detail.rsvp} attend={detail.attend} />}
     </Screen>
   );
 }
@@ -99,9 +107,10 @@ type DetailsProps = {
   session: SessionDetail;
   stale: boolean;
   rsvp: (choice: Choice) => Promise<RsvpOutcome>;
+  attend: (attended: boolean) => Promise<AttendOutcome>;
 };
 
-function Details({ session, stale, rsvp }: DetailsProps) {
+function Details({ session, stale, rsvp, attend }: DetailsProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors } = useTheme();
@@ -110,9 +119,13 @@ function Details({ session, stale, rsvp }: DetailsProps) {
   // ponytail: read once when the screen opens, so a class that starts while it is open shows the report button on the next visit.
   const [openedAt] = useState(Date.now);
   const list = useRsvpList(session.id);
+  const now = useNow(30_000); // the check-in window can open while the screen is open
+  const [attending, setAttending] = useState(false);
+  const [attendNote, setAttendNote] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const cancelled = session.status === "cancelled";
+  const attendance = attendanceState(session, now);
   const seats = seatsText(t, session.seats_left, session.my_rsvp);
   const selected = selectedChoice(session.my_rsvp);
 
@@ -123,6 +136,15 @@ function Details({ session, stale, rsvp }: DetailsProps) {
     if (outcome === "ok") void list.reload(); // the staff member's own name may have moved
     setSaving(false);
     setMessage(outcomeMessage(t, outcome));
+  }
+
+  async function answer(attended: boolean) {
+    if (attending || attended === session.my_attended) return; // nothing to change
+    setAttending(true);
+    setAttendNote(null);
+    const outcome = await attend(attended);
+    setAttending(false);
+    setAttendNote(attendMessage(t, outcome));
   }
 
   function choose(choice: Choice) {
@@ -238,6 +260,33 @@ function Details({ session, stale, rsvp }: DetailsProps) {
           </Text>
         )}
       </View>
+
+      {attendance === "open" && (
+        <View style={styles.group}>
+          <Text variant="eyebrow">{t("attendance.title")}</Text>
+          <View style={styles.choices}>
+            {ATTENDANCE_CHOICES.map((c) => (
+              <View key={c.label} style={styles.choice}>
+                <Button
+                  variant="choice"
+                  title={t(c.label)}
+                  selected={c.value === session.my_attended}
+                  disabled={attending}
+                  onPress={() => answer(c.value)}
+                />
+              </View>
+            ))}
+          </View>
+          {attendNote && (
+            <Text color="danger" accessibilityRole="alert">
+              {attendNote}
+            </Text>
+          )}
+        </View>
+      )}
+      {attendance === "closed" && attendanceText(t, session.my_attended) && (
+        <Text color="textMuted">{attendanceText(t, session.my_attended)}</Text>
+      )}
     </ScrollView>
   );
 }

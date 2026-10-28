@@ -88,6 +88,14 @@ export const en = {
   "report.discard.confirm": "Discard",
   "report.discard.keep": "Keep editing",
 
+  "attendance.title": "Did you come?",
+  "attendance.yes": "I attended",
+  "attendance.no": "I didn't attend",
+  "attendance.youCame": "You attended this class.",
+  "attendance.youDidNot": "You didn't attend this class.",
+  "attendance.notOpen": "Check-in opens 15 minutes before the class.",
+  "attendance.closed": "Attendance can no longer be changed.",
+
   "plan.waitlist": "On the waiting list",
   "plan.notAnswered": "not answered",
   "plan.seatsLeft.one": "{count} seat left",
