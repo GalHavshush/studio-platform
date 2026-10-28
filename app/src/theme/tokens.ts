@@ -49,7 +49,18 @@ export const fontFamily = {
 
 export const type = {
   display: { fontFamily: fontFamily.extrabold, fontSize: 44, lineHeight: 44, letterSpacing: -1.8 },
+  heading: { fontFamily: fontFamily.extrabold, fontSize: 36, lineHeight: 38, letterSpacing: -1.4 },
   title: { fontFamily: fontFamily.extrabold, fontSize: 20, lineHeight: 26, letterSpacing: -0.2 },
+  // the small capitals that name a section: "TODAY", "YOUR PLAN"
+  eyebrow: {
+    fontFamily: fontFamily.extrabold,
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  // a big number on a tile
+  figure: { fontFamily: fontFamily.extrabold, fontSize: 34, lineHeight: 36, letterSpacing: -0.7 },
   body: { fontFamily: fontFamily.regular, fontSize: 16, lineHeight: 22, letterSpacing: 0 },
   label: { fontFamily: fontFamily.bold, fontSize: 13, lineHeight: 18, letterSpacing: 0 },
   caption: { fontFamily: fontFamily.bold, fontSize: 12, lineHeight: 16, letterSpacing: 0 },

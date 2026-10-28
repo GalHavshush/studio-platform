@@ -1,15 +1,15 @@
-import { Stack, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { BackButton } from "@/components/back-button";
+import { Button } from "@/components/button";
+import { Logo } from "@/components/logo";
+import { Pill } from "@/components/pill";
+import { Hero, Screen } from "@/components/screen";
+import { Text } from "@/components/text";
+import { Tile } from "@/components/tile";
 import { useSession } from "@/auth/session";
 import {
   CHOICES,
@@ -23,16 +23,45 @@ import {
 } from "@/schedule/plan";
 import { formatRange } from "@/schedule/time";
 import { useSessionDetail, type SessionDetail } from "@/schedule/use-session";
+import { space } from "@/theme/tokens";
+import { useTheme } from "@/theme/use-theme";
 
 export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { studio } = useSession();
+  const { colors } = useTheme();
   const detail = useSessionDetail(id);
+  const ready = detail.status === "ready" && studio;
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: detail.status === "ready" ? detail.session.class_type_name : "Session" }} />
-      {detail.status === "loading" && <ActivityIndicator style={styles.center} />}
+    <Screen>
+      <Hero compact>
+        <View style={styles.top}>
+          <BackButton label="Back to the schedule" />
+          <Logo size={64} />
+        </View>
+        {detail.status === "ready" && studio ? (
+          <View style={styles.titles}>
+            {detail.session.status === "cancelled" && <Pill label="Cancelled" tone="ink" />}
+            <Text variant="display" color="onAccent">
+              {detail.session.class_type_name}
+            </Text>
+            <Text variant="title" color="onAccent">
+              {formatRange(
+                Date.parse(detail.session.starts_at),
+                Date.parse(detail.session.ends_at),
+                studio.timezone,
+              )}
+            </Text>
+          </View>
+        ) : (
+          <Text variant="display" color="onAccent">
+            Session
+          </Text>
+        )}
+      </Hero>
+
+      {detail.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
       {detail.status === "notFound" && (
         <View style={styles.center}>
           <Text>This session isn't available.</Text>
@@ -40,32 +69,25 @@ export default function SessionScreen() {
       )}
       {detail.status === "error" && (
         <View style={styles.center}>
-          <Text style={styles.error}>Couldn't load the session.</Text>
-          <Pressable onPress={detail.retry}>
-            <Text style={styles.link}>Try again</Text>
-          </Pressable>
+          <Text color="danger" accessibilityRole="alert">
+            Couldn't load the session.
+          </Text>
+          <Button variant="link" title="Try again" onPress={detail.retry} />
         </View>
       )}
-      {detail.status === "ready" && studio && (
-        <Details
-          session={detail.session}
-          stale={detail.stale}
-          timeZone={studio.timezone}
-          rsvp={detail.rsvp}
-        />
-      )}
-    </View>
+      {ready && <Details session={detail.session} stale={detail.stale} rsvp={detail.rsvp} />}
+    </Screen>
   );
 }
 
 type DetailsProps = {
   session: SessionDetail;
   stale: boolean;
-  timeZone: string;
   rsvp: (choice: Choice) => Promise<RsvpOutcome>;
 };
 
-function Details({ session, stale, timeZone, rsvp }: DetailsProps) {
+function Details({ session, stale, rsvp }: DetailsProps) {
+  const insets = useSafeAreaInsets();
   const counts = session.rsvp_counts;
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -93,70 +115,81 @@ function Details({ session, stale, timeZone, rsvp }: DetailsProps) {
   }
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.details}>
-      <Text style={styles.title}>{session.class_type_name}</Text>
-      {cancelled && <Text style={styles.cancelled}>Cancelled</Text>}
-      <Text style={styles.when}>
-        {formatRange(Date.parse(session.starts_at), Date.parse(session.ends_at), timeZone)}
-      </Text>
-      <Text>Coach: {session.coach_name}</Text>
-      {session.capacity !== null && <Text>Capacity: {session.capacity}</Text>}
-      {seats && <Text style={styles.seats}>{seats}</Text>}
-      {session.preview && <Text style={styles.preview}>{session.preview}</Text>}
-      <Text style={styles.plan}>Your plan: {planLabel(session.my_rsvp)}</Text>
-      <View style={styles.choices}>
-        {CHOICES.map((c) => (
-          <Pressable
-            key={c.value}
-            disabled={saving || cancelled}
-            onPress={() => choose(c.value)}
-            style={[
-              styles.choice,
-              c.value === selected && styles.chosen,
-              (saving || cancelled) && styles.disabled,
-            ]}
-          >
-            <Text style={[styles.choiceText, c.value === selected && styles.chosenText]}>
-              {c.label}
-            </Text>
-          </Pressable>
-        ))}
+    <ScrollView
+      contentContainerStyle={[styles.details, { paddingBottom: insets.bottom + space.xl }]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.tiles}>
+        <Tile label="Coach" value={session.coach_name} />
+        {seats ? (
+          <Tile label="Seats" value={seats} tone="primary" />
+        ) : session.capacity !== null ? (
+          <Tile label="Capacity" value={String(session.capacity)} />
+        ) : null}
       </View>
-      {message && <Text style={styles.error}>{message}</Text>}
-      {stale && <Text style={styles.error}>Saved, but the page may be out of date.</Text>}
+
+      {session.preview && <Text>{session.preview}</Text>}
+
       {counts && (
-        <Text>
-          {counts.going} going · {counts.maybe} maybe · {counts.not_going} not going ·{" "}
-          {counts.waitlist} waiting
-        </Text>
+        <View style={styles.group}>
+          <Text variant="eyebrow">Who's coming</Text>
+          <View style={styles.tiles}>
+            <Tile figure label="Going" value={String(counts.going)} tone="accent" />
+            <Tile figure label="Maybe" value={String(counts.maybe)} tone="soft" />
+          </View>
+          <View style={styles.tiles}>
+            <Tile figure label="Not going" value={String(counts.not_going)} tone="primary" />
+            <Tile figure label="Waiting" value={String(counts.waitlist)} tone="muted" />
+          </View>
+        </View>
       )}
+
+      <View style={styles.spacer} />
+
+      <View style={styles.group}>
+        <View style={styles.planHeader}>
+          <Text variant="eyebrow">Your plan</Text>
+          <Text variant="label" color="textMuted">
+            {planLabel(session.my_rsvp)}
+          </Text>
+        </View>
+        <View style={styles.choices}>
+          {CHOICES.map((c) => (
+            <View key={c.value} style={styles.choice}>
+              <Button
+                variant="choice"
+                title={c.label}
+                selected={c.value === selected}
+                disabled={saving || cancelled}
+                onPress={() => choose(c.value)}
+              />
+            </View>
+          ))}
+        </View>
+        {message && (
+          <Text color="danger" accessibilityRole="alert">
+            {message}
+          </Text>
+        )}
+        {stale && (
+          <Text color="danger" accessibilityRole="alert">
+            Saved, but the page may be out of date.
+          </Text>
+        )}
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
-  details: { padding: 16, gap: 8 },
-  title: { fontSize: 22, fontWeight: "600" },
-  cancelled: { color: "#B00020", fontWeight: "600" },
-  when: { fontSize: 16 },
-  preview: { marginTop: 8 },
-  seats: { fontWeight: "600" },
-  plan: { marginTop: 12, fontWeight: "600" },
-  choices: { flexDirection: "row", gap: 8 },
-  choice: {
-    flex: 1,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#208AEF",
-    borderRadius: 8,
-    paddingVertical: 12,
-  },
-  chosen: { backgroundColor: "#208AEF" },
-  disabled: { opacity: 0.4 },
-  choiceText: { color: "#208AEF", fontSize: 16, fontWeight: "600" },
-  chosenText: { color: "white" },
-  error: { color: "#B00020" },
-  link: { color: "#208AEF", fontSize: 16 },
+  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  titles: { gap: space.sm },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
+  details: { flexGrow: 1, padding: space.xl, gap: space.xl },
+  tiles: { flexDirection: "row", gap: space.md },
+  group: { gap: space.md },
+  spacer: { flexGrow: 1 },
+  planHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
+  choices: { flexDirection: "row", gap: space.sm },
+  choice: { flex: 1 },
 });

@@ -16,15 +16,16 @@ export function Screen({ children, accent = false }: { children: ReactNode; acce
   );
 }
 
-// The orange block at the top. It grows to fill the space the sheet below leaves.
-export function Hero({ children }: { children: ReactNode }) {
+// The orange block at the top. By default it grows to fill the space the sheet below leaves; with
+// `compact` it is only as tall as its content and has rounded bottom corners (a page header).
+export function Hero({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   return (
     <View
       style={[
-        styles.hero,
-        { backgroundColor: colors.accent, paddingTop: insets.top + space.xl },
+        compact ? styles.compact : styles.fill,
+        { backgroundColor: colors.accent, paddingTop: insets.top + space.lg },
       ]}
     >
       {/* The hero is orange in light and dark mode, so its status bar content is always dark. */}
@@ -52,7 +53,7 @@ export function Sheet({ children }: { children: ReactNode }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  hero: {
+  fill: {
     flexGrow: 1,
     flexShrink: 1,
     justifyContent: "flex-end",
@@ -60,6 +61,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     paddingBottom: space.xl,
     gap: space.xl,
+  },
+  compact: {
+    borderBottomLeftRadius: radius.xl,
+    borderBottomRightRadius: radius.xl,
+    overflow: "hidden",
+    paddingHorizontal: space.xl,
+    paddingBottom: space.xl,
+    gap: space.lg,
   },
   sheet: {
     borderTopLeftRadius: radius.xl,
