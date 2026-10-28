@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,6 +23,7 @@ import {
   type Choice,
   type RsvpOutcome,
 } from "@/schedule/plan";
+import { canWriteReport } from "@/schedule/report";
 import type { GroupKey } from "@/schedule/rsvp-list";
 import { formatRange } from "@/schedule/time";
 import { useRsvpList } from "@/schedule/use-rsvp-list";
@@ -102,9 +103,12 @@ type DetailsProps = {
 
 function Details({ session, stale, rsvp }: DetailsProps) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { colors } = useTheme();
   const t = useT();
   const counts = session.rsvp_counts;
+  // ponytail: read once when the screen opens, so a class that starts while it is open shows the report button on the next visit.
+  const [openedAt] = useState(Date.now);
   const list = useRsvpList(session.id);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -191,6 +195,14 @@ function Details({ session, stale, rsvp }: DetailsProps) {
               </View>
             ))}
         </View>
+      )}
+
+      {canWriteReport(session, openedAt) && (
+        <Button
+          variant="choice"
+          title={t("report.title")}
+          onPress={() => router.push({ pathname: "/session/report/[id]", params: { id: session.id } })}
+        />
       )}
 
       <View style={styles.spacer} />

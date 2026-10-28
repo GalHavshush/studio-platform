@@ -1,0 +1,142 @@
+import { useLocalSearchParams, useNavigation, usePreventRemove, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { BackButton } from "@/components/back-button";
+import { Button } from "@/components/button";
+import { Logo } from "@/components/logo";
+import { Hero, Screen } from "@/components/screen";
+import { Text } from "@/components/text";
+import { TextField } from "@/components/text-field";
+import { useT } from "@/i18n/use-language";
+import {
+  FIELDS,
+  MAX_LENGTH,
+  canSave,
+  isDirty,
+  saveMessage,
+  type ReportForm,
+  type SaveOutcome,
+} from "@/schedule/report";
+import { useReport } from "@/schedule/use-report";
+import { radius, space } from "@/theme/tokens";
+import { useTheme } from "@/theme/use-theme";
+
+export default function ReportScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { colors } = useTheme();
+  const t = useT();
+  const report = useReport(id);
+
+  return (
+    <Screen>
+      <Hero compact>
+        <View style={styles.top}>
+          <BackButton label={t("report.back")} />
+          <Logo size={64} />
+        </View>
+        <Text variant="display" color="onAccent">
+          {t("report.title")}
+        </Text>
+      </Hero>
+
+      {report.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
+      {report.status === "notFound" && (
+        <View style={styles.center}>
+          <Text>{t("session.notAvailable")}</Text>
+        </View>
+      )}
+      {report.status === "error" && (
+        <View style={styles.center}>
+          <Text color="danger" accessibilityRole="alert">
+            {t("report.loadError")}
+          </Text>
+          <Button variant="link" title={t("common.tryAgain")} onPress={report.retry} />
+        </View>
+      )}
+      {report.status === "ready" && <Form saved={report.saved} save={report.save} />}
+    </Screen>
+  );
+}
+
+type FormProps = { saved: ReportForm; save: (form: ReportForm) => Promise<SaveOutcome> };
+
+function Form({ saved, save }: FormProps) {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const navigation = useNavigation();
+  const t = useT();
+  // Starts from what was loaded; after that the text belongs to the form, not to the server's copy.
+  const [form, setForm] = useState(saved);
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  // Leaving with unsaved text asks first. After a save `done` lifts the guard, and only then the
+  // screen is left (the effect runs after the render that lifted it).
+  usePreventRemove(isDirty(form, saved) && !done, ({ data }) => {
+    Alert.alert(t("report.discard.title"), t("report.discard.message"), [
+      { text: t("report.discard.keep"), style: "cancel" },
+      { text: t("report.discard.confirm"), style: "destructive", onPress: () => navigation.dispatch(data.action) },
+    ]);
+  });
+  useEffect(() => {
+    if (done) router.back();
+  }, [done, router]);
+
+  async function send() {
+    setSaving(true);
+    setMessage(null);
+    const outcome = await save(form);
+    setSaving(false);
+    if (outcome === "ok") setDone(true);
+    else setMessage(saveMessage(t, outcome));
+  }
+
+  const blank = !canSave(form);
+
+  return (
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView
+        contentContainerStyle={[styles.form, { paddingBottom: insets.bottom + space.xl }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
+        {FIELDS.map(({ key, label }) => (
+          <TextField
+            key={key}
+            label={t(label)}
+            value={form[key]}
+            onChangeText={(text) => setForm((f) => ({ ...f, [key]: text }))}
+            multiline
+            maxLength={MAX_LENGTH}
+            editable={!saving}
+            style={styles.input}
+          />
+        ))}
+        {blank && <Text color="textMuted">{t("report.needText")}</Text>}
+        {message && (
+          <Text color="danger" accessibilityRole="alert">
+            {message}
+          </Text>
+        )}
+        <Button
+          title={t("report.save")}
+          onPress={send}
+          busy={saving}
+          disabled={blank || !isDirty(form, saved)}
+        />
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
+  form: { flexGrow: 1, padding: space.xl, gap: space.lg },
+  // A multiline field starts at the top, taller than the one-line fields.
+  input: { minHeight: 120, paddingTop: space.md, paddingBottom: space.md, textAlignVertical: "top", borderRadius: radius.md },
+});
