@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 
 import { Pill } from "@/components/pill";
 import { Text } from "@/components/text";
+import { useT } from "@/i18n/use-language";
 import type { ChipTone } from "@/schedule/chip";
 import { radius, space, type ColorName } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
@@ -24,11 +25,12 @@ type Props = {
 // A cancelled class stays in the list, struck through and outlined, so nobody thinks it vanished.
 export function Row({ time, title, tone, cancelled = false, onPress }: Props) {
   const { colors } = useTheme();
+  const t = useT();
   const chip = CHIP[tone];
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${time} ${title}${cancelled ? ", cancelled" : ""}`}
+      accessibilityLabel={t(cancelled ? "schedule.rowLabelCancelled" : "schedule.rowLabel", { time, title })}
       onPress={onPress}
       style={[
         styles.row,
@@ -56,7 +58,7 @@ export function Row({ time, title, tone, cancelled = false, onPress }: Props) {
       </Text>
       {cancelled ? (
         <View style={styles.tag}>
-          <Pill label="Cancelled" tone="ink" />
+          <Pill label={t("common.cancelled")} tone="ink" />
         </View>
       ) : (
         <Text variant="title" color="textMuted">

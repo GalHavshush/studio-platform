@@ -1,16 +1,18 @@
 import { StyleSheet, View } from "react-native";
 
 import { Text } from "@/components/text";
+import { useT } from "@/i18n/use-language";
 import { radius, space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
 // One name in the "who is coming" list. People on the waiting list also show their place in line.
 export function PersonRow({ name, position }: { name: string; position?: number | null }) {
   const { colors } = useTheme();
+  const t = useT();
   return (
     <View
       accessible
-      accessibilityLabel={position ? `${name}, place ${position} in line` : name}
+      accessibilityLabel={position ? t("session.personInLine", { name, position }) : name}
       style={[styles.row, { backgroundColor: colors.surface }]}
     >
       <Text variant="label" style={styles.name}>

@@ -1,20 +1,23 @@
 // The display rules for a person's RSVP, kept apart from the screen so they can be tested.
 // `myRsvp` is the server's word for the caller's plan: going, maybe, not_going, waitlist or null.
+// Every function that words something takes the translator `t` first.
+import type { Key } from "@/i18n/en";
+import type { Translator } from "@/i18n/translate";
 
 export type Choice = "going" | "maybe" | "not_going";
 
-export const CHOICES: { value: Choice; label: string }[] = [
-  { value: "going", label: "Going" },
-  { value: "maybe", label: "Maybe" },
-  { value: "not_going", label: "Not going" },
+export const CHOICES: { value: Choice; label: Key }[] = [
+  { value: "going", label: "rsvp.going" },
+  { value: "maybe", label: "rsvp.maybe" },
+  { value: "not_going", label: "rsvp.notGoing" },
 ];
 
-const label = (choice: Choice) => CHOICES.find((c) => c.value === choice)!.label;
+const label = (t: Translator, choice: Choice) => t(CHOICES.find((c) => c.value === choice)!.label);
 
-export function planLabel(myRsvp: string | null): string {
-  if (myRsvp === "waitlist") return "On the waiting list";
+export function planLabel(t: Translator, myRsvp: string | null): string {
+  if (myRsvp === "waitlist") return t("plan.waitlist");
   const choice = CHOICES.find((c) => c.value === myRsvp);
-  return choice ? choice.label : "not answered";
+  return choice ? t(choice.label) : t("plan.notAnswered");
 }
 
 /** The button to highlight. A waitlisted person asked for "going", so that one. */
@@ -24,12 +27,12 @@ export function selectedChoice(myRsvp: string | null): Choice | null {
 }
 
 /** What to say about seats; null when the class has no seats to count. */
-export function seatsText(seatsLeft: number | null, myRsvp: string | null): string | null {
+export function seatsText(t: Translator, seatsLeft: number | null, myRsvp: string | null): string | null {
   if (seatsLeft === null) return null;
-  if (seatsLeft > 0) return seatsLeft === 1 ? "1 seat left" : `${seatsLeft} seats left`;
-  if (myRsvp === "going") return "Full, and you have a seat";
-  if (myRsvp === "waitlist") return "Full, you're on the waiting list";
-  return "Full: going puts you on the waiting list";
+  if (seatsLeft > 0) return t.count("plan.seatsLeft", seatsLeft);
+  if (myRsvp === "going") return t("plan.fullYouHaveSeat");
+  if (myRsvp === "waitlist") return t("plan.fullYouWait");
+  return t("plan.fullGoingWaits");
 }
 
 export type Confirmation = { title: string; message: string; confirm: string };
@@ -39,6 +42,7 @@ export type Confirmation = { title: string; message: string; confirm: string };
  * the question says which. `seatsLeft` is null when the class has no seat limit.
  */
 export function confirmation(
+  t: Translator,
   choice: Choice,
   myRsvp: string | null,
   seatsLeft: number | null,
@@ -46,45 +50,53 @@ export function confirmation(
   if (choice === "going") {
     if (seatsLeft === 0) {
       return {
-        title: "Join the waiting list?",
-        message: "This class is full. You'll get a seat if one opens.",
-        confirm: "Join the waiting list",
+        title: t("confirm.join.title"),
+        message: t("confirm.join.message"),
+        confirm: t("confirm.join.confirm"),
       };
     }
     if (seatsLeft !== null) {
       return {
-        title: "Book a seat?",
-        message: seatsLeft === 1 ? "1 seat left." : `${seatsLeft} seats left.`,
-        confirm: "Book",
+        title: t("confirm.book.title"),
+        message: t.count("confirm.book.message", seatsLeft),
+        confirm: t("confirm.book.confirm"),
       };
     }
   } else if (seatsLeft !== null) {
     if (myRsvp === "going") {
-      return { title: "Give up your seat?", message: "You'll give up your seat.", confirm: "Give up" };
+      return {
+        title: t("confirm.giveUp.title"),
+        message: t("confirm.giveUp.message"),
+        confirm: t("confirm.giveUp.confirm"),
+      };
     }
     if (myRsvp === "waitlist") {
       return {
-        title: "Leave the waiting list?",
-        message: "You'll lose your place in line.",
-        confirm: "Leave",
+        title: t("confirm.leave.title"),
+        message: t("confirm.leave.message"),
+        confirm: t("confirm.leave.confirm"),
       };
     }
   }
-  return { title: `Change your plan to "${label(choice)}"?`, message: "", confirm: label(choice) };
+  return {
+    title: t("confirm.change.title", { choice: label(t, choice) }),
+    message: "",
+    confirm: label(t, choice),
+  };
 }
 
 export type RsvpOutcome = "ok" | "cancelled" | "unreachable" | "error";
 
 /** The message under the buttons after a try; null when it worked. */
-export function outcomeMessage(outcome: RsvpOutcome): string | null {
+export function outcomeMessage(t: Translator, outcome: RsvpOutcome): string | null {
   switch (outcome) {
     case "ok":
       return null;
     case "cancelled":
-      return "This session was cancelled.";
+      return t("session.cancelled");
     case "unreachable":
-      return "Can't reach the server.";
+      return t("common.cantReach");
     case "error":
-      return "Something went wrong. Try again.";
+      return t("common.wentWrong");
   }
 }

@@ -12,6 +12,7 @@ import { Hero, Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { Tile } from "@/components/tile";
 import { useSession } from "@/auth/session";
+import { useT } from "@/i18n/use-language";
 import {
   CHOICES,
   confirmation,
@@ -33,6 +34,7 @@ export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { studio } = useSession();
   const { colors } = useTheme();
+  const t = useT();
   const detail = useSessionDetail(id);
   const ready = detail.status === "ready" && studio;
 
@@ -40,12 +42,12 @@ export default function SessionScreen() {
     <Screen>
       <Hero compact>
         <View style={styles.top}>
-          <BackButton label="Back to the schedule" />
+          <BackButton label={t("session.back")} />
           <Logo size={64} />
         </View>
         {detail.status === "ready" && studio ? (
           <View style={styles.titles}>
-            {detail.session.status === "cancelled" && <Pill label="Cancelled" tone="ink" />}
+            {detail.session.status === "cancelled" && <Pill label={t("common.cancelled")} tone="ink" />}
             <Text variant="display" color="onAccent">
               {detail.session.class_type_name}
             </Text>
@@ -54,12 +56,13 @@ export default function SessionScreen() {
                 Date.parse(detail.session.starts_at),
                 Date.parse(detail.session.ends_at),
                 studio.timezone,
+                t.locale,
               )}
             </Text>
           </View>
         ) : (
           <Text variant="display" color="onAccent">
-            Session
+            {t("session.title")}
           </Text>
         )}
       </Hero>
@@ -67,15 +70,15 @@ export default function SessionScreen() {
       {detail.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
       {detail.status === "notFound" && (
         <View style={styles.center}>
-          <Text>This session isn't available.</Text>
+          <Text>{t("session.notAvailable")}</Text>
         </View>
       )}
       {detail.status === "error" && (
         <View style={styles.center}>
           <Text color="danger" accessibilityRole="alert">
-            Couldn't load the session.
+            {t("session.loadError")}
           </Text>
-          <Button variant="link" title="Try again" onPress={detail.retry} />
+          <Button variant="link" title={t("common.tryAgain")} onPress={detail.retry} />
         </View>
       )}
       {ready && <Details session={detail.session} stale={detail.stale} rsvp={detail.rsvp} />}
@@ -100,12 +103,13 @@ type DetailsProps = {
 function Details({ session, stale, rsvp }: DetailsProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const t = useT();
   const counts = session.rsvp_counts;
   const list = useRsvpList(session.id);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const cancelled = session.status === "cancelled";
-  const seats = seatsText(session.seats_left, session.my_rsvp);
+  const seats = seatsText(t, session.seats_left, session.my_rsvp);
   const selected = selectedChoice(session.my_rsvp);
 
   async function send(choice: Choice) {
@@ -114,16 +118,16 @@ function Details({ session, stale, rsvp }: DetailsProps) {
     const outcome = await rsvp(choice);
     if (outcome === "ok") void list.reload(); // the staff member's own name may have moved
     setSaving(false);
-    setMessage(outcomeMessage(outcome));
+    setMessage(outcomeMessage(t, outcome));
   }
 
   function choose(choice: Choice) {
     if (saving || cancelled || choice === selected) return; // nothing to change
     if (session.attendance_mode !== "booking") return void send(choice);
     // A booking class: the answer can cost or free a seat, so ask first. Nothing is sent until yes.
-    const ask = confirmation(choice, session.my_rsvp, session.seats_left);
+    const ask = confirmation(t, choice, session.my_rsvp, session.seats_left);
     Alert.alert(ask.title, ask.message, [
-      { text: "Cancel", style: "cancel" },
+      { text: t("common.cancel"), style: "cancel" },
       { text: ask.confirm, onPress: () => void send(choice) },
     ]);
   }
@@ -134,11 +138,11 @@ function Details({ session, stale, rsvp }: DetailsProps) {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.tiles}>
-        <Tile label="Coach" value={session.coach_name} />
+        <Tile label={t("session.coach")} value={session.coach_name} />
         {seats ? (
-          <Tile label="Seats" value={seats} tone="primary" />
+          <Tile label={t("session.seats")} value={seats} tone="primary" />
         ) : session.capacity !== null ? (
-          <Tile label="Capacity" value={String(session.capacity)} />
+          <Tile label={t("session.capacity")} value={String(session.capacity)} />
         ) : null}
       </View>
 
@@ -146,31 +150,31 @@ function Details({ session, stale, rsvp }: DetailsProps) {
 
       {counts && (
         <View style={styles.group}>
-          <Text variant="eyebrow">Who's coming</Text>
+          <Text variant="eyebrow">{t("session.whoIsComing")}</Text>
           <View style={styles.tiles}>
-            <Tile figure label="Going" value={String(counts.going)} tone="accent" />
-            <Tile figure label="Maybe" value={String(counts.maybe)} tone="soft" />
+            <Tile figure label={t("rsvp.going")} value={String(counts.going)} tone="accent" />
+            <Tile figure label={t("rsvp.maybe")} value={String(counts.maybe)} tone="soft" />
           </View>
           <View style={styles.tiles}>
-            <Tile figure label="Not going" value={String(counts.not_going)} tone="primary" />
-            <Tile figure label="Waiting" value={String(counts.waitlist)} tone="muted" />
+            <Tile figure label={t("rsvp.notGoing")} value={String(counts.not_going)} tone="primary" />
+            <Tile figure label={t("session.waiting")} value={String(counts.waitlist)} tone="muted" />
           </View>
           <Button
             variant="choice"
-            title={list.state.status === "closed" ? "See who is coming" : "Hide the list"}
+            title={t(list.state.status === "closed" ? "session.seeList" : "session.hideList")}
             onPress={list.toggle}
           />
           {list.state.status === "loading" && <ActivityIndicator color={colors.textMuted} />}
           {list.state.status === "error" && (
             <View style={styles.listMessage}>
               <Text color="danger" accessibilityRole="alert">
-                Couldn't load the list.
+                {t("session.listError")}
               </Text>
-              <Button variant="link" title="Try again" onPress={list.retry} />
+              <Button variant="link" title={t("common.tryAgain")} onPress={list.retry} />
             </View>
           )}
           {list.state.status === "ready" && list.state.groups.length === 0 && (
-            <Text color="textMuted">Nobody has answered yet.</Text>
+            <Text color="textMuted">{t("session.nobody")}</Text>
           )}
           {list.state.status === "ready" &&
             list.state.groups.map((g) => (
@@ -178,7 +182,7 @@ function Details({ session, stale, rsvp }: DetailsProps) {
                 <View style={styles.groupTitle}>
                   <View style={[styles.dot, { backgroundColor: colors[DOT[g.key]] }]} />
                   <Text variant="eyebrow">
-                    {g.title} · {g.entries.length}
+                    {t("session.groupTitle", { title: t(g.titleKey), count: g.entries.length })}
                   </Text>
                 </View>
                 {g.entries.map((e) => (
@@ -193,9 +197,9 @@ function Details({ session, stale, rsvp }: DetailsProps) {
 
       <View style={styles.group}>
         <View style={styles.planHeader}>
-          <Text variant="eyebrow">Your plan</Text>
+          <Text variant="eyebrow">{t("session.yourPlan")}</Text>
           <Text variant="label" color="textMuted">
-            {planLabel(session.my_rsvp)}
+            {planLabel(t, session.my_rsvp)}
           </Text>
         </View>
         <View style={styles.choices}>
@@ -203,7 +207,7 @@ function Details({ session, stale, rsvp }: DetailsProps) {
             <View key={c.value} style={styles.choice}>
               <Button
                 variant="choice"
-                title={c.label}
+                title={t(c.label)}
                 selected={c.value === selected}
                 disabled={saving || cancelled}
                 onPress={() => choose(c.value)}
@@ -218,7 +222,7 @@ function Details({ session, stale, rsvp }: DetailsProps) {
         )}
         {stale && (
           <Text color="danger" accessibilityRole="alert">
-            Saved, but the page may be out of date.
+            {t("session.stale")}
           </Text>
         )}
       </View>

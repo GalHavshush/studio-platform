@@ -1,6 +1,7 @@
 // Sessions are UTC instants. These helpers show them the way the studio means them, in the studio's
 // timezone (an IANA name such as "Asia/Jerusalem"), whatever timezone the phone is set to.
 // Intl does the zone rules (including daylight saving); no date library is needed.
+import type { Translator } from "@/i18n/translate";
 
 export const HOUR = 60 * 60 * 1000;
 export const DAY = 24 * HOUR;
@@ -58,8 +59,8 @@ export function dayKey(instant: number, timeZone: string): string {
   return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
 }
 
-export function formatTime(instant: number, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
+export function formatTime(instant: number, timeZone: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
     timeZone,
     hour: "2-digit",
     minute: "2-digit",
@@ -68,11 +69,11 @@ export function formatTime(instant: number, timeZone: string): string {
 }
 
 /** "Today", "Tomorrow" or e.g. "Thu 30 Oct", for the day starting at `dayStart`. */
-export function formatDay(dayStart: number, now: number, timeZone: string): string {
+export function formatDay(dayStart: number, now: number, timeZone: string, t: Translator): string {
   const today = startOfDay(now, timeZone);
-  if (dayStart === today) return "Today";
-  if (dayStart === addDays(today, 1, timeZone)) return "Tomorrow";
-  return new Intl.DateTimeFormat("en-GB", {
+  if (dayStart === today) return t("day.today");
+  if (dayStart === addDays(today, 1, timeZone)) return t("day.tomorrow");
+  return new Intl.DateTimeFormat(t.locale, {
     timeZone,
     weekday: "short",
     day: "numeric",
@@ -80,16 +81,16 @@ export function formatDay(dayStart: number, now: number, timeZone: string): stri
   }).format(new Date(dayStart));
 }
 
-const dateFormat = (instant: number, timeZone: string) =>
-  new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "short", day: "numeric", month: "short" }).format(
+const dateFormat = (instant: number, timeZone: string, locale: string) =>
+  new Intl.DateTimeFormat(locale, { timeZone, weekday: "short", day: "numeric", month: "short" }).format(
     new Date(instant),
   );
 
 /** "Tue 3 Nov, 01:00-02:00", or with both dates when the session ends on another studio day. */
-export function formatRange(start: number, end: number, timeZone: string): string {
-  const from = `${dateFormat(start, timeZone)}, ${formatTime(start, timeZone)}`;
+export function formatRange(start: number, end: number, timeZone: string, locale: string): string {
+  const from = `${dateFormat(start, timeZone, locale)}, ${formatTime(start, timeZone, locale)}`;
   if (dayKey(start, timeZone) === dayKey(end, timeZone)) {
-    return `${from}\u2013${formatTime(end, timeZone)}`;
+    return `${from}\u2013${formatTime(end, timeZone, locale)}`;
   }
-  return `${from} \u2013 ${dateFormat(end, timeZone)}, ${formatTime(end, timeZone)}`;
+  return `${from} \u2013 ${dateFormat(end, timeZone, locale)}, ${formatTime(end, timeZone, locale)}`;
 }

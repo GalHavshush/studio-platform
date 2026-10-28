@@ -1,16 +1,17 @@
 // Turns the staff list of who is coming into the four groups the screen shows.
 import type { components } from "@/api/schema";
+import type { Key } from "@/i18n/en";
 
 export type RsvpEntry = components["schemas"]["RsvpEntry"];
 
 export type GroupKey = "going" | "waitlist" | "maybe" | "not_going";
-export type RsvpGroup = { key: GroupKey; title: string; entries: RsvpEntry[] };
+export type RsvpGroup = { key: GroupKey; titleKey: Key; entries: RsvpEntry[] };
 
-const GROUPS: { key: GroupKey; title: string }[] = [
-  { key: "going", title: "Going" },
-  { key: "waitlist", title: "Waiting list" },
-  { key: "maybe", title: "Maybe" },
-  { key: "not_going", title: "Not going" },
+const GROUPS: { key: GroupKey; titleKey: Key }[] = [
+  { key: "going", titleKey: "rsvp.going" },
+  { key: "waitlist", titleKey: "rsvp.waitlist" },
+  { key: "maybe", titleKey: "rsvp.maybe" },
+  { key: "not_going", titleKey: "rsvp.notGoing" },
 ];
 
 /**

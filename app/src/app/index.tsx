@@ -10,7 +10,10 @@ import { Pill } from "@/components/pill";
 import { Row } from "@/components/row";
 import { Hero, Screen } from "@/components/screen";
 import { Text } from "@/components/text";
+import { roleLabel } from "@/auth/role";
 import { useSession, type Studio } from "@/auth/session";
+import { useT } from "@/i18n/use-language";
+import type { Translator } from "@/i18n/translate";
 import { chipTone } from "@/schedule/chip";
 import { useSchedule, type ScheduledSession } from "@/schedule/use-schedule";
 import { dayKey, formatDay, formatTime, startOfDay } from "@/schedule/time";
@@ -20,7 +23,7 @@ import { useTheme } from "@/theme/use-theme";
 type Day = { key: string; title: string; data: ScheduledSession[] };
 
 // Sessions are already in time order, so a day is a run of neighbours with the same local date.
-function groupByDay(sessions: ScheduledSession[], timeZone: string): Day[] {
+function groupByDay(sessions: ScheduledSession[], timeZone: string, t: Translator): Day[] {
   const now = Date.now();
   const days: Day[] = [];
   for (const s of sessions) {
@@ -28,12 +31,10 @@ function groupByDay(sessions: ScheduledSession[], timeZone: string): Day[] {
     const key = dayKey(at, timeZone);
     const last = days[days.length - 1];
     if (last?.key === key) last.data.push(s);
-    else days.push({ key, title: formatDay(startOfDay(at, timeZone), now, timeZone), data: [s] });
+    else days.push({ key, title: formatDay(startOfDay(at, timeZone), now, timeZone, t), data: [s] });
   }
   return days;
 }
-
-const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export default function Home() {
   const { studio, user, leaveStudio, signOut } = useSession();
@@ -60,13 +61,14 @@ type Props = {
 function Schedule(props: Props) {
   const { studio } = props;
   const { colors } = useTheme();
+  const t = useT();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const schedule = useSchedule(studio.timezone);
   const [menuOpen, setMenuOpen] = useState(false);
   const days = useMemo(
-    () => groupByDay(schedule.sessions, studio.timezone),
-    [schedule.sessions, studio.timezone],
+    () => groupByDay(schedule.sessions, studio.timezone, t),
+    [schedule.sessions, studio.timezone, t],
   );
 
   return (
@@ -75,7 +77,7 @@ function Schedule(props: Props) {
         <View style={styles.top}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Account menu"
+            accessibilityLabel={t("schedule.accountMenu")}
             onPress={() => setMenuOpen(true)}
             style={[styles.avatar, { backgroundColor: colors.primary }]}
           >
@@ -86,7 +88,7 @@ function Schedule(props: Props) {
           <Logo size={64} />
         </View>
         <View style={styles.titles}>
-          <Pill label={capitalize(studio.role)} tone="ink" />
+          <Pill label={roleLabel(t, studio.role)} tone="ink" />
           <Text variant="heading" color="onAccent">
             {studio.name}
           </Text>
@@ -97,9 +99,9 @@ function Schedule(props: Props) {
       {schedule.status === "error" && (
         <View style={styles.center}>
           <Text color="danger" accessibilityRole="alert">
-            Couldn't load the schedule.
+            {t("schedule.loadError")}
           </Text>
-          <Button variant="link" title="Try again" onPress={schedule.refresh} />
+          <Button variant="link" title={t("common.tryAgain")} onPress={schedule.refresh} />
         </View>
       )}
       {schedule.status === "ready" && (
@@ -118,7 +120,7 @@ function Schedule(props: Props) {
           ListHeaderComponent={
             <Button
               variant="outline"
-              title="Show earlier"
+              title={t("schedule.showEarlier")}
               busy={schedule.busy === "earlier"}
               onPress={schedule.showEarlier}
             />
@@ -127,12 +129,12 @@ function Schedule(props: Props) {
             <View style={styles.footer}>
               {schedule.error && (
                 <Text color="danger" accessibilityRole="alert">
-                  Couldn't load. Try again.
+                  {t("schedule.loadMoreError")}
                 </Text>
               )}
               <Button
                 variant="outline"
-                title="Show later"
+                title={t("schedule.showLater")}
                 busy={schedule.busy === "later"}
                 onPress={schedule.showLater}
               />
@@ -140,7 +142,7 @@ function Schedule(props: Props) {
           }
           ListEmptyComponent={
             <Text color="textMuted" style={styles.empty}>
-              No sessions in this period.
+              {t("schedule.empty")}
             </Text>
           }
           renderSectionHeader={({ section }) => (
@@ -150,8 +152,8 @@ function Schedule(props: Props) {
           )}
           renderItem={({ item }) => (
             <Row
-              time={formatTime(Date.parse(item.starts_at), studio.timezone)}
-              title={schedule.classTypeNames[item.class_type_id] ?? "Class"}
+              time={formatTime(Date.parse(item.starts_at), studio.timezone, t.locale)}
+              title={schedule.classTypeNames[item.class_type_id] ?? t("schedule.classFallback")}
               tone={chipTone(item.class_type_id)}
               cancelled={item.status === "cancelled"}
               onPress={() => router.push({ pathname: "/session/[id]", params: { id: item.id } })}

@@ -7,11 +7,13 @@ import { Hero, Screen, Sheet } from "@/components/screen";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { useSession, type SignInResult } from "@/auth/session";
+import type { Key } from "@/i18n/en";
+import { useT } from "@/i18n/use-language";
 
-const MESSAGES: Record<Exclude<SignInResult, "ok">, string> = {
-  invalid: "Wrong email or password.",
-  unreachable: "Can't reach the server.",
-  error: "Something went wrong. Try again.",
+const MESSAGES: Record<Exclude<SignInResult, "ok">, Key> = {
+  invalid: "login.invalid",
+  unreachable: "common.cantReach",
+  error: "common.wentWrong",
 };
 
 // The orange block shrinks when the keyboard opens, so the logo is dropped to keep the title in view.
@@ -31,6 +33,7 @@ function useKeyboardOpen() {
 
 export default function Login() {
   const { signIn } = useSession();
+  const t = useT();
   const keyboardOpen = useKeyboardOpen();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,7 +49,7 @@ export default function Login() {
     const result = await signIn(email.trim(), password);
     // On success this screen is replaced, so only a failure touches its state again.
     if (result !== "ok") {
-      setError(MESSAGES[result]);
+      setError(t(MESSAGES[result]));
       setBusy(false);
     }
   }
@@ -61,12 +64,12 @@ export default function Login() {
         <Hero>
           {!keyboardOpen && <Logo size={128} />}
           <Text variant="display" color="onAccent">
-            {"Welcome\nback"}
+            {t("login.title")}
           </Text>
         </Hero>
         <Sheet>
           <TextField
-            label="Email"
+            label={t("login.email")}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -75,7 +78,7 @@ export default function Login() {
             autoComplete="email"
           />
           <TextField
-            label="Password"
+            label={t("login.password")}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -90,7 +93,7 @@ export default function Login() {
             </Text>
           )}
           <Button
-            title={busy ? "Signing in..." : "Sign in"}
+            title={t(busy ? "login.signingIn" : "login.signIn")}
             onPress={submit}
             disabled={!canSubmit}
           />
