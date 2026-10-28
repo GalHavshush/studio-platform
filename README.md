@@ -110,7 +110,7 @@ docker-compose.yml           local Postgres (port 5434)
 app/                         Expo (React Native, TypeScript) client
 ├── src/app/                 screens (expo-router: one file = one route): _layout (provider + guarded routes), login, select-studio (shown when no studio is chosen), index (the schedule), session/[id] (one session)
 ├── src/auth/                tokens.ts (secure storage of the two tokens), tenant-id.ts (the studio chosen last time), session.tsx (sign-in and studio state: provider and useSession), auth-fetch.ts (adds the token and X-Tenant-Id, refreshes the token on a 401) with its Jest tests
-├── src/schedule/            time.ts (start of day, day keys and times in the studio's timezone; Jest-tested), use-schedule.ts (loads sessions in a window that grows both ways), use-session.ts (loads one session)
+├── src/schedule/            time.ts (start of day, day keys and times in the studio's timezone; Jest-tested), use-schedule.ts (loads sessions in a window that grows both ways), use-session.ts (loads one session and sends the RSVP), plan.ts (RSVP labels, seats text and confirmation messages; Jest-tested)
 ├── src/api/                 the typed API client: client.ts, schema.d.ts (generated), contract-check.ts (calls that must NOT compile)
 ├── openapi.json             snapshot of the API's schema, the input of the generated types
 └── .env.example             EXPO_PUBLIC_API_URL, the API address the app calls
