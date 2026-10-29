@@ -1,18 +1,16 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, SectionList, StyleSheet, View } from "react-native";
+import { useMemo } from "react";
+import { ActivityIndicator, RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AccountSheet } from "@/components/account-sheet";
-import { DeleteAccountSheet } from "@/components/delete-account-sheet";
 import { Button } from "@/components/button";
 import { Logo } from "@/components/logo";
 import { Pill } from "@/components/pill";
 import { Row } from "@/components/row";
 import { Hero, Screen } from "@/components/screen";
+import { TAB_BAR_SPACE } from "@/components/tab-bar";
 import { Text } from "@/components/text";
 import { roleLabel } from "@/auth/role";
-import type { DeleteOutcome } from "@/auth/delete-account";
 import { useSession, type Studio } from "@/auth/session";
 import { useT } from "@/i18n/use-language";
 import type { Translator } from "@/i18n/translate";
@@ -38,39 +36,14 @@ function groupByDay(sessions: ScheduledSession[], timeZone: string, t: Translato
   return days;
 }
 
-export default function Home() {
-  const { studio, user, leaveStudio, signOut, deleteAccount } = useSession();
+export default function Schedule() {
   // The guard in the layout only shows this screen when a studio is chosen.
-  return (
-    <Schedule
-      studio={studio as Studio}
-      initial={user?.name.charAt(0).toUpperCase() || "?"}
-      canSwitch={(user?.memberships.length ?? 0) > 1}
-      onSwitch={leaveStudio}
-      onSignOut={signOut}
-      onDeleteAccount={deleteAccount}
-    />
-  );
-}
-
-type Props = {
-  studio: Studio;
-  initial: string;
-  canSwitch: boolean;
-  onSwitch: () => void;
-  onSignOut: () => void;
-  onDeleteAccount: (password: string) => Promise<DeleteOutcome>;
-};
-
-function Schedule(props: Props) {
-  const { studio } = props;
+  const studio = useSession().studio as Studio;
   const { colors } = useTheme();
   const t = useT();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const schedule = useSchedule(studio.timezone);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const days = useMemo(
     () => groupByDay(schedule.sessions, studio.timezone, t),
     [schedule.sessions, studio.timezone, t],
@@ -80,16 +53,6 @@ function Schedule(props: Props) {
     <Screen>
       <Hero compact>
         <View style={styles.top}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t("schedule.accountMenu")}
-            onPress={() => setMenuOpen(true)}
-            style={[styles.avatar, { backgroundColor: colors.primary }]}
-          >
-            <Text variant="title" color="soft">
-              {props.initial}
-            </Text>
-          </Pressable>
           <Logo size={64} />
         </View>
         <View style={styles.titles}>
@@ -116,7 +79,7 @@ function Schedule(props: Props) {
           contentContainerStyle={{
             paddingHorizontal: space.xl,
             paddingTop: space.lg,
-            paddingBottom: insets.bottom + space.xl,
+            paddingBottom: insets.bottom + space.xl + TAB_BAR_SPACE,
           }}
           ItemSeparatorComponent={() => <View style={styles.gap} />}
           refreshControl={
@@ -168,26 +131,12 @@ function Schedule(props: Props) {
         />
       )}
 
-      <AccountSheet
-        visible={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        onTimeline={
-          studio.participantId
-            ? () => router.push({ pathname: "/timeline/[id]", params: { id: studio.participantId! } })
-            : undefined
-        }
-        onSwitchStudio={props.canSwitch ? props.onSwitch : undefined}
-        onSignOut={props.onSignOut}
-        onDeleteAccount={() => setDeleting(true)}
-      />
-      {deleting && <DeleteAccountSheet onDelete={props.onDeleteAccount} onClose={() => setDeleting(false)} />}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  avatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  top: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end" },
   titles: { gap: space.sm },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
   gap: { height: space.sm },
