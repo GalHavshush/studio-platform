@@ -33,6 +33,15 @@ MAX_RANGE = timedelta(days=62)
 CoachCtx = Annotated[TenantContext, Depends(require_role("coach"))]
 
 
+def check_range(from_: datetime, to: datetime) -> None:
+    """The rule for any `[from, to)` query: `to` is after `from` (`422 invalid_range`) and the
+    range is at most `MAX_RANGE` (`422 range_too_long`). The schedule and the report queue share it."""
+    if to <= from_:
+        raise HTTPException(status_code=422, detail="invalid_range")
+    if to - from_ > MAX_RANGE:
+        raise HTTPException(status_code=422, detail="range_too_long")
+
+
 class SessionIn(BaseModel):
     class_type_id: uuid.UUID
     # AwareDatetime rejects a time without an offset (422): we never guess the studio's timezone.
@@ -207,10 +216,7 @@ async def list_sessions(
     overlap nor miss a session. Invalid ranges get `422 invalid_range` (`to` not after `from`) or
     `422 range_too_long` (over 62 days).
     """
-    if to <= from_:
-        raise HTTPException(status_code=422, detail="invalid_range")
-    if to - from_ > MAX_RANGE:
-        raise HTTPException(status_code=422, detail="range_too_long")
+    check_range(from_, to)
     rows = await session.scalars(
         select(ClassSession)
         .where(

@@ -126,6 +126,7 @@ api/                         FastAPI backend (Python, managed with uv)
 │   ├── bookings.py          PUT /sessions/{id}/rsvp (going / not_going / maybe; seats are limited in booking mode, with a waitlist and its promotion), GET /sessions/{id}/rsvps (staff only: who is coming, in order, with waiting-list positions)
 │   ├── attendance.py        POST /sessions/{id}/attendance (attended or not; check-in opens 15 min before start)
 │   ├── reports.py           PUT /sessions/{id}/report (the coach's class report, with a private note per attendee, saved in one transaction), GET /sessions/{id}/report (staff: the whole report; a member: only the summary, and only if they attended)
+│   ├── report_queue.py      GET /report-queue?from&to (staff: the classes that already took place whose report the caller may write, newest first, each with whether a report exists; a coach sees their own, an owner all)
 │   ├── participants.py      GET /participants/{id}/notes (the notes coaches wrote about a participant: staff see all, a member only the notes shared with them about themselves)
 │   ├── timeline.py          GET /participants/{id}/timeline (a participant's classes, newest first, with booking, attendance, summary and notes; cursor-paginated; staff see all, a member only their own and what was shared)
 │   ├── tenant.py            GET /tenant (the studio named by X-Tenant-Id, with its enabled modules)
@@ -144,7 +145,7 @@ api/                         FastAPI backend (Python, managed with uv)
 │   └── versions/            one file per schema change
 ├── tests/
 │   ├── conftest.py          test database, migrated_db, client, real-commit and two-studio fixtures
-│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, refresh, token_families, reuse_detection, tenant_ctx, tenant_isolation, class_types, participants, sessions, rsvps, attendance, modules, capacity, waitlist, booking_race (concurrency and the session row lock), same_studio_links, reports, notes (incl. sharing), report_summaries, timeline, account_deletion, nul_characters, seed_demo, session_detail, openapi_snapshot, docs
+│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, refresh, token_families, reuse_detection, tenant_ctx, tenant_isolation, class_types, participants, sessions, rsvps, attendance, modules, capacity, waitlist, booking_race (concurrency and the session row lock), same_studio_links, reports, notes (incl. sharing), report_summaries, report_queue, timeline, account_deletion, nul_characters, seed_demo, session_detail, openapi_snapshot, docs
 ├── alembic.ini
 ├── pyproject.toml           dependencies and tool settings
 └── .env.example             template for api/.env

@@ -328,6 +328,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/report-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Report Queue
+         * @description The classes starting in `[from, to)` whose report the caller may write, newest first. A
+         *     coach gets their own classes, an owner every class of the studio (the rule of `PUT
+         *     /sessions/{id}/report`); a member gets `403 insufficient_role`.
+         *
+         *     Only classes that have started and were not cancelled are listed, because those are the ones
+         *     that route accepts (`409 session_not_started`, `409 session_cancelled` otherwise). The range
+         *     follows the schedule's rules: `from` included, `to` not, at most 62 days (`422 invalid_range`,
+         *     `422 range_too_long`). One query: the class type's name and whether a report exists come from
+         *     joins, so a long list costs no more round trips than a short one.
+         */
+        get: operations["report_queue_report_queue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sessions": {
         parameters: {
             query?: never;
@@ -811,6 +839,28 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+        };
+        /** QueueItem */
+        QueueItem: {
+            /** Class Type Name */
+            class_type_name: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Has Report */
+            has_report: boolean;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
         };
         /** RefreshRequest */
         RefreshRequest: {
@@ -1642,6 +1692,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StaffTimeline"] | components["schemas"]["MemberTimeline"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_queue_report_queue_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueItem"][];
                 };
             };
             /** @description Validation Error */

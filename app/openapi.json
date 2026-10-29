@@ -498,6 +498,42 @@
         "title": "ParticipantHit",
         "type": "object"
       },
+      "QueueItem": {
+        "properties": {
+          "class_type_name": {
+            "title": "Class Type Name",
+            "type": "string"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "has_report": {
+            "title": "Has Report",
+            "type": "boolean"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "class_type_name",
+          "starts_at",
+          "ends_at",
+          "has_report"
+        ],
+        "title": "QueueItem",
+        "type": "object"
+      },
       "RefreshRequest": {
         "properties": {
           "refresh_token": {
@@ -2234,6 +2270,85 @@
         "summary": "Timeline",
         "tags": [
           "timeline"
+        ]
+      }
+    },
+    "/report-queue": {
+      "get": {
+        "description": "The classes starting in `[from, to)` whose report the caller may write, newest first. A\ncoach gets their own classes, an owner every class of the studio (the rule of `PUT\n/sessions/{id}/report`); a member gets `403 insufficient_role`.\n\nOnly classes that have started and were not cancelled are listed, because those are the ones\nthat route accepts (`409 session_not_started`, `409 session_cancelled` otherwise). The range\nfollows the schedule's rules: `from` included, `to` not, at most 62 days (`422 invalid_range`,\n`422 range_too_long`). One query: the class type's name and whether a report exists come from\njoins, so a long list costs no more round trips than a short one.",
+        "operationId": "report_queue_report_queue_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/QueueItem"
+                  },
+                  "title": "Response Report Queue Report Queue Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Report Queue",
+        "tags": [
+          "reports"
         ]
       }
     },
