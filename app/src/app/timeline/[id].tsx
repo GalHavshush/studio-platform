@@ -16,7 +16,8 @@ import { space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
 export default function TimelineScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `name` is only shown (staff opening someone else's timeline); the id alone decides what loads.
+  const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const { studio } = useSession();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -32,9 +33,16 @@ export default function TimelineScreen() {
           <BackButton label={t("timeline.back")} />
           <Logo size={64} />
         </View>
-        <Text variant="display" color="onAccent">
-          {t("timeline.title")}
-        </Text>
+        <View style={styles.titles}>
+          <Text variant="display" color="onAccent">
+            {t("timeline.title")}
+          </Text>
+          {name && (
+            <Text variant="title" color="onAccent">
+              {name}
+            </Text>
+          )}
+        </View>
       </Hero>
 
       {timeline.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
@@ -88,6 +96,7 @@ export default function TimelineScreen() {
 
 const styles = StyleSheet.create({
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  titles: { gap: space.sm },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
   gap: { height: space.md },
   empty: { textAlign: "center", padding: space.xl },

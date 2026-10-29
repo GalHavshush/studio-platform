@@ -212,7 +212,14 @@ function Details({ session, stale, rsvp, attend }: DetailsProps) {
                   </Text>
                 </View>
                 {g.entries.map((e) => (
-                  <PersonRow key={e.participant_id} name={e.name} position={e.waitlist_position} />
+                  <PersonRow
+                    key={e.participant_id}
+                    name={e.name}
+                    position={e.waitlist_position}
+                    onPress={() =>
+                      router.push({ pathname: "/timeline/[id]", params: { id: e.participant_id, name: e.name } })
+                    }
+                  />
                 ))}
               </View>
             ))}

@@ -175,7 +175,16 @@ function Form({ saved, attendees, save, setAttended }: FormProps) {
                     trackColor={{ false: colors.border, true: colors.primary }}
                   />
                 </View>
-                <Button variant="link" title={t("report.remove", { name: a.name })} onPress={() => remove(a)} />
+                <View style={styles.links}>
+                  <Button
+                    variant="link"
+                    title={t("report.timeline")}
+                    onPress={() =>
+                      router.push({ pathname: "/timeline/[id]", params: { id: a.participant_id, name: a.name } })
+                    }
+                  />
+                  <Button variant="link" title={t("report.remove", { name: a.name })} onPress={() => remove(a)} />
+                </View>
               </View>
             );
           })}
@@ -213,6 +222,7 @@ const styles = StyleSheet.create({
   person: { gap: space.sm },
   shareRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md },
   shareLabel: { flex: 1 },
+  links: { flexDirection: "row", justifyContent: "center", flexWrap: "wrap" },
   // A multiline field starts at the top, taller than the one-line fields.
   input: { minHeight: 120, paddingTop: space.md, paddingBottom: space.md, textAlignVertical: "top", borderRadius: radius.md },
 });
