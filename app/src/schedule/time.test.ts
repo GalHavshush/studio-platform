@@ -1,6 +1,6 @@
 import { makeTranslator } from "@/i18n/translate";
 
-import { addDays, dayKey, formatDay, formatRange, formatTime, startOfDay } from "./time";
+import { addDays, dayKey, formatDay, formatRange, formatTime, startOfDay, startOfWeek } from "./time";
 
 const JERUSALEM = "Asia/Jerusalem"; // UTC+3 in summer (until the last Sunday of October), UTC+2 after
 const NEW_YORK = "America/New_York";
@@ -93,4 +93,28 @@ test("a range across the clock change shows the times of the studio's clock", ()
   const end = iso("2026-10-25T01:30:00Z"); // 03:30 (UTC+2) after the change
 
   expect(formatRange(start, end, JERUSALEM, t.locale)).toBe("Sun 25 Oct, 01:00\u201303:30");
+});
+
+test("a week starts on Monday in the studio's calendar, and Sunday belongs to the week before", () => {
+  const monday = iso("2026-10-25T22:00:00Z"); // Mon 26 Oct 00:00 in Jerusalem
+  const thursday = iso("2026-10-29T10:00:00Z");
+  const sunday = iso("2026-11-01T10:00:00Z");
+
+  expect(startOfWeek(thursday, JERUSALEM)).toBe(monday);
+  expect(startOfWeek(monday, JERUSALEM)).toBe(monday);
+  expect(startOfWeek(sunday, JERUSALEM)).toBe(monday);
+  expect(startOfWeek(iso("2026-11-01T22:00:00Z"), JERUSALEM)).toBe(iso("2026-11-01T22:00:00Z")); // Mon 2 Nov 00:00
+});
+
+test("the week that contains a clock change still starts at the studio's Monday midnight", () => {
+  // Jerusalem went back on Sunday 25 Oct 2026; the week of Mon 19 Oct began on UTC+3 midnight
+  expect(startOfWeek(iso("2026-10-25T12:00:00Z"), JERUSALEM)).toBe(iso("2026-10-18T21:00:00Z"));
+});
+
+test("the week is judged in the studio's zone, not the phone's", () => {
+  // 22:30 UTC on Sunday 1 Nov is already Monday 2 Nov in Jerusalem, but still Sunday in New York
+  const instant = iso("2026-11-01T22:30:00Z");
+
+  expect(startOfWeek(instant, JERUSALEM)).toBe(iso("2026-11-01T22:00:00Z"));
+  expect(startOfWeek(instant, NEW_YORK)).toBe(iso("2026-10-26T04:00:00Z"));
 });

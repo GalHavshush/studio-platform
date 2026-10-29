@@ -53,6 +53,14 @@ export function addDays(instant: number, days: number, timeZone: string): number
   return startOfDay(startOfDay(instant, timeZone) + days * DAY + 12 * HOUR, timeZone);
 }
 
+/** The studio's Monday midnight of the week (Monday to Sunday) that contains `instant`. */
+export function startOfWeek(instant: number, timeZone: string): number {
+  const p = partsIn(instant, timeZone);
+  // getUTCDay() is 0 for Sunday, so Sunday is six days after its Monday.
+  const sinceMonday = (new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay() + 6) % 7;
+  return addDays(instant, -sinceMonday, timeZone);
+}
+
 /** A stable key for the studio's calendar day of `instant` ("2026-10-28"): sessions group by it. */
 export function dayKey(instant: number, timeZone: string): string {
   const p = partsIn(instant, timeZone);
