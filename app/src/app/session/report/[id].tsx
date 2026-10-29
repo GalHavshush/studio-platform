@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useNavigation, usePreventRemove, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackButton } from "@/components/back-button";
@@ -15,7 +15,10 @@ import {
   MAX_LENGTH,
   canSave,
   isDirty,
+  noteFor,
   saveMessage,
+  withNote,
+  type Attendee,
   type ReportForm,
   type SaveOutcome,
 } from "@/schedule/report";
@@ -55,17 +58,22 @@ export default function ReportScreen() {
           <Button variant="link" title={t("common.tryAgain")} onPress={report.retry} />
         </View>
       )}
-      {report.status === "ready" && <Form saved={report.saved} save={report.save} />}
+      {report.status === "ready" && <Form saved={report.saved} attendees={report.attendees} save={report.save} />}
     </Screen>
   );
 }
 
-type FormProps = { saved: ReportForm; save: (form: ReportForm) => Promise<SaveOutcome> };
+type FormProps = {
+  saved: ReportForm;
+  attendees: Attendee[];
+  save: (form: ReportForm) => Promise<SaveOutcome>;
+};
 
-function Form({ saved, save }: FormProps) {
+function Form({ saved, attendees, save }: FormProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const navigation = useNavigation();
+  const { colors } = useTheme();
   const t = useT();
   // Starts from what was loaded; after that the text belongs to the form, not to the server's copy.
   const [form, setForm] = useState(saved);
@@ -115,6 +123,38 @@ function Form({ saved, save }: FormProps) {
             style={styles.input}
           />
         ))}
+        <View style={styles.notes}>
+          <Text variant="eyebrow">{t("report.notes")}</Text>
+          <Text color="textMuted">{t("report.notesHint")}</Text>
+          {attendees.length === 0 && <Text color="textMuted">{t("report.noAttendees")}</Text>}
+          {attendees.map((a) => {
+            const note = noteFor(form, a.participant_id);
+            const share = t("report.share", { name: a.name });
+            return (
+              <View key={a.participant_id} style={styles.person}>
+                <TextField
+                  label={a.name}
+                  value={note.body}
+                  onChangeText={(body) => setForm((f) => withNote(f, a.participant_id, { body }))}
+                  multiline
+                  maxLength={MAX_LENGTH}
+                  editable={!saving}
+                  style={styles.input}
+                />
+                <View style={styles.shareRow}>
+                  <Text style={styles.shareLabel}>{share}</Text>
+                  <Switch
+                    accessibilityLabel={share}
+                    value={note.shared}
+                    onValueChange={(shared) => setForm((f) => withNote(f, a.participant_id, { shared }))}
+                    disabled={saving}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                  />
+                </View>
+              </View>
+            );
+          })}
+        </View>
         {blank && <Text color="textMuted">{t("report.needText")}</Text>}
         {message && (
           <Text color="danger" accessibilityRole="alert">
@@ -137,6 +177,10 @@ const styles = StyleSheet.create({
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
   form: { flexGrow: 1, padding: space.xl, gap: space.lg },
+  notes: { gap: space.md },
+  person: { gap: space.sm },
+  shareRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md },
+  shareLabel: { flex: 1 },
   // A multiline field starts at the top, taller than the one-line fields.
   input: { minHeight: 120, paddingTop: space.md, paddingBottom: space.md, textAlignVertical: "top", borderRadius: radius.md },
 });
