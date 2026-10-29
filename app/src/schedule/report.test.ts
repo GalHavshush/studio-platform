@@ -2,11 +2,13 @@ import { makeTranslator } from "@/i18n/translate";
 
 import {
   EMPTY_FORM,
+  addAttendee,
   canSave,
   canWriteReport,
   formFromReport,
   isDirty,
   noteFor,
+  removeAttendee,
   saveMessage,
   saveOutcome,
   toPayload,
@@ -142,4 +144,41 @@ test("a note is dirty when its text or its switch changed, and a blank note is n
   expect(isDirty(withNote(saved, ANN, { body: "" }), saved)).toBe(true); // clearing deletes it
   expect(isDirty(withNote(saved, BOB, { shared: true }), saved)).toBe(false); // switch on an empty note
   expect(isDirty(withNote(saved, BOB, { body: "New" }), saved)).toBe(true);
+});
+
+// --- adding and removing attendees ---
+
+test("an added attendee goes in by name, and nobody is added twice", () => {
+  const amy = { participant_id: ANN, name: "Amy" };
+  const moe = { participant_id: BOB, name: "Moe" };
+  const zed = { participant_id: "33333333-3333-3333-3333-333333333333", name: "Zed" };
+
+  expect(addAttendee([amy, zed], moe)).toEqual([amy, moe, zed]);
+  expect(addAttendee([amy, moe], amy)).toEqual([amy, moe]);
+  expect(addAttendee([], zed)).toEqual([zed]);
+});
+
+test("two people with the same name keep a stable order by id", () => {
+  const a = { participant_id: ANN, name: "Sam" };
+  const b = { participant_id: BOB, name: "Sam" };
+
+  expect(addAttendee([b], a)).toEqual([a, b]);
+});
+
+test("removing an attendee drops only that person and leaves the list's order", () => {
+  const list = [
+    { participant_id: ANN, name: "Amy" },
+    { participant_id: BOB, name: "Moe" },
+  ];
+
+  expect(removeAttendee(list, ANN)).toEqual([list[1]]);
+  expect(removeAttendee(list, "nobody")).toEqual(list);
+});
+
+test("removing an attendee does not touch their note, which stays in the form", () => {
+  const form = withNote(EMPTY_FORM, ANN, { body: "Strong", shared: true });
+
+  removeAttendee([{ participant_id: ANN, name: "Amy" }], ANN);
+
+  expect(toPayload(form).notes).toEqual([{ participant_id: ANN, body: "Strong", shared_with_member: true }]);
 });
