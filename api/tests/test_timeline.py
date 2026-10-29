@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import select
 
+from app.deletion import DELETED_NAME
 from app.models import (
     ClassReport,
     ClassSession,
@@ -14,6 +15,7 @@ from app.models import (
     Participant,
     ParticipantNote,
     Rsvp,
+    User,
 )
 
 BASE = datetime(2026, 1, 1, 18, tzinfo=UTC)
@@ -143,6 +145,7 @@ async def test_staff_see_everything_about_a_class(client, two_tenants, db_sessio
         False,
         str(a.users["coach"]),
     )
+    assert shown["author_name"] == "coach of studio-a"
     assert (
         "SECRET" not in response.text
     )  # the class-level coach fields are not part of the timeline
@@ -203,6 +206,59 @@ async def test_a_member_sees_their_own_history_without_staff_only_data(
     assert item["notes"] == []  # the only note is private
     for secret in ("PRIVATE-NOTE", "SECRET", str(a.users["coach"])):
         assert secret not in response.text
+
+
+async def test_staff_see_who_wrote_each_note_by_name_and_never_by_email(
+    client, two_tenants, db_session
+):
+    a = two_tenants.a
+    first, second = await a_session(db_session, a, day=1), await a_session(db_session, a, day=2)
+    maya = await participant(db_session, a, "member")
+    await note(db_session, a, first, maya, "From the coach")  # one note per person per class
+    db_session.add(
+        ParticipantNote(
+            tenant_id=a.id,
+            participant_id=maya,
+            session_id=second,
+            author_id=a.users["owner"],
+            body="From the owner",
+        )
+    )
+    await db_session.flush()
+
+    response = await get(client, two_tenants, a, "owner", maya)
+
+    authors = {
+        n["body"]: n["author_name"] for item in response.json()["items"] for n in item["notes"]
+    }
+    assert authors == {"From the coach": "coach of studio-a", "From the owner": "owner of studio-a"}
+    assert "@" not in response.text  # names only, never the authors' emails
+
+
+async def test_a_deleted_author_reads_as_deleted_user(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    maya = await participant(db_session, a, "member")
+    await note(db_session, a, sid, maya, "Written before they left")
+    (await db_session.get(User, a.users["coach"])).name = DELETED_NAME  # what account deletion does
+    await db_session.flush()
+
+    response = await get(client, two_tenants, a, "owner", maya)
+
+    [shown] = response.json()["items"][0]["notes"]
+    assert shown["author_name"] == DELETED_NAME
+
+
+async def test_a_members_notes_never_carry_an_author_name(client, two_tenants, db_session):
+    a = two_tenants.a
+    sid = await a_session(db_session, a)
+    maya = await participant(db_session, a, "member")
+    await note(db_session, a, sid, maya, "For Maya", shared=True)
+
+    response = await get(client, two_tenants, a, "member", maya)
+
+    assert "coach of studio-a" not in response.text
+    assert "author" not in response.text
 
 
 async def test_a_member_sees_shared_notes_without_author_or_flag(client, two_tenants, db_session):
