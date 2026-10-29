@@ -7,7 +7,7 @@ const locale = makeTranslator("en").locale; // the locale the app formats dates 
 const iso = (s: string) => Date.parse(s);
 
 test("the week strip has seven days, Monday to Sunday, keyed like the sessions", () => {
-  const days = weekDays(iso("2026-10-29T10:00:00Z"), JERUSALEM, locale); // Thu 29 Oct
+  const days = weekDays(iso("2026-10-29T10:00:00Z"), JERUSALEM, locale, 1); // Thu 29 Oct
 
   expect(days.map((d) => d.key)).toEqual([
     "2026-10-26",
@@ -25,7 +25,7 @@ test("the week strip has seven days, Monday to Sunday, keyed like the sessions",
 
 test("a week with a clock change still has seven different days", () => {
   // Jerusalem went back on Sunday 25 Oct 2026, so the week of Mon 19 Oct holds the 25-hour day
-  const days = weekDays(iso("2026-10-22T10:00:00Z"), JERUSALEM, locale);
+  const days = weekDays(iso("2026-10-22T10:00:00Z"), JERUSALEM, locale, 1);
 
   expect(days.map((d) => d.key)).toEqual([
     "2026-10-19",
@@ -39,7 +39,7 @@ test("a week with a clock change still has seven different days", () => {
 });
 
 test("the range names the first and last day of the week", () => {
-  expect(weekRange(iso("2026-10-29T10:00:00Z"), JERUSALEM, locale)).toBe("26 Oct – 1 Nov");
+  expect(weekRange(iso("2026-10-29T10:00:00Z"), JERUSALEM, locale, 1)).toBe("26 Oct – 1 Nov");
 });
 
 const at = (id: string, endsAt: string, status = "scheduled") => ({ id, ends_at: endsAt, status });
@@ -84,4 +84,20 @@ test("when every class is over, none is next", () => {
 
 test("the date line names the weekday, day and month in the studio's zone", () => {
   expect(dayDate(iso("2026-10-28T22:30:00Z"), JERUSALEM, locale)).toBe("Thu 29 Oct");
+});
+
+test("a Sunday start runs the strip from Sunday to Saturday", () => {
+  const days = weekDays(iso("2026-10-29T10:00:00Z"), JERUSALEM, locale, 0); // Thu 29 Oct
+
+  expect(days.map((d) => d.key)).toEqual([
+    "2026-10-25",
+    "2026-10-26",
+    "2026-10-27",
+    "2026-10-28",
+    "2026-10-29",
+    "2026-10-30",
+    "2026-10-31",
+  ]);
+  expect(days.map((d) => d.letter)).toEqual(["S", "M", "T", "W", "T", "F", "S"]);
+  expect(weekRange(iso("2026-10-29T10:00:00Z"), JERUSALEM, locale, 0)).toBe("25 Oct \u2013 31 Oct");
 });

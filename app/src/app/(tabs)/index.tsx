@@ -20,6 +20,7 @@ import { chipTone } from "@/schedule/chip";
 import { useSchedule, type ScheduledSession } from "@/schedule/use-schedule";
 import { dayKey, formatDay, formatTime, startOfDay } from "@/schedule/time";
 import { useNow } from "@/schedule/use-now";
+import { useWeekStart } from "@/schedule/use-week-start";
 import { dayDate, todayStates, weekDays, weekRange } from "@/schedule/week";
 import { space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
@@ -56,7 +57,8 @@ export default function Schedule() {
   const t = useT();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const schedule = useSchedule(studio.timezone);
+  const { firstDay } = useWeekStart();
+  const schedule = useSchedule(studio.timezone, firstDay);
   const now = useNow(60_000); // "done" and "next" move on by themselves
   const zone = studio.timezone;
   const todayKey = dayKey(now, zone);
@@ -66,7 +68,7 @@ export default function Schedule() {
   );
   const strip = useMemo(() => {
     const withClasses = new Set(schedule.all.map((s) => dayKey(Date.parse(s.starts_at), zone)));
-    return weekDays(now, zone, t.locale).map((d) => ({
+    return weekDays(now, zone, t.locale, firstDay).map((d) => ({
       key: d.key,
       letter: d.letter,
       number: d.number,
@@ -75,7 +77,7 @@ export default function Schedule() {
       past: d.key < todayKey,
       hasClasses: withClasses.has(d.key),
     }));
-  }, [schedule.all, now, zone, t.locale, todayKey]);
+  }, [schedule.all, now, zone, t.locale, todayKey, firstDay]);
 
   const open = (id: string) => router.push({ pathname: "/session/[id]", params: { id } });
   const nameOf = (s: ScheduledSession) => schedule.classTypeNames[s.class_type_id] ?? t("schedule.classFallback");
@@ -164,7 +166,7 @@ export default function Schedule() {
           }
           ListHeaderComponent={
             <View style={styles.header}>
-              <WeekStrip title={t("schedule.thisWeek")} range={weekRange(now, zone, t.locale)} days={strip} />
+              <WeekStrip title={t("schedule.thisWeek")} range={weekRange(now, zone, t.locale, firstDay)} days={strip} />
               <Button
                 variant="outline"
                 title={t("schedule.showEarlier")}

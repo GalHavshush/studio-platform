@@ -37,6 +37,8 @@ export const en = {
   "tabs.settings": "Settings",
 
   "settings.title": "Settings",
+  "settings.schedule": "Schedule",
+  "settings.mondayStart": "Week starts on Monday",
 
   "account.switchStudio": "Switch studio",
   "account.appearance": "Appearance",
