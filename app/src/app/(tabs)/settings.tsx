@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSession } from "@/auth/session";
@@ -11,9 +11,11 @@ import { TAB_BAR_SPACE } from "@/components/tab-bar";
 import { Text } from "@/components/text";
 import { LANGUAGES } from "@/i18n/translate";
 import { useLanguage } from "@/i18n/use-language";
+import { useWeekStart } from "@/schedule/use-week-start";
 import { PREFERENCES } from "@/theme/preference";
 import { space } from "@/theme/tokens";
 import { usePreference } from "@/theme/use-preference";
+import { useTheme } from "@/theme/use-theme";
 
 // Everything about the account and the phone: which studio, how the app looks, the language, and
 // the way out. Replaces the sheet that used to open from the avatar on the schedule.
@@ -22,6 +24,8 @@ export default function Settings() {
   const insets = useSafeAreaInsets();
   const { preference, setPreference } = usePreference();
   const { t, choice, setChoice } = useLanguage();
+  const { colors } = useTheme();
+  const { mondayStart, setMondayStart } = useWeekStart();
   const [deleting, setDeleting] = useState(false);
   // only offered to people who belong to more than one studio
   const canSwitch = (user?.memberships.length ?? 0) > 1;
@@ -75,6 +79,18 @@ export default function Settings() {
             ))}
           </View>
         </View>
+        <View style={styles.group}>
+          <Text variant="eyebrow">{t("settings.schedule")}</Text>
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>{t("settings.mondayStart")}</Text>
+            <Switch
+              accessibilityLabel={t("settings.mondayStart")}
+              value={mondayStart}
+              onValueChange={setMondayStart}
+              trackColor={{ false: colors.border, true: colors.primary }}
+            />
+          </View>
+        </View>
         <View>
           <Button variant="link" title={t("account.signOut")} onPress={signOut} />
           <Button variant="link" danger title={t("delete.link")} onPress={() => setDeleting(true)} />
@@ -92,4 +108,6 @@ const styles = StyleSheet.create({
   group: { gap: space.md },
   options: { flexDirection: "row", gap: space.sm },
   option: { flex: 1 },
+  switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md },
+  switchLabel: { flex: 1 },
 });

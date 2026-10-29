@@ -100,21 +100,38 @@ test("a week starts on Monday in the studio's calendar, and Sunday belongs to th
   const thursday = iso("2026-10-29T10:00:00Z");
   const sunday = iso("2026-11-01T10:00:00Z");
 
-  expect(startOfWeek(thursday, JERUSALEM)).toBe(monday);
-  expect(startOfWeek(monday, JERUSALEM)).toBe(monday);
-  expect(startOfWeek(sunday, JERUSALEM)).toBe(monday);
-  expect(startOfWeek(iso("2026-11-01T22:00:00Z"), JERUSALEM)).toBe(iso("2026-11-01T22:00:00Z")); // Mon 2 Nov 00:00
+  expect(startOfWeek(thursday, JERUSALEM, 1)).toBe(monday);
+  expect(startOfWeek(monday, JERUSALEM, 1)).toBe(monday);
+  expect(startOfWeek(sunday, JERUSALEM, 1)).toBe(monday);
+  expect(startOfWeek(iso("2026-11-01T22:00:00Z"), JERUSALEM, 1)).toBe(iso("2026-11-01T22:00:00Z")); // Mon 2 Nov 00:00
 });
 
 test("the week that contains a clock change still starts at the studio's Monday midnight", () => {
   // Jerusalem went back on Sunday 25 Oct 2026; the week of Mon 19 Oct began on UTC+3 midnight
-  expect(startOfWeek(iso("2026-10-25T12:00:00Z"), JERUSALEM)).toBe(iso("2026-10-18T21:00:00Z"));
+  expect(startOfWeek(iso("2026-10-25T12:00:00Z"), JERUSALEM, 1)).toBe(iso("2026-10-18T21:00:00Z"));
 });
 
 test("the week is judged in the studio's zone, not the phone's", () => {
   // 22:30 UTC on Sunday 1 Nov is already Monday 2 Nov in Jerusalem, but still Sunday in New York
   const instant = iso("2026-11-01T22:30:00Z");
 
-  expect(startOfWeek(instant, JERUSALEM)).toBe(iso("2026-11-01T22:00:00Z"));
-  expect(startOfWeek(instant, NEW_YORK)).toBe(iso("2026-10-26T04:00:00Z"));
+  expect(startOfWeek(instant, JERUSALEM, 1)).toBe(iso("2026-11-01T22:00:00Z"));
+  expect(startOfWeek(instant, NEW_YORK, 1)).toBe(iso("2026-10-26T04:00:00Z"));
+});
+
+test("with a Sunday start the week begins on the Sunday before, and Sunday begins its own week", () => {
+  const thursday = iso("2026-10-29T10:00:00Z");
+  const sunday = iso("2026-11-01T10:00:00Z");
+
+  // Sun 25 Oct is the 25-hour day: its midnight is 21:00Z on the 24th (UTC+3)
+  expect(startOfWeek(thursday, JERUSALEM, 0)).toBe(iso("2026-10-24T21:00:00Z"));
+  expect(startOfWeek(sunday, JERUSALEM, 0)).toBe(iso("2026-10-31T22:00:00Z"));
+  expect(startOfWeek(iso("2026-10-31T22:00:00Z"), JERUSALEM, 0)).toBe(iso("2026-10-31T22:00:00Z"));
+});
+
+test("the same Saturday is the last day of a Sunday week and of a Monday week", () => {
+  const saturday = iso("2026-10-31T10:00:00Z");
+
+  expect(startOfWeek(saturday, JERUSALEM, 1)).toBe(iso("2026-10-25T22:00:00Z")); // Mon 26 Oct
+  expect(startOfWeek(saturday, JERUSALEM, 0)).toBe(iso("2026-10-24T21:00:00Z")); // Sun 25 Oct
 });

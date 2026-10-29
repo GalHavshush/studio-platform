@@ -1,6 +1,6 @@
 // What the schedule needs to draw "the week we are in": the seven days for the week strip, the range
 // under its title, and which of today's classes are over and which one is next.
-import { HOUR, addDays, dayKey, startOfWeek } from "./time";
+import { HOUR, addDays, dayKey, startOfWeek, type FirstDay } from "./time";
 
 export type WeekDay = {
   key: string; // dayKey of the day, the same key sessions group by
@@ -10,9 +10,9 @@ export type WeekDay = {
   label: string; // "Thursday 29 October", for a screen reader
 };
 
-/** The seven days (Monday to Sunday) of the week that contains `now`, in the studio's zone. */
-export function weekDays(now: number, timeZone: string, locale: string): WeekDay[] {
-  const first = startOfWeek(now, timeZone);
+/** The seven days of the week that contains `now`, from `firstDay`, in the studio's zone. */
+export function weekDays(now: number, timeZone: string, locale: string, firstDay: FirstDay): WeekDay[] {
+  const first = startOfWeek(now, timeZone, firstDay);
   const letter = new Intl.DateTimeFormat(locale, { timeZone, weekday: "narrow" });
   const number = new Intl.DateTimeFormat(locale, { timeZone, day: "numeric" });
   const label = new Intl.DateTimeFormat(locale, { timeZone, weekday: "long", day: "numeric", month: "long" });
@@ -31,8 +31,8 @@ export function weekDays(now: number, timeZone: string, locale: string): WeekDay
 }
 
 /** "26 Oct – 1 Nov": the first and last day of the week that contains `now`. */
-export function weekRange(now: number, timeZone: string, locale: string): string {
-  const first = startOfWeek(now, timeZone);
+export function weekRange(now: number, timeZone: string, locale: string, firstDay: FirstDay): string {
+  const first = startOfWeek(now, timeZone, firstDay);
   const day = new Intl.DateTimeFormat(locale, { timeZone, day: "numeric", month: "short" });
   const at = (days: number) => new Date(addDays(first, days, timeZone) + 12 * HOUR);
   return `${day.format(at(0))} – ${day.format(at(6))}`;

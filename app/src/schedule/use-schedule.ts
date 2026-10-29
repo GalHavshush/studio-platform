@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema";
 
-import { addDays, startOfDay, startOfWeek } from "./time";
+import { addDays, startOfDay, startOfWeek, type FirstDay } from "./time";
 
 export type ScheduledSession = components["schemas"]["SessionOut"];
 
@@ -20,8 +20,8 @@ type State = {
   error: boolean; // the last load failed (the screen keeps whatever it already has)
 };
 
-function empty(timezone: string): State {
-  const from = startOfWeek(Date.now(), timezone);
+function empty(timezone: string, firstDay: FirstDay): State {
+  const from = startOfWeek(Date.now(), timezone, firstDay);
   return {
     status: "loading",
     sessions: [],
@@ -65,13 +65,14 @@ function merge(a: ScheduledSession[], b: ScheduledSession[]): ScheduledSession[]
 }
 
 /**
- * The studio's sessions for the week we are in (Monday to Sunday, studio timezone), growing a week
+ * The studio's sessions for the week we are in (seven days from `firstDay`, studio timezone), growing a week
  * at a time in either direction. The list starts at today: the earlier days of this week are loaded
  * but hidden until "earlier" is used. `sessions` is what the list shows, `all` is everything loaded
- * (the week strip marks the days that have classes). `refresh` goes back to the starting window.
+ * (the week strip marks the days that have classes). `refresh` goes back to the starting window,
+ * and runs again by itself when the first day of the week changes.
  */
-export function useSchedule(timezone: string) {
-  const [state, setState] = useState<State>(() => empty(timezone));
+export function useSchedule(timezone: string, firstDay: FirstDay) {
+  const [state, setState] = useState<State>(() => empty(timezone, firstDay));
   const latest = useRef(state);
   latest.current = state;
   const busy = useRef(false); // taps while a load is running are ignored
@@ -81,7 +82,7 @@ export function useSchedule(timezone: string) {
     busy.current = true;
     const first = latest.current.status === "loading";
     if (!first) setState((s) => ({ ...s, busy: "refresh" }));
-    const from = startOfWeek(Date.now(), timezone);
+    const from = startOfWeek(Date.now(), timezone, firstDay);
     const to = addDays(from, WEEK_DAYS, timezone);
     const shownFrom = startOfDay(Date.now(), timezone);
     const [sessions, classTypeNames] = await Promise.all([
@@ -94,7 +95,7 @@ export function useSchedule(timezone: string) {
         ? { status: "ready", sessions, classTypeNames, from, to, shownFrom, busy: null, error: false }
         : { ...s, status: s.status === "loading" ? "error" : s.status, busy: null, error: true },
     );
-  }, [timezone]);
+  }, [timezone, firstDay]);
 
   const extend = useCallback(
     async (direction: "earlier" | "later") => {

@@ -53,12 +53,15 @@ export function addDays(instant: number, days: number, timeZone: string): number
   return startOfDay(startOfDay(instant, timeZone) + days * DAY + 12 * HOUR, timeZone);
 }
 
-/** The studio's Monday midnight of the week (Monday to Sunday) that contains `instant`. */
-export function startOfWeek(instant: number, timeZone: string): number {
+/** The day a week starts on, as JavaScript numbers its weekdays: 1 is Monday, 0 is Sunday. */
+export type FirstDay = 0 | 1;
+
+/** The studio's midnight that begins the week (seven days from `firstDay`) containing `instant`. */
+export function startOfWeek(instant: number, timeZone: string, firstDay: FirstDay): number {
   const p = partsIn(instant, timeZone);
-  // getUTCDay() is 0 for Sunday, so Sunday is six days after its Monday.
-  const sinceMonday = (new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay() + 6) % 7;
-  return addDays(instant, -sinceMonday, timeZone);
+  // getUTCDay() is 0 for Sunday; the +7 keeps the remainder positive when the week starts on Monday.
+  const since = (new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay() - firstDay + 7) % 7;
+  return addDays(instant, -since, timeZone);
 }
 
 /** A stable key for the studio's calendar day of `instant` ("2026-10-28"): sessions group by it. */
