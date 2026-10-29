@@ -48,12 +48,14 @@ test("each refusal of the server has its own outcome and message", () => {
   expect(attendOutcome(409, "checkin_not_open")).toBe("notOpen");
   expect(attendOutcome(409, "checkin_closed")).toBe("closed");
   expect(attendOutcome(409, "session_cancelled")).toBe("cancelled");
+  expect(attendOutcome(403, "not_your_session")).toBe("notYours");
+  expect(attendOutcome(403, "insufficient_role")).toBe("error");
   expect(attendOutcome(409, "no_participant")).toBe("error");
   expect(attendOutcome(404, "session_not_found")).toBe("error");
   expect(attendOutcome(500, undefined)).toBe("error");
 
   expect(attendMessage(t, "ok")).toBeNull();
-  const outcomes = ["notOpen", "closed", "cancelled", "unreachable", "error"] as const;
+  const outcomes = ["notOpen", "closed", "cancelled", "notYours", "unreachable", "error"] as const;
   const messages = outcomes.map((o) => attendMessage(t, o));
   expect(new Set(messages).size).toBe(outcomes.length);
 });

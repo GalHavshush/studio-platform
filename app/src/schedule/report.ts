@@ -21,6 +21,19 @@ const NO_NOTE: NoteDraft = { body: "", shared: false };
 /** Someone who came to the class, as `GET /sessions/{id}/attendees` names them. */
 export type Attendee = { participant_id: string; name: string };
 
+/** The attendees with one more person, in name order; someone already there is not added twice. */
+export function addAttendee(attendees: Attendee[], person: Attendee): Attendee[] {
+  if (attendees.some((a) => a.participant_id === person.participant_id)) return attendees;
+  return [...attendees, person].sort(
+    (a, b) => a.name.localeCompare(b.name) || a.participant_id.localeCompare(b.participant_id),
+  );
+}
+
+/** The attendees without this person. Their note is not touched: it stays in the form (see `ReportForm`). */
+export function removeAttendee(attendees: Attendee[], participantId: string): Attendee[] {
+  return attendees.filter((a) => a.participant_id !== participantId);
+}
+
 type ServerNote = { participant_id: string; body: string; shared_with_member: boolean };
 
 // `notes` holds EVERY note of the session, by participant id, not only the ones the screen shows a

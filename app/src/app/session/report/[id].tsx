@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AddAttendeeSheet } from "@/components/add-attendee-sheet";
 import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/button";
 import { Logo } from "@/components/logo";
@@ -22,6 +23,7 @@ import {
   type ReportForm,
   type SaveOutcome,
 } from "@/schedule/report";
+import { attendMessage, type AttendOutcome } from "@/schedule/attendance";
 import { useReport } from "@/schedule/use-report";
 import { radius, space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
@@ -58,7 +60,9 @@ export default function ReportScreen() {
           <Button variant="link" title={t("common.tryAgain")} onPress={report.retry} />
         </View>
       )}
-      {report.status === "ready" && <Form saved={report.saved} attendees={report.attendees} save={report.save} />}
+      {report.status === "ready" && (
+        <Form saved={report.saved} attendees={report.attendees} save={report.save} setAttended={report.setAttended} />
+      )}
     </Screen>
   );
 }
@@ -67,9 +71,10 @@ type FormProps = {
   saved: ReportForm;
   attendees: Attendee[];
   save: (form: ReportForm) => Promise<SaveOutcome>;
+  setAttended: (person: Attendee, attended: boolean) => Promise<AttendOutcome>;
 };
 
-function Form({ saved, attendees, save }: FormProps) {
+function Form({ saved, attendees, save, setAttended }: FormProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const navigation = useNavigation();
@@ -80,6 +85,8 @@ function Form({ saved, attendees, save }: FormProps) {
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [attendNote, setAttendNote] = useState<string | null>(null);
 
   // Leaving with unsaved text asks first. After a save `done` lifts the guard, and only then the
   // screen is left (the effect runs after the render that lifted it).
@@ -100,6 +107,17 @@ function Form({ saved, attendees, save }: FormProps) {
     setSaving(false);
     if (outcome === "ok") setDone(true);
     else setMessage(saveMessage(t, outcome));
+  }
+
+  function remove(person: Attendee) {
+    Alert.alert(t("report.removeTitle", { name: person.name }), t("report.removeMessage"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("report.removeConfirm"),
+        style: "destructive",
+        onPress: async () => setAttendNote(attendMessage(t, await setAttended(person, false))),
+      },
+    ]);
   }
 
   const blank = !canSave(form);
@@ -126,6 +144,12 @@ function Form({ saved, attendees, save }: FormProps) {
         <View style={styles.notes}>
           <Text variant="eyebrow">{t("report.notes")}</Text>
           <Text color="textMuted">{t("report.notesHint")}</Text>
+          <Button variant="choice" title={t("report.addSomeone")} onPress={() => { setAttendNote(null); setAdding(true); }} />
+          {attendNote && (
+            <Text color="danger" accessibilityRole="alert">
+              {attendNote}
+            </Text>
+          )}
           {attendees.length === 0 && <Text color="textMuted">{t("report.noAttendees")}</Text>}
           {attendees.map((a) => {
             const note = noteFor(form, a.participant_id);
@@ -151,6 +175,7 @@ function Form({ saved, attendees, save }: FormProps) {
                     trackColor={{ false: colors.border, true: colors.primary }}
                   />
                 </View>
+                <Button variant="link" title={t("report.remove", { name: a.name })} onPress={() => remove(a)} />
               </View>
             );
           })}
@@ -168,6 +193,13 @@ function Form({ saved, attendees, save }: FormProps) {
           disabled={blank || !isDirty(form, saved)}
         />
       </ScrollView>
+      {adding && (
+        <AddAttendeeSheet
+          attendees={attendees}
+          onPick={(person) => setAttended(person, true)}
+          onClose={() => setAdding(false)}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }

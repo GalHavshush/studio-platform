@@ -38,13 +38,14 @@ export function attendanceText(t: Translator, myAttended: boolean | null): strin
   return t(myAttended ? "attendance.youCame" : "attendance.youDidNot");
 }
 
-export type AttendOutcome = "ok" | "notOpen" | "closed" | "cancelled" | "unreachable" | "error";
+export type AttendOutcome = "ok" | "notOpen" | "closed" | "cancelled" | "notYours" | "unreachable" | "error";
 
 /** What a refused answer is called, from the status and the `detail` code of the error body. */
 export function attendOutcome(status: number, detail: unknown): AttendOutcome {
   if (status === 409 && detail === "checkin_not_open") return "notOpen";
   if (status === 409 && detail === "checkin_closed") return "closed";
   if (status === 409 && detail === "session_cancelled") return "cancelled";
+  if (status === 403 && detail === "not_your_session") return "notYours"; // a coach marking someone on another coach's class
   return "error";
 }
 
@@ -59,6 +60,8 @@ export function attendMessage(t: Translator, outcome: AttendOutcome): string | n
       return t("attendance.closed");
     case "cancelled":
       return t("session.cancelled");
+    case "notYours":
+      return t("attendance.notYours");
     case "unreachable":
       return t("common.cantReach");
     case "error":

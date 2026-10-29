@@ -2,7 +2,17 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api } from "@/api/client";
 
-import { formFromReport, saveOutcome, toPayload, type Attendee, type ReportForm, type SaveOutcome } from "./report";
+import { attendOutcome, type AttendOutcome } from "./attendance";
+import {
+  addAttendee,
+  formFromReport,
+  removeAttendee,
+  saveOutcome,
+  toPayload,
+  type Attendee,
+  type ReportForm,
+  type SaveOutcome,
+} from "./report";
 
 type State =
   | { status: "loading" }
@@ -67,5 +77,35 @@ export function useReport(id: string) {
     [id],
   );
 
-  return { ...state, retry: load, save };
+  // Marks someone as having come (or not), then updates the list of attendees in place. The report
+  // is NOT reloaded: that would throw away what the coach has typed and not saved yet.
+  const setAttended = useCallback(
+    async (person: Attendee, attended: boolean): Promise<AttendOutcome> => {
+      try {
+        const { error, response } = await api.POST("/sessions/{session_id}/attendance", {
+          params: { path: { session_id: id } },
+          body: { attended, participant_id: person.participant_id },
+        });
+        if (response.ok) {
+          setState((s) =>
+            s.status === "ready"
+              ? {
+                  ...s,
+                  attendees: attended
+                    ? addAttendee(s.attendees, person)
+                    : removeAttendee(s.attendees, person.participant_id),
+                }
+              : s,
+          );
+          return "ok";
+        }
+        return attendOutcome(response.status, (error as { detail?: unknown } | undefined)?.detail);
+      } catch {
+        return "unreachable"; // fetch throws when there is no answer at all
+      }
+    },
+    [id],
+  );
+
+  return { ...state, retry: load, save, setAttended };
 }
