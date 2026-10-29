@@ -1,5 +1,6 @@
 import { Tabs } from "expo-router/js-tabs";
 
+import { isStaff } from "@/auth/role";
 import { useSession } from "@/auth/session";
 import { TabBar } from "@/components/tab-bar";
 import { useT } from "@/i18n/use-language";
@@ -18,8 +19,8 @@ export default function TabsLayout() {
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.background } }}
     >
       <Tabs.Screen name="index" options={{ title: t("tabs.schedule") }} />
-      {/* Only someone who has a participant in this studio has a timeline of their own. */}
-      <Tabs.Screen name="timeline" options={{ title: t("tabs.timeline"), href: studio?.participantId ? undefined : null }} />
+      {/* Someone with a participant has a timeline of their own; staff have reports to write. */}
+      <Tabs.Screen name="timeline" options={{ title: t("tabs.timeline"), href: studio?.participantId || (studio && isStaff(studio.role)) ? undefined : null }} />
       <Tabs.Screen name="settings" options={{ title: t("tabs.settings") }} />
     </Tabs>
   );

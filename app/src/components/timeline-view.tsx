@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -20,11 +20,13 @@ type Props = {
   name?: string;
   // true when this is the member's own timeline in the tab bar: no back button, room for the bar
   tab?: boolean;
+  // shown above the timeline (the staff's reports to write), whatever state the timeline is in
+  header?: ReactNode;
 };
 
 // A person's classes, newest first. Used as the "Timeline" tab (your own) and as a screen above the
 // tabs (staff opening someone else's).
-export function TimelineView({ id, name, tab = false }: Props) {
+export function TimelineView({ id, name, tab = false, header }: Props) {
   const { studio } = useSession();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -35,63 +37,64 @@ export function TimelineView({ id, name, tab = false }: Props) {
 
   return (
     <Screen>
-      <PageHeader title={t("timeline.title")} subtitle={name} backLabel={tab ? undefined : t("timeline.back")} />
+      <PageHeader title={tab ? t("tabs.timeline") : t("timeline.title")} subtitle={name} backLabel={tab ? undefined : t("timeline.back")} />
 
-      {timeline.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
-      {timeline.status === "notFound" && (
-        <View style={styles.center}>
-          <Text>{t("timeline.notAvailable")}</Text>
-        </View>
-      )}
-      {timeline.status === "error" && (
-        <View style={styles.center}>
-          <Text color="danger" accessibilityRole="alert">
-            {t("timeline.loadError")}
-          </Text>
-          <Button variant="link" title={t("common.tryAgain")} onPress={timeline.retry} />
-        </View>
-      )}
-      {timeline.status === "ready" && studio && (
-        <FlatList
-          data={timeline.items}
-          keyExtractor={(e) => e.session_id}
-          contentContainerStyle={{
-            padding: space.xl,
-            paddingBottom: insets.bottom + space.xl + (tab ? TAB_BAR_SPACE : 0),
-          }}
-          ItemSeparatorComponent={() => <View style={styles.gap} />}
-          renderItem={({ item }) => <TimelineCard entry={item} timeZone={studio.timezone} now={now} />}
-          ListEmptyComponent={
+      {/* One list, always mounted: the header (reports to write) must not remount when the timeline
+          finishes loading, or it would reload and lose the weeks "Show earlier" added. */}
+      <FlatList
+        data={timeline.status === "ready" && studio ? timeline.items : []}
+        keyExtractor={(e) => e.session_id}
+        contentContainerStyle={{
+          padding: space.xl,
+          paddingBottom: insets.bottom + space.xl + (tab ? TAB_BAR_SPACE : 0),
+        }}
+        ListHeaderComponent={header ? <View style={styles.headerGap}>{header}</View> : undefined}
+        ItemSeparatorComponent={() => <View style={styles.gap} />}
+        renderItem={({ item }) => <TimelineCard entry={item} timeZone={studio?.timezone ?? "UTC"} now={now} />}
+        ListEmptyComponent={
+          timeline.status === "loading" ? (
+            <ActivityIndicator style={styles.empty} color={colors.textMuted} />
+          ) : timeline.status === "notFound" ? (
+            <Text style={styles.empty}>{t("timeline.notAvailable")}</Text>
+          ) : timeline.status === "error" ? (
+            <View style={styles.center}>
+              <Text color="danger" accessibilityRole="alert">
+                {t("timeline.loadError")}
+              </Text>
+              <Button variant="link" title={t("common.tryAgain")} onPress={timeline.retry} />
+            </View>
+          ) : (
             <Text color="textMuted" style={styles.empty}>
               {t("timeline.empty")}
             </Text>
-          }
-          ListFooterComponent={
-            timeline.next ? (
-              <View style={styles.footer}>
-                {timeline.more === "failed" && (
-                  <Text color="danger" accessibilityRole="alert">
-                    {t("timeline.moreError")}
-                  </Text>
-                )}
-                <Button
-                  variant="outline"
-                  title={t("schedule.showEarlier")}
-                  busy={timeline.more === "busy"}
-                  onPress={timeline.showMore}
-                />
-              </View>
-            ) : undefined
-          }
-        />
-      )}
+          )
+        }
+        ListFooterComponent={
+          timeline.status === "ready" && timeline.next ? (
+            <View style={styles.footer}>
+              {timeline.more === "failed" && (
+                <Text color="danger" accessibilityRole="alert">
+                  {t("timeline.moreError")}
+                </Text>
+              )}
+              <Button
+                variant="outline"
+                title={t("schedule.showEarlier")}
+                busy={timeline.more === "busy"}
+                onPress={timeline.showMore}
+              />
+            </View>
+          ) : undefined
+        }
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
+  center: { alignItems: "center", gap: space.sm, padding: space.xl },
   gap: { height: space.md },
+  headerGap: { paddingBottom: space.xl },
   empty: { textAlign: "center", padding: space.xl },
   footer: { alignItems: "center", gap: space.sm, paddingTop: space.lg },
 });
