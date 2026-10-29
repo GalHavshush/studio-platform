@@ -13,6 +13,8 @@ type Props = {
   selected?: boolean;
   busy?: boolean;
   disabled?: boolean;
+  // a link that does something that cannot be undone, in the danger colour
+  danger?: boolean;
 };
 
 export function Button({
@@ -22,6 +24,7 @@ export function Button({
   selected = false,
   busy = false,
   disabled = false,
+  danger = false,
 }: Props) {
   const { colors } = useTheme();
   const off = disabled || busy;
@@ -52,7 +55,7 @@ export function Button({
       ) : (
         <Text
           variant="label"
-          color={filled ? "onPrimary" : variant === "choice" ? "text" : "textMuted"}
+          color={filled ? "onPrimary" : variant === "choice" ? "text" : danger ? "danger" : "textMuted"}
           style={variant === "link" ? styles.linkText : variant === "outline" ? undefined : styles.large}
         >
           {title}
