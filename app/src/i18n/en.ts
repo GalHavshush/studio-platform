@@ -85,6 +85,7 @@ export const en = {
   "report.share": "Share with {name}",
   "report.noAttendees": "Nobody has been marked as attended yet.",
   "report.addSomeone": "Add someone",
+  "report.timeline": "Timeline",
   "report.remove": "Remove {name}",
   "report.removeTitle": "Remove {name} from the attendees?",
   "report.removeMessage": "Their note stays, hidden, until you add them again.",
@@ -114,6 +115,7 @@ export const en = {
 
   "timeline.title": "Timeline",
   "timeline.mine": "My timeline",
+  "timeline.of": "{name}, open their timeline",
   "timeline.back": "Back",
   "timeline.empty": "Nothing here yet.",
   "timeline.loadError": "Couldn't load the timeline.",

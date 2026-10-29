@@ -1,4 +1,4 @@
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { Text } from "@/components/text";
 import { useT } from "@/i18n/use-language";
@@ -6,13 +6,20 @@ import { radius, space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
 // One name in the "who is coming" list. People on the waiting list also show their place in line.
-export function PersonRow({ name, position }: { name: string; position?: number | null }) {
+// With `onPress` the row opens that person's timeline and shows a chevron, like a schedule row.
+type Props = { name: string; position?: number | null; onPress?: () => void };
+
+export function PersonRow({ name, position, onPress }: Props) {
   const { colors } = useTheme();
   const t = useT();
+  const label = position ? t("session.personInLine", { name, position }) : name;
   return (
-    <View
+    <Pressable
       accessible
-      accessibilityLabel={position ? t("session.personInLine", { name, position }) : name}
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={onPress ? t("timeline.of", { name }) : label}
+      disabled={!onPress}
+      onPress={onPress}
       style={[styles.row, { backgroundColor: colors.surface }]}
     >
       <Text variant="label" style={styles.name}>
@@ -23,7 +30,12 @@ export function PersonRow({ name, position }: { name: string; position?: number 
           <Text variant="caption">{position}</Text>
         </View>
       ) : null}
-    </View>
+      {onPress && (
+        <Text variant="title" color="textMuted">
+          ›
+        </Text>
+      )}
+    </Pressable>
   );
 }
 
