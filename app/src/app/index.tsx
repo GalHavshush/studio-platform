@@ -166,6 +166,11 @@ function Schedule(props: Props) {
       <AccountSheet
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
+        onTimeline={
+          studio.participantId
+            ? () => router.push({ pathname: "/timeline/[id]", params: { id: studio.participantId! } })
+            : undefined
+        }
         onSwitchStudio={props.canSwitch ? props.onSwitch : undefined}
         onSignOut={props.onSignOut}
       />

@@ -27,6 +27,8 @@ export type Studio = {
   role: string;
   timezone: string;
   modules: string[];
+  // who they are in this studio (what their timeline hangs on); null if the API names none
+  participantId: string | null;
 };
 // What choosing a studio can end in; the picker turns a failure into a message.
 export type SelectResult = "ok" | "unreachable" | "error";
@@ -69,6 +71,7 @@ async function fetchStudio(me: Me, id: string): Promise<Studio | SelectResult> {
         role: membership.role,
         timezone: data.timezone,
         modules: data.modules,
+        participantId: membership.participant_id,
       };
     }
   } catch {
