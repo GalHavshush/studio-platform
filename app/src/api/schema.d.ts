@@ -234,6 +234,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/participants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Participants
+         * @description Search the studio's participants by name, for coaches and owners (a member gets
+         *     `403 insufficient_role`).
+         *
+         *     `q` matches anywhere in the name, ignoring letter case; `%` and `_` in it are ordinary
+         *     characters, not wildcards. An empty `q` lists the first names alphabetically, so a picker has
+         *     something to show. At most `limit` results (default 20, at most 50): narrow `q` to find
+         *     someone else, there is no next page. Only this studio's participants, by name and never email.
+         *     A deleted account (its participant is renamed "Deleted user") is left out; a participant
+         *     without an account (a kid, step 47) is kept.
+         *     ponytail: anyone with a participant row is searchable, member or not; filter by membership
+         *     when members can be removed (step 50b).
+         */
+        get: operations["search_participants_participants_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/participants/{participant_id}/notes": {
         parameters: {
             query?: never;
@@ -766,6 +796,19 @@ export interface components {
             participant_id: string;
             /** Shared With Member */
             shared_with_member: boolean;
+        };
+        /**
+         * ParticipantHit
+         * @description A search result: just enough to pick the person. Never an email.
+         */
+        ParticipantHit: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
         };
         /** RefreshRequest */
         RefreshRequest: {
@@ -1493,6 +1536,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_participants_participants_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                limit?: number;
+            };
+            header?: {
+                "x-tenant-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParticipantHit"][];
+                };
             };
             /** @description Validation Error */
             422: {

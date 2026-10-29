@@ -465,6 +465,26 @@
         "title": "NoteOut",
         "type": "object"
       },
+      "ParticipantHit": {
+        "description": "A search result: just enough to pick the person. Never an email.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "ParticipantHit",
+        "type": "object"
+      },
       "RefreshRequest": {
         "properties": {
           "refresh_token": {
@@ -1934,6 +1954,88 @@
         "summary": "Me",
         "tags": [
           "me"
+        ]
+      }
+    },
+    "/participants": {
+      "get": {
+        "description": "Search the studio's participants by name, for coaches and owners (a member gets\n`403 insufficient_role`).\n\n`q` matches anywhere in the name, ignoring letter case; `%` and `_` in it are ordinary\ncharacters, not wildcards. An empty `q` lists the first names alphabetically, so a picker has\nsomething to show. At most `limit` results (default 20, at most 50): narrow `q` to find\nsomeone else, there is no next page. Only this studio's participants, by name and never email.\nA deleted account (its participant is renamed \"Deleted user\") is left out; a participant\nwithout an account (a kid, step 47) is kept.\nponytail: anyone with a participant row is searchable, member or not; filter by membership\nwhen members can be removed (step 50b).",
+        "operationId": "search_participants_participants_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 100,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ParticipantHit"
+                  },
+                  "title": "Response Search Participants Participants Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Search Participants",
+        "tags": [
+          "participants"
         ]
       }
     },
