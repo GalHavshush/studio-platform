@@ -57,6 +57,25 @@
         "title": "AttendanceOut",
         "type": "object"
       },
+      "Attendee": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "participant_id": {
+            "format": "uuid",
+            "title": "Participant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "participant_id",
+          "name"
+        ],
+        "title": "Attendee",
+        "type": "object"
+      },
       "ClassTypeIn": {
         "properties": {
           "attendance_mode": {
@@ -2448,6 +2467,75 @@
           }
         ],
         "summary": "Record Attendance",
+        "tags": [
+          "attendance"
+        ]
+      }
+    },
+    "/sessions/{session_id}/attendees": {
+      "get": {
+        "description": "Who came to a session, for coaches and owners (a member gets `403 insufficient_role`).\n\nEveryone whose attendance is recorded as `attended: true`, by name (never email), with or\nwithout an RSVP: someone who walked in and was marked present is here, someone who said\n\"going\" and was not marked is not. `attended: false` and \"not recorded\" are left out. Any\ncoach reads any class's list, like the RSVP list and the reports. A cancelled session can still\nbe read. A session of another studio gets the same `404 session_not_found` as a missing one.",
+        "operationId": "list_attendees_sessions__session_id__attendees_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Attendee"
+                  },
+                  "title": "Response List Attendees Sessions  Session Id  Attendees Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Attendees",
         "tags": [
           "attendance"
         ]

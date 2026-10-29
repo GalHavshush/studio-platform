@@ -396,6 +396,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sessions/{session_id}/attendees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Attendees
+         * @description Who came to a session, for coaches and owners (a member gets `403 insufficient_role`).
+         *
+         *     Everyone whose attendance is recorded as `attended: true`, by name (never email), with or
+         *     without an RSVP: someone who walked in and was marked present is here, someone who said
+         *     "going" and was not marked is not. `attended: false` and "not recorded" are left out. Any
+         *     coach reads any class's list, like the RSVP list and the reports. A cancelled session can still
+         *     be read. A session of another studio gets the same `404 session_not_found` as a missing one.
+         */
+        get: operations["list_attendees_sessions__session_id__attendees_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sessions/{session_id}/cancel": {
         parameters: {
             query?: never;
@@ -572,6 +598,16 @@ export interface components {
              * Format: uuid
              */
             session_id: string;
+        };
+        /** Attendee */
+        Attendee: {
+            /** Name */
+            name: string;
+            /**
+             * Participant Id
+             * Format: uuid
+             */
+            participant_id: string;
         };
         /** ClassTypeIn */
         ClassTypeIn: {
@@ -1701,6 +1737,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttendanceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_attendees_sessions__session_id__attendees_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Attendee"][];
                 };
             };
             /** @description Validation Error */
