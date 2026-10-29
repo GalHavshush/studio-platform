@@ -115,6 +115,11 @@ async def _list_attendees(client, headers):
     return await client.get(f"/sessions/{uuid.uuid4()}/attendees", headers=headers)
 
 
+async def _report_queue(client, headers):
+    params = {"from": "2026-10-01T00:00:00+00:00", "to": "2026-10-08T00:00:00+00:00"}
+    return await client.get("/report-queue", params=params, headers=headers)
+
+
 async def _search_participants(client, headers):
     return await client.get("/participants", params={"q": "a"}, headers=headers)
 
@@ -135,6 +140,7 @@ TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
     ("GET", "/sessions/{session_id}/rsvps"): _list_rsvps,
     ("POST", "/sessions/{session_id}/attendance"): _attendance,
     ("GET", "/sessions/{session_id}/attendees"): _list_attendees,
+    ("GET", "/report-queue"): _report_queue,
     ("PUT", "/sessions/{session_id}/report"): _write_report,
     ("GET", "/sessions/{session_id}/report"): _read_report,
     ("GET", "/participants"): _search_participants,

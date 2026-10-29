@@ -12,6 +12,7 @@ from app.class_types import router as class_types_router
 from app.db import get_session
 from app.me import router as me_router
 from app.participants import router as participants_router
+from app.report_queue import router as report_queue_router
 from app.reports import router as reports_router
 from app.sessions import router as sessions_router
 from app.tenant import router as tenant_router
@@ -26,6 +27,7 @@ app.include_router(sessions_router)  # one occurrence of a class: when, and who 
 app.include_router(bookings_router)  # RSVPs, seats and the waitlist
 app.include_router(attendance_router)  # who actually came
 app.include_router(reports_router)  # the coach's report on a session
+app.include_router(report_queue_router)  # the classes whose report a coach can write
 app.include_router(participants_router)  # what the studio knows about a participant
 app.include_router(timeline_router)  # a participant's history, class by class
 
