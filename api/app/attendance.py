@@ -11,10 +11,12 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.deps import TenantCtx, is_staff
+from app.deps import TenantContext, TenantCtx, is_staff, require_role
 from app.models import ClassSession, Participant, Rsvp
 
 router = APIRouter(prefix="/sessions", tags=["attendance"])
+
+CoachCtx = Annotated[TenantContext, Depends(require_role("coach"))]
 
 # Check-in opens this long before a session starts and stays open afterwards. Not a studio
 # setting yet. ponytail: make it per-studio if studios need different windows.
@@ -121,3 +123,42 @@ async def record_attendance(
         attended=body.attended,
         confirmed_at=now,
     )
+
+
+class Attendee(BaseModel):
+    participant_id: uuid.UUID
+    name: str
+
+
+@router.get("/{session_id}/attendees")
+async def list_attendees(
+    session_id: uuid.UUID,
+    ctx: CoachCtx,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[Attendee]:
+    """Who came to a session, for coaches and owners (a member gets `403 insufficient_role`).
+
+    Everyone whose attendance is recorded as `attended: true`, by name (never email), with or
+    without an RSVP: someone who walked in and was marked present is here, someone who said
+    "going" and was not marked is not. `attended: false` and "not recorded" are left out. Any
+    coach reads any class's list, like the RSVP list and the reports. A cancelled session can still
+    be read. A session of another studio gets the same `404 session_not_found` as a missing one.
+    """
+    exists = await session.scalar(
+        select(ClassSession.id).where(
+            ClassSession.id == session_id, ClassSession.tenant_id == ctx.tenant_id
+        )
+    )
+    if exists is None:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    rows = await session.execute(
+        select(Rsvp.participant_id, Participant.name)
+        .join(Participant, Participant.id == Rsvp.participant_id)
+        .where(
+            Rsvp.session_id == session_id,
+            Rsvp.tenant_id == ctx.tenant_id,
+            Rsvp.attended.is_(True),
+        )
+        .order_by(Participant.name, Rsvp.participant_id)
+    )
+    return [Attendee(participant_id=r.participant_id, name=r.name) for r in rows]

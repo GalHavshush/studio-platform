@@ -57,6 +57,25 @@
         "title": "AttendanceOut",
         "type": "object"
       },
+      "Attendee": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "participant_id": {
+            "format": "uuid",
+            "title": "Participant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "participant_id",
+          "name"
+        ],
+        "title": "Attendee",
+        "type": "object"
+      },
       "ClassTypeIn": {
         "properties": {
           "attendance_mode": {
@@ -444,6 +463,26 @@
           "shared_with_member"
         ],
         "title": "NoteOut",
+        "type": "object"
+      },
+      "ParticipantHit": {
+        "description": "A search result: just enough to pick the person. Never an email.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "ParticipantHit",
         "type": "object"
       },
       "RefreshRequest": {
@@ -1918,6 +1957,88 @@
         ]
       }
     },
+    "/participants": {
+      "get": {
+        "description": "Search the studio's participants by name, for coaches and owners (a member gets\n`403 insufficient_role`).\n\n`q` matches anywhere in the name, ignoring letter case; `%` and `_` in it are ordinary\ncharacters, not wildcards. An empty `q` lists the first names alphabetically, so a picker has\nsomething to show. At most `limit` results (default 20, at most 50): narrow `q` to find\nsomeone else, there is no next page. Only this studio's participants, by name and never email.\nA deleted account (its participant is renamed \"Deleted user\") is left out; a participant\nwithout an account (a kid, step 47) is kept.\nponytail: anyone with a participant row is searchable, member or not; filter by membership\nwhen members can be removed (step 50b).",
+        "operationId": "search_participants_participants_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 100,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ParticipantHit"
+                  },
+                  "title": "Response Search Participants Participants Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Search Participants",
+        "tags": [
+          "participants"
+        ]
+      }
+    },
     "/participants/{participant_id}/notes": {
       "get": {
         "description": "The notes written about a participant, newest first. What you get depends on your role:\n\n- **Coach or owner:** every note about any participant of the studio (any coach reads all\n  notes), with who wrote each and whether it is shared.\n- **Member:** only their own participant, and only the notes a coach shared with them, without\n  author or flag. The filter is in the query, so a private note is never even fetched.\n\nA participant of another studio, a missing one, and (for a member) anyone but themselves all\nget the same `404 participant_not_found`, so ids cannot be probed. A member with nothing shared\ngets `200 []`, which looks the same as having no notes at all.\nponytail: no pagination yet; the timeline (step 32) brings cursor pagination.",
@@ -2448,6 +2569,75 @@
           }
         ],
         "summary": "Record Attendance",
+        "tags": [
+          "attendance"
+        ]
+      }
+    },
+    "/sessions/{session_id}/attendees": {
+      "get": {
+        "description": "Who came to a session, for coaches and owners (a member gets `403 insufficient_role`).\n\nEveryone whose attendance is recorded as `attended: true`, by name (never email), with or\nwithout an RSVP: someone who walked in and was marked present is here, someone who said\n\"going\" and was not marked is not. `attended: false` and \"not recorded\" are left out. Any\ncoach reads any class's list, like the RSVP list and the reports. A cancelled session can still\nbe read. A session of another studio gets the same `404 session_not_found` as a missing one.",
+        "operationId": "list_attendees_sessions__session_id__attendees_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Attendee"
+                  },
+                  "title": "Response List Attendees Sessions  Session Id  Attendees Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Attendees",
         "tags": [
           "attendance"
         ]

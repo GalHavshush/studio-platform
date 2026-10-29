@@ -4,16 +4,28 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, ConfigDict, StringConstraints
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.deps import TenantCtx, is_staff
-from app.models import Participant, ParticipantNote
+from app.deps import TenantContext, TenantCtx, is_staff, require_role
+from app.models import Participant, ParticipantNote, User
+from app.text import NoNul
 
 router = APIRouter(prefix="/participants", tags=["participants"])
+
+CoachCtx = Annotated[TenantContext, Depends(require_role("coach"))]
+
+SearchText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100), NoNul]
+
+
+class ParticipantHit(BaseModel):
+    """A search result: just enough to pick the person. Never an email."""
+
+    id: uuid.UUID
+    name: str
 
 
 class StaffNote(BaseModel):
@@ -80,3 +92,35 @@ async def list_notes(
     if staff:
         return [StaffNote.model_validate(row) for row in rows]
     return [MemberNote.model_validate(row) for row in rows]
+
+
+@router.get("")
+async def search_participants(
+    ctx: CoachCtx,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    q: SearchText = "",
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+) -> list[ParticipantHit]:
+    """Search the studio's participants by name, for coaches and owners (a member gets
+    `403 insufficient_role`).
+
+    `q` matches anywhere in the name, ignoring letter case; `%` and `_` in it are ordinary
+    characters, not wildcards. An empty `q` lists the first names alphabetically, so a picker has
+    something to show. At most `limit` results (default 20, at most 50): narrow `q` to find
+    someone else, there is no next page. Only this studio's participants, by name and never email.
+    A deleted account (its participant is renamed "Deleted user") is left out; a participant
+    without an account (a kid, step 47) is kept.
+    ponytail: anyone with a participant row is searchable, member or not; filter by membership
+    when members can be removed (step 50b).
+    """
+    hits = (
+        select(Participant.id, Participant.name)
+        # Outer join: someone without an account has no user row, so `deleted_at` is NULL and they stay.
+        .outerjoin(User, User.id == Participant.user_id)
+        .where(Participant.tenant_id == ctx.tenant_id, User.deleted_at.is_(None))
+        .order_by(Participant.name, Participant.id)
+        .limit(limit)
+    )
+    if q:
+        hits = hits.where(Participant.name.icontains(q, autoescape=True))
+    return [ParticipantHit(id=r.id, name=r.name) for r in await session.execute(hits)]
