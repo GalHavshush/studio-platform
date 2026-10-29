@@ -32,7 +32,12 @@ export const en = {
   "studios.none": "You are not a member of any studio yet.",
   "studios.cardLabel": "{name}, {role}",
 
-  "account.close": "Close",
+  "tabs.schedule": "Schedule",
+  "tabs.timeline": "Timeline",
+  "tabs.settings": "Settings",
+
+  "settings.title": "Settings",
+
   "account.switchStudio": "Switch studio",
   "account.appearance": "Appearance",
   "account.language": "Language",
@@ -40,7 +45,6 @@ export const en = {
   "appearance.light": "Light",
   "appearance.dark": "Dark",
 
-  "schedule.accountMenu": "Account menu",
   "schedule.loadError": "Couldn't load the schedule.",
   "schedule.loadMoreError": "Couldn't load. Try again.",
   "schedule.showEarlier": "Show earlier",
@@ -127,7 +131,6 @@ export const en = {
   "delete.noPassword": "This account has no password to confirm with, so it can't be deleted from the app yet.",
 
   "timeline.title": "Timeline",
-  "timeline.mine": "My timeline",
   "timeline.of": "{name}, open their timeline",
   "timeline.back": "Back",
   "timeline.empty": "Nothing here yet.",
