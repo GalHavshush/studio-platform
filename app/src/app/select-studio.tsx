@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/button";
-import { Logo } from "@/components/logo";
 import { Pill } from "@/components/pill";
 import { Hero, Screen, Sheet } from "@/components/screen";
 import { Text } from "@/components/text";
@@ -40,8 +39,7 @@ export default function SelectStudio() {
 
   return (
     <Screen accent>
-      <Hero>
-        <Logo size={96} />
+      <Hero logoSize={360}>
         <Text variant="display" color="onAccent">
           {t(memberships.length === 0 ? "studios.titleNone" : "studios.title")}
         </Text>

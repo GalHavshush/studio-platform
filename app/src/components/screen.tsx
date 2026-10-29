@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Logo } from "@/components/logo";
 import { radius, space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
@@ -10,27 +11,32 @@ import { useTheme } from "@/theme/use-theme";
 export function Screen({ children, accent = false }: { children: ReactNode; accent?: boolean }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.screen, { backgroundColor: accent ? colors.accent : colors.background }]}>
+    <View
+      style={[styles.screen, { backgroundColor: accent ? colors.accent : colors.background }, accent && styles.clip]}
+    >
       {children}
     </View>
   );
 }
 
-// The orange block at the top. By default it grows to fill the space the sheet below leaves; with
-// `compact` it is only as tall as its content and has rounded bottom corners (a page header).
-export function Hero({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
-  const { colors } = useTheme();
+// The tall orange block on sign in and choose studio. It grows to fill the space the sheet below
+// leaves. With `logoSize` the logo mark is drawn large behind the content, bleeding off the right edge
+// and tucked under the sheet (the sheet is later in the layer order), so the figure seems to rise
+// out of it.
+export function Hero({ children, logoSize }: { children: ReactNode; logoSize?: number }) {
   const insets = useSafeAreaInsets();
   return (
-    <View
-      style={[
-        compact ? styles.compact : styles.fill,
-        { backgroundColor: colors.accent, paddingTop: insets.top + space.lg },
-      ]}
-    >
+    <View style={[styles.fill, { paddingTop: insets.top + space.lg }, !logoSize && styles.clip]}>
       {/* The hero is orange in light and dark mode, so its status bar content is always dark. */}
       <StatusBar style="dark" />
-      {children}
+      {logoSize ? (
+        <Logo
+          mark
+          size={logoSize}
+          style={{ position: "absolute", right: -logoSize * 0.14, bottom: -logoSize * 0.13 }}
+        />
+      ) : null}
+      <View style={styles.content}>{children}</View>
     </View>
   );
 }
@@ -56,21 +62,14 @@ const styles = StyleSheet.create({
   fill: {
     flexGrow: 1,
     flexShrink: 1,
-    justifyContent: "flex-end",
-    overflow: "hidden",
     paddingHorizontal: space.xl,
     paddingBottom: space.xl,
-    gap: space.xl,
+    zIndex: 1,
   },
-  compact: {
-    borderBottomLeftRadius: radius.xl,
-    borderBottomRightRadius: radius.xl,
-    overflow: "hidden",
-    paddingHorizontal: space.xl,
-    paddingBottom: space.xl,
-    gap: space.lg,
-  },
+  clip: { overflow: "hidden" },
+  content: { gap: space.xl, zIndex: 1 },
   sheet: {
+    zIndex: 2,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     paddingHorizontal: space.xl,

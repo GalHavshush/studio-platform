@@ -3,10 +3,9 @@ import { ActivityIndicator, FlatList, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSession } from "@/auth/session";
-import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/button";
-import { Logo } from "@/components/logo";
-import { Hero, Screen } from "@/components/screen";
+import { PageHeader } from "@/components/page-header";
+import { Screen } from "@/components/screen";
 import { TAB_BAR_SPACE } from "@/components/tab-bar";
 import { Text } from "@/components/text";
 import { TimelineCard } from "@/components/timeline-card";
@@ -36,22 +35,7 @@ export function TimelineView({ id, name, tab = false }: Props) {
 
   return (
     <Screen>
-      <Hero compact>
-        <View style={[styles.top, tab && styles.topEnd]}>
-          {!tab && <BackButton label={t("timeline.back")} />}
-          <Logo size={64} />
-        </View>
-        <View style={styles.titles}>
-          <Text variant="display" color="onAccent">
-            {t("timeline.title")}
-          </Text>
-          {name && (
-            <Text variant="title" color="onAccent">
-              {name}
-            </Text>
-          )}
-        </View>
-      </Hero>
+      <PageHeader title={t("timeline.title")} subtitle={name} backLabel={tab ? undefined : t("timeline.back")} />
 
       {timeline.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
       {timeline.status === "notFound" && (
@@ -106,9 +90,6 @@ export function TimelineView({ id, name, tab = false }: Props) {
 }
 
 const styles = StyleSheet.create({
-  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  topEnd: { justifyContent: "flex-end" },
-  titles: { gap: space.sm },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
   gap: { height: space.md },
   empty: { textAlign: "center", padding: space.xl },

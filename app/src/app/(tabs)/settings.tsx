@@ -5,8 +5,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSession } from "@/auth/session";
 import { Button } from "@/components/button";
 import { DeleteAccountSheet } from "@/components/delete-account-sheet";
-import { Logo } from "@/components/logo";
-import { Hero, Screen } from "@/components/screen";
+import { PageHeader } from "@/components/page-header";
+import { Screen } from "@/components/screen";
 import { TAB_BAR_SPACE } from "@/components/tab-bar";
 import { Text } from "@/components/text";
 import { LANGUAGES } from "@/i18n/translate";
@@ -32,14 +32,7 @@ export default function Settings() {
 
   return (
     <Screen>
-      <Hero compact>
-        <View style={styles.top}>
-          <Logo size={64} />
-        </View>
-        <Text variant="display" color="onAccent">
-          {t("settings.title")}
-        </Text>
-      </Hero>
+      <PageHeader title={t("settings.title")} />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xl + TAB_BAR_SPACE }]}
@@ -103,7 +96,6 @@ export default function Settings() {
 }
 
 const styles = StyleSheet.create({
-  top: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end" },
   content: { padding: space.xl, gap: space.xl },
   group: { gap: space.md },
   options: { flexDirection: "row", gap: space.sm },
