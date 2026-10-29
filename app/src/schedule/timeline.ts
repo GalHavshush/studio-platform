@@ -1,0 +1,69 @@
+// The display rules of a person's timeline, kept apart from the screen so they can be tested.
+// Every function that words something takes the translator `t` first.
+import type { Translator } from "@/i18n/translate";
+
+// One note as the timeline shows it. A member's notes have only the first three fields: the
+// server leaves out the author and the flag for them, and the app shows what is there.
+export type TimelineNote = {
+  id: string;
+  body: string;
+  created_at: string;
+  author_name?: string;
+  shared_with_member?: boolean;
+};
+
+export type TimelineEntry = {
+  session_id: string;
+  starts_at: string;
+  class_type_name: string;
+  status: string;
+  booking: string | null;
+  attended: boolean | null;
+  summary: string | null;
+  notes: TimelineNote[];
+};
+
+export type EntryStatus = "cancelled" | "attended" | "missed" | "upcoming" | "noRecord";
+
+/**
+ * What happened to this person in this class. A cancelled class is cancelled whatever else is
+ * recorded; otherwise the recorded fact decides; with nothing recorded it is still ahead
+ * (upcoming) or over with nobody having said (no record).
+ */
+export function entryStatus(entry: Pick<TimelineEntry, "status" | "attended" | "starts_at">, now: number): EntryStatus {
+  if (entry.status === "cancelled") return "cancelled";
+  if (entry.attended === true) return "attended";
+  if (entry.attended === false) return "missed";
+  return Date.parse(entry.starts_at) > now ? "upcoming" : "noRecord";
+}
+
+export function statusLabel(t: Translator, status: EntryStatus): string {
+  switch (status) {
+    case "cancelled":
+      return t("common.cancelled");
+    case "attended":
+      return t("timeline.attended");
+    case "missed":
+      return t("timeline.missed");
+    case "upcoming":
+      return t("timeline.upcoming");
+    case "noRecord":
+      return t("timeline.noRecord");
+  }
+}
+
+/** The pages loaded so far followed by a new one; a class already shown is not shown twice. */
+export function mergePages(shown: TimelineEntry[], next: TimelineEntry[]): TimelineEntry[] {
+  const seen = new Set(shown.map((e) => e.session_id));
+  return [...shown, ...next.filter((e) => !seen.has(e.session_id))];
+}
+
+/** The small line under a note for staff: who wrote it and whether the member can read it. A
+ * member's notes carry neither, so they get no line. */
+export function noteMeta(t: Translator, note: TimelineNote): string | null {
+  if (note.author_name === undefined || note.shared_with_member === undefined) return null;
+  return t("timeline.noteMeta", {
+    name: note.author_name,
+    kind: t(note.shared_with_member ? "timeline.shared" : "timeline.staffOnly"),
+  });
+}

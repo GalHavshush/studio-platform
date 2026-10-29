@@ -13,13 +13,15 @@ import { useTheme } from "@/theme/use-theme";
 type Props = {
   visible: boolean;
   onClose: () => void;
+  // only offered when the studio named this person's own participant
+  onTimeline?: () => void;
   // only offered to people who belong to more than one studio
   onSwitchStudio?: () => void;
   onSignOut: () => void;
 };
 
 // Opens from the avatar on the schedule: where to go (another studio), how the app looks, and out.
-export function AccountSheet({ visible, onClose, onSwitchStudio, onSignOut }: Props) {
+export function AccountSheet({ visible, onClose, onTimeline, onSwitchStudio, onSignOut }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { preference, setPreference } = usePreference();
@@ -40,6 +42,16 @@ export function AccountSheet({ visible, onClose, onSwitchStudio, onSignOut }: Pr
           { backgroundColor: colors.background, paddingBottom: insets.bottom + space.xl },
         ]}
       >
+        {onTimeline && (
+          <Button
+            variant="choice"
+            title={t("timeline.mine")}
+            onPress={() => {
+              onClose();
+              onTimeline();
+            }}
+          />
+        )}
         {onSwitchStudio && (
           <Button
             variant="choice"
