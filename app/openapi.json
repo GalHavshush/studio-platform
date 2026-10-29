@@ -400,6 +400,18 @@
       },
       "MembershipOut": {
         "properties": {
+          "participant_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participant Id"
+          },
           "role": {
             "title": "Role",
             "type": "string"
@@ -410,7 +422,8 @@
         },
         "required": [
           "tenant",
-          "role"
+          "role",
+          "participant_id"
         ],
         "title": "MembershipOut",
         "type": "object"

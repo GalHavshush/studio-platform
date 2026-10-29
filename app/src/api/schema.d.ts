@@ -766,6 +766,8 @@ export interface components {
         };
         /** MembershipOut */
         MembershipOut: {
+            /** Participant Id */
+            participant_id: string | null;
             /** Role */
             role: string;
             tenant: components["schemas"]["TenantOut"];

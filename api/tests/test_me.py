@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import select
 
-from app.models import Membership, Tenant, User
+from app.models import Membership, Participant, Tenant, User
 from app.security import create_access_token
 from app.seed import seed
 
@@ -38,6 +38,70 @@ async def test_me_returns_profile_and_membership(get_me):
     assert membership["role"] == "owner"
     assert membership["tenant"]["slug"] == "pilot-studio"
     assert set(membership["tenant"]) == {"id", "name", "slug"}
+
+
+async def test_a_membership_carries_the_callers_own_participant_in_that_studio(get_me, db_session):
+    body = (await get_me("member@example.com")).json()
+
+    expected = await db_session.scalar(
+        select(Participant.id).where(Participant.user_id == body["id"])
+    )
+    assert body["memberships"][0]["participant_id"] == str(expected)
+
+
+async def test_each_studio_gives_its_own_participant(get_me, db_session):
+    other = Tenant(name="Another Studio", slug="another-studio", timezone="UTC")
+    db_session.add(other)
+    await db_session.flush()
+    coach_id = await db_session.scalar(select(User.id).where(User.email == "coach@example.com"))
+    db_session.add_all(
+        [
+            Membership(tenant_id=other.id, user_id=coach_id, role="member"),
+            Participant(tenant_id=other.id, user_id=coach_id, name="Cody elsewhere"),
+        ]
+    )
+    await db_session.flush()
+
+    memberships = (await get_me("coach@example.com")).json()["memberships"]
+
+    by_slug = {m["tenant"]["slug"]: m["participant_id"] for m in memberships}
+    assert len(set(by_slug.values())) == 2  # one person, two studios, two participants
+    for slug, participant_id in by_slug.items():
+        row = await db_session.get(Participant, participant_id)
+        assert (row.user_id, row.tenant_id) == (
+            coach_id,
+            await db_session.scalar(select(Tenant.id).where(Tenant.slug == slug)),
+        )
+
+
+async def test_nobody_elses_participant_ever_appears(get_me, db_session):
+    mine = (await get_me("member@example.com")).json()["memberships"][0]["participant_id"]
+    others = set(
+        map(
+            str,
+            await db_session.scalars(select(Participant.id).where(Participant.id != mine)),
+        )
+    )
+
+    response = await get_me("member@example.com")
+
+    assert others and not any(other in response.text for other in others)
+
+
+async def test_a_membership_without_a_participant_is_null_not_an_error(get_me, db_session):
+    other = Tenant(name="Another Studio", slug="another-studio", timezone="UTC")
+    db_session.add(other)
+    await db_session.flush()
+    coach_id = await db_session.scalar(select(User.id).where(User.email == "coach@example.com"))
+    db_session.add(Membership(tenant_id=other.id, user_id=coach_id, role="member"))
+    await db_session.flush()
+
+    response = await get_me("coach@example.com")
+
+    assert response.status_code == 200
+    ids = {m["tenant"]["slug"]: m["participant_id"] for m in response.json()["memberships"]}
+    assert ids["another-studio"] is None
+    assert ids["pilot-studio"] is not None
 
 
 async def test_me_never_exposes_the_password_hash(get_me):

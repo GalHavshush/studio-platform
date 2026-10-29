@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.deletion import delete_account
 from app.deps import CurrentUser
-from app.models import Membership, Tenant
+from app.models import Membership, Participant, Tenant
 from app.security import verify_password
 
 router = APIRouter(tags=["me"])
@@ -27,6 +27,10 @@ class TenantOut(BaseModel):
 class MembershipOut(BaseModel):
     tenant: TenantOut
     role: str
+    # Who they are in this studio: what attendance, reports and the timeline attach to. The app
+    # needs it to open the person's own timeline. Null only if the membership has no participant
+    # (the seed and the migrations always make one), so /me never fails over it.
+    participant_id: uuid.UUID | None
 
 
 class MeResponse(BaseModel):
@@ -47,8 +51,13 @@ async def me(
     """
     # A join instead of ORM relationship()s: one query, and no new concept yet.
     rows = await session.execute(
-        select(Tenant, Membership.role)
+        select(Tenant, Membership.role, Participant.id)
         .join(Membership, Membership.tenant_id == Tenant.id)
+        # (tenant_id, user_id) is unique on participants, so this adds a column and never a row.
+        .outerjoin(
+            Participant,
+            (Participant.tenant_id == Tenant.id) & (Participant.user_id == Membership.user_id),
+        )
         .where(Membership.user_id == user.id)
         .order_by(Tenant.name)
     )
@@ -58,8 +67,12 @@ async def me(
         name=user.name,
         locale=user.locale,
         memberships=[
-            MembershipOut(tenant=TenantOut.model_validate(tenant, from_attributes=True), role=role)
-            for tenant, role in rows
+            MembershipOut(
+                tenant=TenantOut.model_validate(tenant, from_attributes=True),
+                role=role,
+                participant_id=participant_id,
+            )
+            for tenant, role, participant_id in rows
         ],
     )
 
