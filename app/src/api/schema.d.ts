@@ -307,8 +307,8 @@ export interface paths {
          *     time: pass the previous response's `next_cursor` to continue (`null` = the last page).
          *
          *     - **Coach or owner:** any participant of the studio. A class appears when the participant has
-         *       an RSVP or attendance row for it, or a note. Every note is shown with its author and whether
-         *       it is shared, and so is the summary of any class that has a report.
+         *       an RSVP or attendance row for it, or a note. Every note is shown with its author (id and name)
+         *       and whether it is shared, and so is the summary of any class that has a report.
          *     - **Member:** only their own participant, otherwise `404 participant_not_found` (the same as
          *       for an id that does not exist). A class appears only through their own RSVP or attendance
          *       row, or a note shared with them, so a class with nothing but a private note never shows up
@@ -766,6 +766,8 @@ export interface components {
         };
         /** MembershipOut */
         MembershipOut: {
+            /** Participant Id */
+            participant_id: string | null;
             /** Role */
             role: string;
             tenant: components["schemas"]["TenantOut"];
@@ -1115,6 +1117,8 @@ export interface components {
              * Format: uuid
              */
             author_id: string;
+            /** Author Name */
+            author_name: string;
             /** Body */
             body: string;
             /**

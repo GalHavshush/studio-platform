@@ -15,7 +15,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.deps import TenantCtx, is_staff
-from app.models import ClassReport, ClassSession, ClassType, Participant, ParticipantNote, Rsvp
+from app.models import (
+    ClassReport,
+    ClassSession,
+    ClassType,
+    Participant,
+    ParticipantNote,
+    Rsvp,
+    User,
+)
 from app.reports import member_visible_summaries
 
 router = APIRouter(prefix="/participants", tags=["timeline"])
@@ -29,6 +37,9 @@ class TimelineNote(BaseModel):
 
 class StaffTimelineNote(TimelineNote):
     author_id: uuid.UUID
+    # Who wrote it, by name (never email), so coaches can tell each other's notes apart. A deleted
+    # account reads "Deleted user".
+    author_name: str
     shared_with_member: bool
 
 
@@ -92,8 +103,8 @@ async def timeline(
     time: pass the previous response's `next_cursor` to continue (`null` = the last page).
 
     - **Coach or owner:** any participant of the studio. A class appears when the participant has
-      an RSVP or attendance row for it, or a note. Every note is shown with its author and whether
-      it is shared, and so is the summary of any class that has a report.
+      an RSVP or attendance row for it, or a note. Every note is shown with its author (id and name)
+      and whether it is shared, and so is the summary of any class that has a report.
     - **Member:** only their own participant, otherwise `404 participant_not_found` (the same as
       for an id that does not exist). A class appears only through their own RSVP or attendance
       row, or a note shared with them, so a class with nothing but a private note never shows up
@@ -162,13 +173,15 @@ async def timeline(
     else:
         summary_rows = await session.execute(member_visible_summaries(ctx, ids))
     summaries = {r.session_id: r.summary for r in summary_rows}
-    notes: dict[uuid.UUID, list[ParticipantNote]] = {}
-    for note in await session.scalars(
-        select(ParticipantNote)
+    # The author's name rides along for every caller, but only the staff model carries it out.
+    notes: dict[uuid.UUID, list[tuple[ParticipantNote, str]]] = {}
+    for note, author in await session.execute(
+        select(ParticipantNote, User.name)
+        .join(User, User.id == ParticipantNote.author_id)
         .where(*note_filter, ParticipantNote.session_id.in_(ids))
         .order_by(ParticipantNote.created_at, ParticipantNote.id)
     ):
-        notes.setdefault(note.session_id, []).append(note)
+        notes.setdefault(note.session_id, []).append((note, author))
 
     def entry(row) -> dict:
         booking = bookings.get(row.id)
@@ -194,9 +207,10 @@ async def timeline(
                             body=n.body,
                             created_at=n.created_at,
                             author_id=n.author_id,
+                            author_name=author,
                             shared_with_member=n.shared_with_member,
                         )
-                        for n in notes.get(row.id, [])
+                        for n, author in notes.get(row.id, [])
                     ],
                 )
                 for row in rows
@@ -209,7 +223,7 @@ async def timeline(
                 **entry(row),
                 notes=[
                     TimelineNote(id=n.id, body=n.body, created_at=n.created_at)
-                    for n in notes.get(row.id, [])
+                    for n, _ in notes.get(row.id, [])
                 ],
             )
             for row in rows
