@@ -3,30 +3,32 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/api/client";
 import type { components } from "@/api/schema";
 
-import { addDays, startOfDay } from "./time";
+import { addDays, startOfDay, startOfWeek } from "./time";
 
 export type ScheduledSession = components["schemas"]["SessionOut"];
 
-const WINDOW_DAYS = 14;
+const WEEK_DAYS = 7;
 
 type State = {
   status: "loading" | "ready" | "error";
   sessions: ScheduledSession[]; // earliest first
   classTypeNames: Record<string, string>;
-  from: number; // the window shown is [from, to), as instants
+  from: number; // the window loaded is [from, to), as instants: whole weeks, Monday to Monday
   to: number;
+  shownFrom: number; // sessions before this instant are loaded but kept out of the list
   busy: "refresh" | "earlier" | "later" | null;
   error: boolean; // the last load failed (the screen keeps whatever it already has)
 };
 
 function empty(timezone: string): State {
-  const from = startOfDay(Date.now(), timezone);
+  const from = startOfWeek(Date.now(), timezone);
   return {
     status: "loading",
     sessions: [],
     classTypeNames: {},
     from,
-    to: addDays(from, WINDOW_DAYS, timezone),
+    to: addDays(from, WEEK_DAYS, timezone),
+    shownFrom: startOfDay(Date.now(), timezone),
     busy: null,
     error: false,
   };
@@ -63,8 +65,10 @@ function merge(a: ScheduledSession[], b: ScheduledSession[]): ScheduledSession[]
 }
 
 /**
- * The studio's sessions in a window that starts at the beginning of today and can grow in either
- * direction, 14 days at a time. `refresh` goes back to the starting window.
+ * The studio's sessions for the week we are in (Monday to Sunday, studio timezone), growing a week
+ * at a time in either direction. The list starts at today: the earlier days of this week are loaded
+ * but hidden until "earlier" is used. `sessions` is what the list shows, `all` is everything loaded
+ * (the week strip marks the days that have classes). `refresh` goes back to the starting window.
  */
 export function useSchedule(timezone: string) {
   const [state, setState] = useState<State>(() => empty(timezone));
@@ -77,8 +81,9 @@ export function useSchedule(timezone: string) {
     busy.current = true;
     const first = latest.current.status === "loading";
     if (!first) setState((s) => ({ ...s, busy: "refresh" }));
-    const from = startOfDay(Date.now(), timezone);
-    const to = addDays(from, WINDOW_DAYS, timezone);
+    const from = startOfWeek(Date.now(), timezone);
+    const to = addDays(from, WEEK_DAYS, timezone);
+    const shownFrom = startOfDay(Date.now(), timezone);
     const [sessions, classTypeNames] = await Promise.all([
       fetchSessions(from, to),
       fetchClassTypeNames(),
@@ -86,7 +91,7 @@ export function useSchedule(timezone: string) {
     busy.current = false;
     setState((s) =>
       sessions && classTypeNames
-        ? { status: "ready", sessions, classTypeNames, from, to, busy: null, error: false }
+        ? { status: "ready", sessions, classTypeNames, from, to, shownFrom, busy: null, error: false }
         : { ...s, status: s.status === "loading" ? "error" : s.status, busy: null, error: true },
     );
   }, [timezone]);
@@ -94,13 +99,18 @@ export function useSchedule(timezone: string) {
   const extend = useCallback(
     async (direction: "earlier" | "later") => {
       if (busy.current) return;
+      const { from, to, shownFrom } = latest.current;
+      // The days of this week before today are already loaded: the first "earlier" only shows them.
+      if (direction === "earlier" && shownFrom > from) {
+        setState((s) => ({ ...s, shownFrom: from }));
+        return;
+      }
       busy.current = true;
       setState((s) => ({ ...s, busy: direction }));
-      const { from, to } = latest.current;
       const [newFrom, newTo] =
         direction === "earlier"
-          ? [addDays(from, -WINDOW_DAYS, timezone), from]
-          : [to, addDays(to, WINDOW_DAYS, timezone)];
+          ? [addDays(from, -WEEK_DAYS, timezone), from]
+          : [to, addDays(to, WEEK_DAYS, timezone)];
       const more = await fetchSessions(newFrom, newTo);
       busy.current = false;
       setState((s) =>
@@ -109,6 +119,7 @@ export function useSchedule(timezone: string) {
               ...s,
               sessions: merge(s.sessions, more),
               from: direction === "earlier" ? newFrom : s.from,
+              shownFrom: direction === "earlier" ? newFrom : s.shownFrom,
               to: direction === "later" ? newTo : s.to,
               busy: null,
               error: false,
@@ -125,6 +136,8 @@ export function useSchedule(timezone: string) {
 
   return {
     ...state,
+    sessions: state.sessions.filter((s) => Date.parse(s.starts_at) >= state.shownFrom),
+    all: state.sessions,
     refresh,
     showEarlier: () => extend("earlier"),
     showLater: () => extend("later"),
