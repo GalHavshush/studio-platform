@@ -4,10 +4,9 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, S
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AddAttendeeSheet } from "@/components/add-attendee-sheet";
-import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/button";
-import { Logo } from "@/components/logo";
-import { Hero, Screen } from "@/components/screen";
+import { PageHeader } from "@/components/page-header";
+import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { useT } from "@/i18n/use-language";
@@ -36,15 +35,7 @@ export default function ReportScreen() {
 
   return (
     <Screen>
-      <Hero compact>
-        <View style={styles.top}>
-          <BackButton label={t("report.back")} />
-          <Logo size={64} />
-        </View>
-        <Text variant="display" color="onAccent">
-          {t("report.title")}
-        </Text>
-      </Hero>
+      <PageHeader title={t("report.title")} backLabel={t("report.back")} />
 
       {report.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
       {report.status === "notFound" && (
@@ -215,7 +206,6 @@ function Form({ saved, attendees, save, setAttended }: FormProps) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
   form: { flexGrow: 1, padding: space.xl, gap: space.lg },
   notes: { gap: space.md },

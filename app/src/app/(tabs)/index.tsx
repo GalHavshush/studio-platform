@@ -4,10 +4,10 @@ import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from "r
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/button";
-import { Logo } from "@/components/logo";
+import { PageHeader } from "@/components/page-header";
 import { Pill } from "@/components/pill";
 import { Row } from "@/components/row";
-import { Hero, Screen } from "@/components/screen";
+import { Screen } from "@/components/screen";
 import { TAB_BAR_SPACE } from "@/components/tab-bar";
 import { TodayCard, TodayRow } from "@/components/today-card";
 import { WeekStrip } from "@/components/week-strip";
@@ -130,17 +130,7 @@ export default function Schedule() {
 
   return (
     <Screen>
-      <Hero compact>
-        <View style={styles.top}>
-          <Logo size={64} />
-        </View>
-        <View style={styles.titles}>
-          <Pill label={roleLabel(t, studio.role)} tone="ink" />
-          <Text variant="heading" color="onAccent">
-            {studio.name}
-          </Text>
-        </View>
-      </Hero>
+      <PageHeader title={studio.name} tag={<Pill label={roleLabel(t, studio.role)} tone="ink" />} />
 
       {schedule.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
       {schedule.status === "error" && (
@@ -198,8 +188,6 @@ export default function Schedule() {
 }
 
 const styles = StyleSheet.create({
-  top: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end" },
-  titles: { gap: space.sm },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
   header: { gap: space.lg, paddingBottom: space.sm },
   between: { height: space.sm },

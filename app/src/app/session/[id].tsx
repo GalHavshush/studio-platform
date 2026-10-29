@@ -3,12 +3,11 @@ import { useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/button";
-import { Logo } from "@/components/logo";
+import { PageHeader } from "@/components/page-header";
 import { PersonRow } from "@/components/person-row";
 import { Pill } from "@/components/pill";
-import { Hero, Screen } from "@/components/screen";
+import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { Tile } from "@/components/tile";
 import { useSession } from "@/auth/session";
@@ -49,32 +48,21 @@ export default function SessionScreen() {
 
   return (
     <Screen>
-      <Hero compact>
-        <View style={styles.top}>
-          <BackButton label={t("session.back")} />
-          <Logo size={64} />
-        </View>
-        {detail.status === "ready" && studio ? (
-          <View style={styles.titles}>
-            {detail.session.status === "cancelled" && <Pill label={t("common.cancelled")} tone="ink" />}
-            <Text variant="display" color="onAccent">
-              {detail.session.class_type_name}
-            </Text>
-            <Text variant="title" color="onAccent">
-              {formatRange(
-                Date.parse(detail.session.starts_at),
-                Date.parse(detail.session.ends_at),
-                studio.timezone,
-                t.locale,
-              )}
-            </Text>
-          </View>
-        ) : (
-          <Text variant="display" color="onAccent">
-            {t("session.title")}
-          </Text>
-        )}
-      </Hero>
+      {detail.status === "ready" && studio ? (
+        <PageHeader
+          backLabel={t("session.back")}
+          tag={detail.session.status === "cancelled" ? <Pill label={t("common.cancelled")} tone="ink" /> : undefined}
+          title={detail.session.class_type_name}
+          subtitle={formatRange(
+            Date.parse(detail.session.starts_at),
+            Date.parse(detail.session.ends_at),
+            studio.timezone,
+            t.locale,
+          )}
+        />
+      ) : (
+        <PageHeader backLabel={t("session.back")} title={t("session.title")} />
+      )}
 
       {detail.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
       {detail.status === "notFound" && (
@@ -299,8 +287,6 @@ function Details({ session, stale, rsvp, attend }: DetailsProps) {
 }
 
 const styles = StyleSheet.create({
-  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  titles: { gap: space.sm },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
   details: { flexGrow: 1, padding: space.xl, gap: space.xl },
   tiles: { flexDirection: "row", gap: space.md },

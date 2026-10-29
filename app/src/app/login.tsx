@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Keyboard, KeyboardAvoidingView, Platform } from "react-native";
 
 import { Button } from "@/components/button";
-import { Logo } from "@/components/logo";
 import { Hero, Screen, Sheet } from "@/components/screen";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
@@ -16,7 +15,7 @@ const MESSAGES: Record<Exclude<SignInResult, "ok">, Key> = {
   error: "common.wentWrong",
 };
 
-// The orange block shrinks when the keyboard opens, so the logo is dropped to keep the title in view.
+// The orange block shrinks when the keyboard opens, so the big logo is dropped to keep the title in view.
 function useKeyboardOpen() {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -61,8 +60,7 @@ export default function Login() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Hero>
-          {!keyboardOpen && <Logo size={128} />}
+        <Hero logoSize={keyboardOpen ? undefined : 440}>
           <Text variant="display" color="onAccent">
             {t("login.title")}
           </Text>

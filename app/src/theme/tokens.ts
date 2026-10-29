@@ -50,6 +50,8 @@ export const fontFamily = {
 export const type = {
   display: { fontFamily: fontFamily.extrabold, fontSize: 44, lineHeight: 44, letterSpacing: -1.8 },
   heading: { fontFamily: fontFamily.extrabold, fontSize: 36, lineHeight: 38, letterSpacing: -1.4 },
+  // the title in the slim header at the top of every page but sign in and choose studio
+  pageTitle: { fontFamily: fontFamily.extrabold, fontSize: 28, lineHeight: 30, letterSpacing: -1 },
   title: { fontFamily: fontFamily.extrabold, fontSize: 20, lineHeight: 26, letterSpacing: -0.2 },
   // the small capitals that name a section: "TODAY", "YOUR PLAN"
   eyebrow: {
