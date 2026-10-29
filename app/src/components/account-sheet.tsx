@@ -18,10 +18,11 @@ type Props = {
   // only offered to people who belong to more than one studio
   onSwitchStudio?: () => void;
   onSignOut: () => void;
+  onDeleteAccount: () => void;
 };
 
 // Opens from the avatar on the schedule: where to go (another studio), how the app looks, and out.
-export function AccountSheet({ visible, onClose, onTimeline, onSwitchStudio, onSignOut }: Props) {
+export function AccountSheet({ visible, onClose, onTimeline, onSwitchStudio, onSignOut, onDeleteAccount }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { preference, setPreference } = usePreference();
@@ -102,6 +103,15 @@ export function AccountSheet({ visible, onClose, onTimeline, onSwitchStudio, onS
           onPress={() => {
             onClose();
             onSignOut();
+          }}
+        />
+        <Button
+          variant="link"
+          danger
+          title={t("delete.link")}
+          onPress={() => {
+            onClose();
+            onDeleteAccount();
           }}
         />
       </View>

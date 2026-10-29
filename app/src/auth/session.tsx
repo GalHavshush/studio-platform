@@ -11,6 +11,7 @@ import {
 import { api, setAccessToken, setSessionExpiredListener, setTenantId } from "@/api/client";
 import type { components } from "@/api/schema";
 
+import { deleteOutcome, type DeleteOutcome } from "./delete-account";
 import { clearTenantId, loadTenantId, saveTenantId } from "./tenant-id";
 import { clearTokens, loadTokens, saveTokens } from "./tokens";
 
@@ -41,6 +42,8 @@ type Session = {
   leaveStudio: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<SignInResult>;
   signOut: () => Promise<void>;
+  // Deletes the account for good, confirmed with the password; on success the app is signed out.
+  deleteAccount: (password: string) => Promise<DeleteOutcome>;
 };
 
 const SessionContext = createContext<Session | null>(null);
@@ -198,9 +201,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const deleteAccount = useCallback(async (password: string): Promise<DeleteOutcome> => {
+    try {
+      const { error, response } = await api.DELETE("/me", { body: { password } });
+      if (!response.ok) {
+        return deleteOutcome(response.status, (error as { detail?: unknown } | undefined)?.detail);
+      }
+    } catch {
+      return "unreachable"; // fetch throws when there is no answer at all
+    }
+    // The server has erased the account and revoked every login of it, so there is nothing to
+    // tell it again: only this device is left to clear, as in sign-out.
+    setAccessToken(null);
+    setTenantId(null);
+    await Promise.all([clearTokens().catch(() => {}), clearTenantId().catch(() => {})]);
+    setUser(null);
+    setStudio(null);
+    setStatus("signedOut");
+    return "ok";
+  }, []);
+
   const value = useMemo(
-    () => ({ status, user, studio, selectStudio, leaveStudio, signIn, signOut }),
-    [status, user, studio, selectStudio, leaveStudio, signIn, signOut],
+    () => ({ status, user, studio, selectStudio, leaveStudio, signIn, signOut, deleteAccount }),
+    [status, user, studio, selectStudio, leaveStudio, signIn, signOut, deleteAccount],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

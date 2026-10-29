@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, RefreshControl, SectionList, StyleSheet, 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AccountSheet } from "@/components/account-sheet";
+import { DeleteAccountSheet } from "@/components/delete-account-sheet";
 import { Button } from "@/components/button";
 import { Logo } from "@/components/logo";
 import { Pill } from "@/components/pill";
@@ -11,6 +12,7 @@ import { Row } from "@/components/row";
 import { Hero, Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { roleLabel } from "@/auth/role";
+import type { DeleteOutcome } from "@/auth/delete-account";
 import { useSession, type Studio } from "@/auth/session";
 import { useT } from "@/i18n/use-language";
 import type { Translator } from "@/i18n/translate";
@@ -37,7 +39,7 @@ function groupByDay(sessions: ScheduledSession[], timeZone: string, t: Translato
 }
 
 export default function Home() {
-  const { studio, user, leaveStudio, signOut } = useSession();
+  const { studio, user, leaveStudio, signOut, deleteAccount } = useSession();
   // The guard in the layout only shows this screen when a studio is chosen.
   return (
     <Schedule
@@ -46,6 +48,7 @@ export default function Home() {
       canSwitch={(user?.memberships.length ?? 0) > 1}
       onSwitch={leaveStudio}
       onSignOut={signOut}
+      onDeleteAccount={deleteAccount}
     />
   );
 }
@@ -56,6 +59,7 @@ type Props = {
   canSwitch: boolean;
   onSwitch: () => void;
   onSignOut: () => void;
+  onDeleteAccount: (password: string) => Promise<DeleteOutcome>;
 };
 
 function Schedule(props: Props) {
@@ -66,6 +70,7 @@ function Schedule(props: Props) {
   const router = useRouter();
   const schedule = useSchedule(studio.timezone);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const days = useMemo(
     () => groupByDay(schedule.sessions, studio.timezone, t),
     [schedule.sessions, studio.timezone, t],
@@ -173,7 +178,9 @@ function Schedule(props: Props) {
         }
         onSwitchStudio={props.canSwitch ? props.onSwitch : undefined}
         onSignOut={props.onSignOut}
+        onDeleteAccount={() => setDeleting(true)}
       />
+      {deleting && <DeleteAccountSheet onDelete={props.onDeleteAccount} onClose={() => setDeleting(false)} />}
     </Screen>
   );
 }
