@@ -33,7 +33,7 @@ export const en = {
   "studios.cardLabel": "{name}, {role}",
 
   "tabs.schedule": "Schedule",
-  "tabs.timeline": "Timeline",
+  "tabs.timeline": "My classes",
   "tabs.settings": "Settings",
 
   "settings.title": "Settings",
@@ -134,6 +134,12 @@ export const en = {
   "delete.ownerFirst": "You're the only owner of a studio that still has other members, so your account can't be deleted yet.",
   "delete.noPassword": "This account has no password to confirm with, so it can't be deleted from the app yet.",
 
+  "reports.title": "Reports to write",
+  "reports.toWrite": "To write",
+  "reports.written": "Written",
+  "reports.none": "No classes to report on this week.",
+  "reports.loadError": "Couldn't load the reports.",
+  "reports.rowLabel": "{title}, {when}. Open the report",
   "timeline.title": "Timeline",
   "timeline.of": "{name}, open their timeline",
   "timeline.back": "Back",
