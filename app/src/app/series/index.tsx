@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PageHeader } from "@/components/page-header";
@@ -37,12 +37,18 @@ export default function WeeklyClassesScreen() {
           <Button title={t("series.new")} onPress={() => router.push("/series/new")} />
           {list.series.length === 0 && <Text color="textMuted">{t("series.empty")}</Text>}
           {seriesRows(t, list.series, list.types, list.staff).map((row) => (
-            <View key={row.id} style={[styles.card, { backgroundColor: colors.surface }]}>
+            <Pressable
+              key={row.id}
+              accessibilityRole="button"
+              accessibilityLabel={`${row.title}, ${row.when}`}
+              onPress={() => router.push({ pathname: "/series/[id]", params: { id: row.id } })}
+              style={[styles.card, { backgroundColor: colors.surface }]}
+            >
               <Text variant="title">{row.title}</Text>
               <Text>{row.when}</Text>
               <Text color="textMuted">{row.coach}</Text>
               <Text color="textMuted">{row.range}</Text>
-            </View>
+            </Pressable>
           ))}
         </ScrollView>
       )}

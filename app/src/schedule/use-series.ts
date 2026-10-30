@@ -54,10 +54,16 @@ export function useSeries() {
     }, []),
   );
 
+  // After an action on this screen: show what is now true, keeping the list if the reload fails.
+  const refresh = useCallback(async () => {
+    const next = await fetchAll();
+    if (next) setState(next);
+  }, []);
+
   const retry = useCallback(() => {
     setState({ status: "loading" });
     void fetchAll().then((next) => setState(next ?? { status: "error" }));
   }, []);
 
-  return { ...state, retry };
+  return { ...state, retry, refresh };
 }

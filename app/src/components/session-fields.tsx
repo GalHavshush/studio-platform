@@ -15,7 +15,7 @@ const two = (n: number) => String(n).padStart(2, "0");
 type Props = {
   form: NewSessionForm;
   change: (patch: Partial<NewSessionForm>) => void;
-  days: number[];
+  days?: number[]; // without it the day is not offered (a weekly class keeps its weekday)
   durations: number[];
   now: number;
   zone: string;
@@ -47,19 +47,21 @@ export function SessionFields({ form, change, days, durations, now, zone, seatsS
         </View>
       )}
 
-      <View style={styles.group}>
-        <Text variant="eyebrow">{t("newSession.day")}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          {days.map((d) => (
-            <ChoiceChip
-              key={d}
-              label={formatDay(d, now, zone, t)}
-              selected={form.dayStart === d}
-              onPress={() => change({ dayStart: d })}
-            />
-          ))}
-        </ScrollView>
-      </View>
+      {days && (
+        <View style={styles.group}>
+          <Text variant="eyebrow">{t("newSession.day")}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            {days.map((d) => (
+              <ChoiceChip
+                key={d}
+                label={formatDay(d, now, zone, t)}
+                selected={form.dayStart === d}
+                onPress={() => change({ dayStart: d })}
+              />
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       <View style={styles.group}>
         <Text variant="eyebrow">{t("newSession.start")}</Text>
