@@ -66,6 +66,14 @@ async def _update_series(client, headers):
     return await client.patch(f"/series/{uuid.uuid4()}", json={"capacity": 5}, headers=headers)
 
 
+async def _delete_series(client, headers):
+    return await client.delete(f"/series/{uuid.uuid4()}", headers=headers)
+
+
+async def _delete_session(client, headers):
+    return await client.delete(f"/sessions/{uuid.uuid4()}", headers=headers)
+
+
 async def _end_series(client, headers):
     return await client.post(f"/series/{uuid.uuid4()}/end", headers=headers)
 
@@ -165,6 +173,8 @@ TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
     ("PATCH", "/series/{series_id}"): _update_series,
     ("POST", "/series/{series_id}/extend"): _extend_series,
     ("POST", "/series/{series_id}/end"): _end_series,
+    ("DELETE", "/series/{series_id}"): _delete_series,
+    ("DELETE", "/sessions/{session_id}"): _delete_session,
     ("POST", "/sessions"): _create_session,
     ("GET", "/sessions"): _list_sessions,
     ("GET", "/sessions/{session_id}"): _get_session,

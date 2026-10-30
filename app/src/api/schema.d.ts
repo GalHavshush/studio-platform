@@ -398,7 +398,16 @@ export interface paths {
         get: operations["get_series_by_id_series__series_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Series
+         * @description Remove a series and all its sessions completely: for one created by mistake. Owner only;
+         *     404 if it is not in this studio.
+         *
+         *     All or nothing: if any of its sessions has anything recorded on it (an RSVP, a booking,
+         *     attendance, a report or a note) it is `409 series_has_history` and nothing is deleted. Use
+         *     `end` for a series that has really run.
+         */
+        delete: operations["delete_series_series__series_id__delete"];
         options?: never;
         head?: never;
         /**
@@ -519,7 +528,18 @@ export interface paths {
         get: operations["get_session_by_id_sessions__session_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Session
+         * @description Remove a session completely, as if it had never been made: for a class created by mistake.
+         *     Owner only; 404 if it is not in this studio.
+         *
+         *     Refused while anything is recorded on it (`409 session_has_history`: an RSVP, a booking,
+         *     attendance, a report or a note; cancel it instead) and when it belongs to a series
+         *     (`409 session_in_series`: the next `extend` would just recreate it; cancel it, or delete or end
+         *     the series). The database's foreign keys refuse the same deletes, so a record written at the
+         *     last moment is a 409 too, never a half-deleted session.
+         */
+        delete: operations["delete_session_sessions__session_id__delete"];
         options?: never;
         head?: never;
         /**
@@ -2150,6 +2170,37 @@ export interface operations {
             };
         };
     };
+    delete_series_series__series_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+            };
+            path: {
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_series_series__series_id__patch: {
         parameters: {
             query?: never;
@@ -2343,6 +2394,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SessionDetail"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_session_sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
