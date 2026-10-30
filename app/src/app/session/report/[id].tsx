@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AttendeeRow } from "@/components/attendee-row";
 import { AddAttendeeSheet } from "@/components/add-attendee-sheet";
 import { Button } from "@/components/button";
 import { PageHeader } from "@/components/page-header";
@@ -78,6 +79,7 @@ function Form({ saved, attendees, save, setAttended }: FormProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [attendNote, setAttendNote] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(null); // the attendee whose note is shown
 
   // Leaving with unsaved text asks first. After a save `done` lifts the guard, and only then the
   // screen is left (the effect runs after the render that lifted it).
@@ -146,9 +148,16 @@ function Form({ saved, attendees, save, setAttended }: FormProps) {
             const note = noteFor(form, a.participant_id);
             const share = t("report.share", { name: a.name });
             return (
-              <View key={a.participant_id} style={styles.person}>
+              <AttendeeRow
+                key={a.participant_id}
+                name={a.name}
+                hasNote={note.body.trim() !== ""}
+                shared={note.shared}
+                open={open === a.participant_id}
+                onToggle={() => setOpen(open === a.participant_id ? null : a.participant_id)}
+              >
                 <TextField
-                  label={a.name}
+                  label={t("report.noteFor", { name: a.name })}
                   value={note.body}
                   onChangeText={(body) => setForm((f) => withNote(f, a.participant_id, { body }))}
                   multiline
@@ -176,7 +185,7 @@ function Form({ saved, attendees, save, setAttended }: FormProps) {
                   />
                   <Button variant="link" title={t("report.remove", { name: a.name })} onPress={() => remove(a)} />
                 </View>
-              </View>
+              </AttendeeRow>
             );
           })}
         </View>
@@ -209,7 +218,6 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
   form: { flexGrow: 1, padding: space.xl, gap: space.lg },
   notes: { gap: space.md },
-  person: { gap: space.sm },
   shareRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md },
   shareLabel: { flex: 1 },
   links: { flexDirection: "row", justifyContent: "center", flexWrap: "wrap" },
