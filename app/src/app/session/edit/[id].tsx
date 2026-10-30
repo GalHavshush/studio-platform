@@ -14,6 +14,7 @@ import { useT } from "@/i18n/use-language";
 import { changeMessage, editDays, editDurations, editForm, toPatch } from "@/schedule/edit-session";
 import { seatsValue, showSeats, times } from "@/schedule/new-session";
 import { formatRange } from "@/schedule/time";
+import { useStaff } from "@/schedule/use-staff";
 import { useSessionDetail, type SessionDetail } from "@/schedule/use-session";
 import { space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
@@ -47,7 +48,9 @@ export default function EditSessionScreen() {
 }
 
 function Form({ session, edit }: { session: SessionDetail; edit: ReturnType<typeof useSessionDetail>["edit"] }) {
-  const studio = useSession().studio as Studio;
+  const { studio: s, user } = useSession();
+  const studio = s as Studio;
+  const staff = useStaff(studio.role === "owner");
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const t = useT();
@@ -89,6 +92,8 @@ function Form({ session, edit }: { session: SessionDetail; edit: ReturnType<type
           zone={zone}
           seatsShown={seatsShown}
           busy={busy}
+          staff={staff}
+          me={user?.id}
         />
         <TextField
           label={t("editSession.preview")}

@@ -19,6 +19,7 @@ export function editForm(session: SessionDetail, timeZone: string): EditForm {
     minute,
     duration: Math.round((Date.parse(session.ends_at) - start) / 60_000),
     seats: session.capacity === null ? "" : String(session.capacity),
+    coachId: session.coach_id,
     preview: session.preview ?? "",
   };
 }
@@ -34,6 +35,7 @@ export type SessionChanges = {
   starts_at?: string;
   ends_at?: string;
   capacity?: number | null;
+  coach_id?: string;
   preview?: string | null;
 };
 
@@ -45,17 +47,19 @@ export function toPatch(form: EditForm, session: SessionDetail, timeZone: string
   if (end !== Date.parse(session.ends_at)) patch.ends_at = new Date(end).toISOString();
   const seats = seatsShown ? seatsValue(form.seats) : session.capacity;
   if (seats !== "invalid" && seats !== session.capacity) patch.capacity = seats;
+  if (form.coachId && form.coachId !== session.coach_id) patch.coach_id = form.coachId;
   const preview = form.preview.trim();
   if (preview !== (session.preview ?? "")) patch.preview = preview === "" ? null : preview;
   return patch;
 }
 
-export type ChangeOutcome = "ok" | "notYours" | "cancelled" | "badTimes" | "unreachable" | "error";
+export type ChangeOutcome = "ok" | "notYours" | "cancelled" | "badTimes" | "badCoach" | "unreachable" | "error";
 
 export function changeOutcome(status: number, detail: unknown): ChangeOutcome {
   if (status === 403 && detail === "not_your_session") return "notYours";
   if (status === 409 && detail === "session_cancelled") return "cancelled";
   if (status === 422 && detail === "invalid_times") return "badTimes";
+  if (status === 422 && detail === "invalid_coach") return "badCoach";
   return "error";
 }
 
@@ -70,6 +74,8 @@ export function changeMessage(t: Translator, outcome: ChangeOutcome): string | n
       return t("editSession.cancelled");
     case "badTimes":
       return t("editSession.badTimes");
+    case "badCoach":
+      return t("editSession.badCoach");
     case "unreachable":
       return t("common.cantReach");
     case "error":

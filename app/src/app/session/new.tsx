@@ -22,12 +22,14 @@ import {
   toPayload,
 } from "@/schedule/new-session";
 import { formatRange } from "@/schedule/time";
+import { useStaff } from "@/schedule/use-staff";
 import { useNewSession } from "@/schedule/use-new-session";
 import { space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
 export default function NewSessionScreen() {
-  const studio = useSession().studio as Studio;
+  const { studio: s, user } = useSession();
+  const studio = s as Studio;
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -39,6 +41,7 @@ export default function NewSessionScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const classTypes = useNewSession();
+  const staff = useStaff(studio.role === "owner");
 
   const chosen = classTypes.status === "ready" ? classTypes.types.find((c) => c.id === form.classTypeId) : undefined;
   const seatsShown = showSeats(chosen, studio.modules);
@@ -96,6 +99,8 @@ export default function NewSessionScreen() {
               zone={zone}
               seatsShown={seatsShown}
               busy={busy}
+              staff={staff}
+              me={user?.id}
             />
 
             <Text variant="title">{formatRange(start, end, zone, t.locale)}</Text>

@@ -7,6 +7,7 @@ import { TextField } from "@/components/text-field";
 import { useT } from "@/i18n/use-language";
 import { MINUTE_STEP, seatsValue, wrap, type NewSessionForm } from "@/schedule/new-session";
 import { formatDay } from "@/schedule/time";
+import type { StaffMember } from "@/schedule/use-staff";
 import { space } from "@/theme/tokens";
 
 const two = (n: number) => String(n).padStart(2, "0");
@@ -20,13 +21,32 @@ type Props = {
   zone: string;
   seatsShown: boolean;
   busy: boolean;
+  // the owner's coach picker: who can teach, and who is asking (marked "you"); empty hides the row
+  staff?: StaffMember[];
+  me?: string;
 };
 
 // The day, start, length and seats of a class: the same fields to create one and to edit one.
-export function SessionFields({ form, change, days, durations, now, zone, seatsShown, busy }: Props) {
+export function SessionFields({ form, change, days, durations, now, zone, seatsShown, busy, staff = [], me }: Props) {
   const t = useT();
   return (
     <>
+      {staff.length > 0 && (
+        <View style={styles.group}>
+          <Text variant="eyebrow">{t("newSession.coach")}</Text>
+          <View style={styles.wrap}>
+            {staff.map((p) => (
+              <ChoiceChip
+                key={p.id}
+                label={p.id === me ? t("newSession.you", { name: p.name }) : p.name}
+                selected={(form.coachId ?? me) === p.id}
+                onPress={() => change({ coachId: p.id })}
+              />
+            ))}
+          </View>
+        </View>
+      )}
+
       <View style={styles.group}>
         <Text variant="eyebrow">{t("newSession.day")}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>

@@ -1183,6 +1183,30 @@
         "title": "StaffNote",
         "type": "object"
       },
+      "StaffOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role"
+        ],
+        "title": "StaffOut",
+        "type": "object"
+      },
       "StaffTimeline": {
         "properties": {
           "items": {
@@ -3145,6 +3169,65 @@
         "summary": "List Rsvps",
         "tags": [
           "bookings"
+        ]
+      }
+    },
+    "/staff": {
+      "get": {
+        "description": "The coaches and owners of this studio, by name. Owner only: nobody else may name a coach.\nNo emails: the picker needs only a name to show and an id to send.",
+        "operationId": "list_staff_staff_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StaffOut"
+                  },
+                  "title": "Response List Staff Staff Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Staff",
+        "tags": [
+          "staff"
         ]
       }
     },
