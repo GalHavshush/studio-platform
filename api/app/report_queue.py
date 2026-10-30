@@ -8,7 +8,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import AwareDatetime, BaseModel
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
@@ -28,13 +28,20 @@ class QueueItem(BaseModel):
     has_report: bool
 
 
+class Queue(BaseModel):
+    items: list[QueueItem]
+    # True when a class this caller could write a report for started before `from`: the app shows
+    # "Show earlier" only while there is something to show.
+    has_earlier: bool
+
+
 @router.get("")
 async def report_queue(
     ctx: CoachCtx,
     session: Annotated[AsyncSession, Depends(get_session)],
     from_: Annotated[AwareDatetime, Query(alias="from")],
     to: AwareDatetime,
-) -> list[QueueItem]:
+) -> Queue:
     """The classes starting in `[from, to)` whose report the caller may write, newest first. A
     coach gets their own classes, an owner every class of the studio (the rule of `PUT
     /sessions/{id}/report`); a member gets `403 insufficient_role`.
@@ -42,10 +49,18 @@ async def report_queue(
     Only classes that have started and were not cancelled are listed, because those are the ones
     that route accepts (`409 session_not_started`, `409 session_cancelled` otherwise). The range
     follows the schedule's rules: `from` included, `to` not, at most 62 days (`422 invalid_range`,
-    `422 range_too_long`). One query: the class type's name and whether a report exists come from
-    joins, so a long list costs no more round trips than a short one.
+    `422 range_too_long`). The class type's name and whether a report exists come from joins, so a
+    long list costs no more round trips than a short one; `has_earlier` is one more `EXISTS` query.
     """
     check_range(from_, to)
+    # What makes a class one this caller may write a report for, wherever it falls in time.
+    eligible = [
+        ClassSession.tenant_id == ctx.tenant_id,
+        ClassSession.starts_at <= datetime.now(UTC),
+        ClassSession.status != "cancelled",
+    ]
+    if ctx.role == "coach":  # the same rule as `own_session`; an owner sees every class
+        eligible.append(ClassSession.coach_id == ctx.user.id)
     query = (
         select(
             ClassSession.id,
@@ -60,21 +75,19 @@ async def report_queue(
             & (ClassType.id == ClassSession.class_type_id),
         )
         .outerjoin(ClassReport, ClassReport.session_id == ClassSession.id)
-        .where(
-            ClassSession.tenant_id == ctx.tenant_id,
-            ClassSession.starts_at >= from_,
-            ClassSession.starts_at < to,
-            ClassSession.starts_at <= datetime.now(UTC),
-            ClassSession.status != "cancelled",
-        )
+        .where(*eligible, ClassSession.starts_at >= from_, ClassSession.starts_at < to)
         .order_by(ClassSession.starts_at.desc(), ClassSession.id)
     )
-    if ctx.role == "coach":  # the same rule as `own_session`; an owner sees every class
-        query = query.where(ClassSession.coach_id == ctx.user.id)
     rows = await session.execute(query)
-    return [
-        QueueItem(
-            session_id=r[0], class_type_name=r[1], starts_at=r[2], ends_at=r[3], has_report=r[4]
-        )
-        for r in rows
-    ]
+    has_earlier = await session.scalar(
+        select(exists().where(*eligible, ClassSession.starts_at < from_))
+    )
+    return Queue(
+        items=[
+            QueueItem(
+                session_id=r[0], class_type_name=r[1], starts_at=r[2], ends_at=r[3], has_report=r[4]
+            )
+            for r in rows
+        ],
+        has_earlier=bool(has_earlier),
+    )

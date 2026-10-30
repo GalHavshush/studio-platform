@@ -45,7 +45,7 @@ async def ask(client, two_tenants, studio, role, **params):
 async def ids_for(client, two_tenants, studio, role, **params) -> list[str]:
     response = await ask(client, two_tenants, studio, role, **params)
     assert response.status_code == 200
-    return [item["session_id"] for item in response.json()]
+    return [item["session_id"] for item in response.json()["items"]]
 
 
 async def write(client, two_tenants, studio, role, session_id, **fields):
@@ -129,7 +129,7 @@ async def test_each_item_names_the_class_and_its_times(client, two_tenants, db_s
     a = two_tenants.a
     sid = await a_class(db_session, a, hours_ago=3, name="Pilates")
 
-    (item,) = (await ask(client, two_tenants, a, "coach")).json()
+    (item,) = (await ask(client, two_tenants, a, "coach")).json()["items"]
 
     assert item["session_id"] == str(sid)
     assert item["class_type_name"] == "Pilates"
@@ -151,7 +151,7 @@ async def test_has_report_turns_true_once_the_report_is_written(client, two_tena
 
     flags = {
         i["session_id"]: i["has_report"]
-        for i in (await ask(client, two_tenants, a, "coach")).json()
+        for i in (await ask(client, two_tenants, a, "coach")).json()["items"]
     }
     assert flags == {str(written): True, str(waiting): False}
 
@@ -171,7 +171,7 @@ async def test_a_report_with_only_a_note_counts_as_written(client, two_tenants, 
     )
 
     assert response.status_code == 200
-    (item,) = (await ask(client, two_tenants, a, "coach")).json()
+    (item,) = (await ask(client, two_tenants, a, "coach")).json()["items"]
     assert item["has_report"] is True
 
 
@@ -250,3 +250,43 @@ async def test_a_range_over_62_days_is_refused(client, two_tenants):
     )
 
     assert (response.status_code, response.json()) == (422, {"detail": "range_too_long"})
+
+
+# --- is there anything earlier ---
+
+
+async def has_earlier(client, two_tenants, studio, role) -> bool:
+    """Asks for the last two days only, so everything older than that counts as "earlier"."""
+    window = {
+        "from": (NOW - timedelta(days=2)).isoformat(),
+        "to": (NOW + timedelta(days=1)).isoformat(),
+    }
+    response = await ask(client, two_tenants, studio, role, **window)
+    assert response.status_code == 200
+    return response.json()["has_earlier"]
+
+
+async def test_has_earlier_is_true_when_an_older_class_waits(client, two_tenants, db_session):
+    a = two_tenants.a
+    await a_class(db_session, a, hours_ago=24)  # inside the window
+    await a_class(db_session, a, hours_ago=24 * 10)  # before it
+
+    assert await has_earlier(client, two_tenants, a, "coach") is True
+
+
+async def test_has_earlier_is_false_when_nothing_older_is_eligible(client, two_tenants, db_session):
+    a, b = two_tenants.a, two_tenants.b
+    await a_class(db_session, a, hours_ago=24)  # inside the window: not earlier
+    await a_class(db_session, a, hours_ago=24 * 10, status="cancelled")
+    await a_class(db_session, a, coach_role="owner", hours_ago=24 * 10)  # another coach's
+    await a_class(db_session, b, coach_role="coach", hours_ago=24 * 10)  # another studio's
+
+    assert await has_earlier(client, two_tenants, a, "coach") is False
+    # the owner may write the other coach's report, so for them it is there
+    assert await has_earlier(client, two_tenants, a, "owner") is True
+
+
+async def test_an_empty_queue_with_nothing_older_says_so(client, two_tenants):
+    response = await ask(client, two_tenants, two_tenants.a, "coach")
+
+    assert response.json() == {"items": [], "has_earlier": False}

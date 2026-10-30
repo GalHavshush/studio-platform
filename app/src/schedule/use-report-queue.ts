@@ -10,6 +10,7 @@ type State = {
   status: "loading" | "ready" | "error";
   items: QueueItem[];
   weeks: number; // weeks loaded: this one, then one more per "Show earlier"
+  hasEarlier: boolean; // the API found an older class waiting, before the oldest week loaded
   more: "idle" | "busy" | "failed";
 };
 
@@ -19,7 +20,7 @@ async function fetchWeek(timezone: string, firstDay: FirstDay, weeksBack: number
     const { data } = await api.GET("/report-queue", {
       params: { query: { from: new Date(from).toISOString(), to: new Date(to).toISOString() } },
     });
-    return data ?? null;
+    return data ?? null; // { items, has_earlier }
   } catch {
     return null;
   }
@@ -27,10 +28,9 @@ async function fetchWeek(timezone: string, firstDay: FirstDay, weeksBack: number
 
 /**
  * The classes the caller may write a report for, this week and then a week more per `showEarlier`.
- * ponytail: no "that was the last week" signal; the button stays and an empty week shows nothing.
  */
 export function useReportQueue(timezone: string, firstDay: FirstDay) {
-  const [state, setState] = useState<State>({ status: "loading", items: [], weeks: 1, more: "idle" });
+  const [state, setState] = useState<State>({ status: "loading", items: [], weeks: 1, hasEarlier: false, more: "idle" });
 
   const latest = useRef(state);
   latest.current = state;
@@ -42,7 +42,13 @@ export function useReportQueue(timezone: string, firstDay: FirstDay) {
     const pages = await Promise.all(Array.from({ length: weeks }, (_, w) => fetchWeek(timezone, firstDay, w)));
     setState((s) =>
       pages.every((p) => p)
-        ? { status: "ready", items: pages.flat() as QueueItem[], weeks, more: "idle" }
+        ? {
+            status: "ready",
+            items: pages.flatMap((p) => p?.items ?? []),
+            weeks,
+            hasEarlier: pages[weeks - 1]?.has_earlier ?? false,
+            more: "idle",
+          }
         : s.status === "loading"
           ? { ...s, status: "error" }
           : s,
@@ -57,7 +63,7 @@ export function useReportQueue(timezone: string, firstDay: FirstDay) {
   );
 
   const retry = () => {
-    setState({ status: "loading", items: [], weeks: 1, more: "idle" });
+    setState({ status: "loading", items: [], weeks: 1, hasEarlier: false, more: "idle" });
     refresh();
   };
 
@@ -67,10 +73,23 @@ export function useReportQueue(timezone: string, firstDay: FirstDay) {
     const older = await fetchWeek(timezone, firstDay, state.weeks);
     setState(
       older
-        ? { ...state, items: [...state.items, ...older], weeks: state.weeks + 1, more: "idle" }
+        ? {
+            ...state,
+            items: [...state.items, ...older.items],
+            weeks: state.weeks + 1,
+            hasEarlier: older.has_earlier,
+            more: "idle",
+          }
         : { ...state, more: "failed" },
     );
   }
 
-  return { status: state.status, items: unwrittenFirst(state.items), more: state.more, retry, showEarlier };
+  return {
+    status: state.status,
+    items: unwrittenFirst(state.items),
+    hasEarlier: state.hasEarlier,
+    more: state.more,
+    retry,
+    showEarlier,
+  };
 }

@@ -58,12 +58,14 @@ export function ReportsToWrite() {
               {t("timeline.moreError")}
             </Text>
           )}
-          <Button
-            variant="outline"
-            title={t("schedule.showEarlier")}
-            busy={queue.more === "busy"}
-            onPress={queue.showEarlier}
-          />
+          {queue.hasEarlier && (
+            <Button
+              variant="outline"
+              title={t("schedule.showEarlier")}
+              busy={queue.more === "busy"}
+              onPress={queue.showEarlier}
+            />
+          )}
         </>
       )}
     </View>
