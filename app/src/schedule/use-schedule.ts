@@ -1,3 +1,4 @@
+import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "@/api/client";
@@ -134,6 +135,20 @@ export function useSchedule(timezone: string, firstDay: FirstDay) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Coming back to the schedule (from creating a class, say) loads the same weeks again, quietly: the
+  // window the person has opened stays as it is, and what is on screen stays if the load fails.
+  const reload = useCallback(async () => {
+    if (busy.current || latest.current.status !== "ready") return;
+    const { from, to } = latest.current;
+    const [sessions, classTypeNames] = await Promise.all([fetchSessions(from, to), fetchClassTypeNames()]);
+    if (sessions && classTypeNames) setState((s) => ({ ...s, sessions, classTypeNames }));
+  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      reload();
+    }, [reload]),
+  );
 
   return {
     ...state,
