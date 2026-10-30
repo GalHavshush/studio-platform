@@ -20,42 +20,43 @@ type State =
   | { status: "notFound" } // no such session in this studio: trying again will not help
   | { status: "error" }; // no answer, or a server error: trying again may help
 
+async function fetchReport(id: string): Promise<State> {
+  try {
+    // The report and the people it has notes for are separate calls; the form needs both, and
+    // without the attendees it would not know whose notes it is looking at, so either failing
+    // is a failure of the whole load.
+    const [report, attendees] = await Promise.all([
+      api.GET("/sessions/{session_id}/report", { params: { path: { session_id: id } } }),
+      api.GET("/sessions/{session_id}/attendees", { params: { path: { session_id: id } } }),
+    ]);
+    if (!attendees.data) return { status: attendees.response.status === 404 ? "notFound" : "error" };
+    if (report.data) return { status: "ready", saved: formFromReport(report.data), attendees: attendees.data };
+    const detail = (report.error as { detail?: unknown } | undefined)?.detail;
+    if (report.response.status === 404 && detail === "report_not_found") {
+      return { status: "ready", saved: formFromReport(null), attendees: attendees.data };
+    }
+    return { status: report.response.status === 404 ? "notFound" : "error" };
+  } catch {
+    return { status: "error" };
+  }
+}
+
 /** The report of one session, for editing, and the call that saves it. */
 export function useReport(id: string) {
   const [state, setState] = useState<State>({ status: "loading" });
 
-  const load = useCallback(async () => {
+  const retry = useCallback(async () => {
     setState({ status: "loading" });
-    try {
-      // The report and the people it has notes for are separate calls; the form needs both, and
-      // without the attendees it would not know whose notes it is looking at, so either failing
-      // is a failure of the whole load.
-      const [report, attendees] = await Promise.all([
-        api.GET("/sessions/{session_id}/report", { params: { path: { session_id: id } } }),
-        api.GET("/sessions/{session_id}/attendees", { params: { path: { session_id: id } } }),
-      ]);
-      if (!attendees.data) {
-        setState({ status: attendees.response.status === 404 ? "notFound" : "error" });
-        return;
-      }
-      if (report.data) {
-        setState({ status: "ready", saved: formFromReport(report.data), attendees: attendees.data });
-        return;
-      }
-      const detail = (report.error as { detail?: unknown } | undefined)?.detail;
-      if (report.response.status === 404 && detail === "report_not_found") {
-        setState({ status: "ready", saved: formFromReport(null), attendees: attendees.data });
-      } else {
-        setState({ status: report.response.status === 404 ? "notFound" : "error" });
-      }
-    } catch {
-      setState({ status: "error" });
-    }
+    setState(await fetchReport(id));
   }, [id]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let current = true;
+    void fetchReport(id).then((next) => current && setState(next));
+    return () => {
+      current = false;
+    };
+  }, [id]);
 
   // The whole report is replaced; the server's answer becomes the new saved copy.
   const save = useCallback(
@@ -107,5 +108,5 @@ export function useReport(id: string) {
     [id],
   );
 
-  return { ...state, retry: load, save, setAttended };
+  return { ...state, retry, save, setAttended };
 }

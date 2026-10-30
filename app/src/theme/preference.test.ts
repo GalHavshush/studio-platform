@@ -1,6 +1,6 @@
-jest.mock("expo-secure-store", () => ({}));
-
 import { parsePreference } from "./preference";
+
+jest.mock("expo-secure-store", () => ({}));
 
 test.each(["system", "light", "dark"])("a saved %s is kept", (value) => {
   expect(parsePreference(value)).toBe(value);

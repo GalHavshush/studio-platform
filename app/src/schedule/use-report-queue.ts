@@ -1,5 +1,5 @@
 import { useFocusEffect } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "@/api/client";
 
@@ -33,7 +33,9 @@ export function useReportQueue(timezone: string, firstDay: FirstDay) {
   const [state, setState] = useState<State>({ status: "loading", items: [], weeks: 1, hasEarlier: false, more: "idle" });
 
   const latest = useRef(state);
-  latest.current = state;
+  useEffect(() => {
+    latest.current = state;
+  });
 
   // Loads (or reloads) every week shown so far. A reload keeps what is on screen until the answer
   // arrives, and keeps it if the answer fails.
