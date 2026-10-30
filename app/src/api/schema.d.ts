@@ -356,6 +356,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Series
+         * @description The studio's series: an owner sees all of them, a coach only their own.
+         */
+        get: operations["list_series_series_get"];
+        put?: never;
+        /**
+         * Create Series
+         * @description Create a series in the studio named by `X-Tenant-Id`. Owner only (`403 insufficient_role`).
+         *
+         *     The class type and coach follow the rules of `POST /sessions`. `first_date` must fall on
+         *     `weekday` (`422 first_date_not_on_weekday`).
+         */
+        post: operations["create_series_series_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{series_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Series By Id
+         * @description One series: 404 if it is not in this studio, 403 `not_your_series` if a coach (not an
+         *     owner) is not its coach.
+         */
+        get: operations["get_series_by_id_series__series_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sessions": {
         parameters: {
             query?: never;
@@ -1000,6 +1048,70 @@ export interface components {
             session_id: string;
             /** Status */
             status: string;
+        };
+        /** SeriesIn */
+        SeriesIn: {
+            /** Capacity */
+            capacity?: number | null;
+            /**
+             * Class Type Id
+             * Format: uuid
+             */
+            class_type_id: string;
+            /** Coach Id */
+            coach_id?: string | null;
+            /** Duration Minutes */
+            duration_minutes: number;
+            /**
+             * First Date
+             * Format: date
+             */
+            first_date: string;
+            /** Last Date */
+            last_date?: string | null;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            /** Weekday */
+            weekday: number;
+        };
+        /** SeriesOut */
+        SeriesOut: {
+            /** Capacity */
+            capacity: number | null;
+            /**
+             * Class Type Id
+             * Format: uuid
+             */
+            class_type_id: string;
+            /**
+             * Coach Id
+             * Format: uuid
+             */
+            coach_id: string;
+            /** Duration Minutes */
+            duration_minutes: number;
+            /**
+             * First Date
+             * Format: date
+             */
+            first_date: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Date */
+            last_date: string | null;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            /** Weekday */
+            weekday: number;
         };
         /**
          * SessionDetail
@@ -1766,6 +1878,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Queue"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_series_series_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_series_series_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_series_by_id_series__series_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+            };
+            path: {
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesOut"];
                 };
             };
             /** @description Validation Error */

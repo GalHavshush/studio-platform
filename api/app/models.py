@@ -1,12 +1,14 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime, time
 
 from sqlalchemy import (
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
+    Time,
     UniqueConstraint,
     func,
     text,
@@ -122,6 +124,42 @@ class Participant(Base):
     # ponytail: copied from users.name when created and not kept in sync; a studio can later
     # rename its own participant (e.g. a nickname) without touching the global account.
     name: Mapped[str]
+
+
+class ClassSeries(Base):
+    """A weekly rule: this class type, taught by this coach, every `weekday` at `start_time` (the
+    studio's wall clock), from `first_date` to `last_date`. Sessions are generated from it later."""
+
+    __tablename__ = "class_series"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
+    # Same studio as this series: enforced by the composite foreign key in __table_args__.
+    class_type_id: Mapped[uuid.UUID]
+    coach_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    # 0 = Monday ... 6 = Sunday (Python's `date.weekday()`).
+    weekday: Mapped[int]
+    # Wall-clock time and dates WITHOUT a zone, on purpose: the UTC instant of each occurrence is
+    # worked out in the studio's timezone when a session is generated, so clock changes stay right.
+    start_time: Mapped[time] = mapped_column(Time)
+    duration_minutes: Mapped[int]
+    # Seats for every generated session; NULL = unlimited.
+    capacity: Mapped[int | None]
+    first_date: Mapped[date] = mapped_column(Date)
+    # NULL = no end.
+    last_date: Mapped[date | None] = mapped_column(Date)
+    __table_args__ = (
+        CheckConstraint("weekday BETWEEN 0 AND 6", name="ck_class_series_weekday"),
+        CheckConstraint("duration_minutes >= 1", name="ck_class_series_duration_positive"),
+        CheckConstraint("capacity >= 1", name="ck_class_series_capacity_positive"),
+        CheckConstraint("last_date >= first_date", name="ck_class_series_last_not_before_first"),
+        UniqueConstraint("tenant_id", "id", name="uq_class_series_tenant_id_id"),
+        ForeignKeyConstraint(
+            ["tenant_id", "class_type_id"],
+            ["class_types.tenant_id", "class_types.id"],
+            name="fk_class_series_class_type_same_tenant",
+        ),
+    )
 
 
 class ClassSession(Base):

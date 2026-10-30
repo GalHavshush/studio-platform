@@ -50,6 +50,18 @@ async def _unarchive_class_type(client, headers):
     return await client.post(f"/class-types/{uuid.uuid4()}/unarchive", headers=headers)
 
 
+async def _create_series(client, headers):
+    return await client.post("/series", json={}, headers=headers)
+
+
+async def _list_series(client, headers):
+    return await client.get("/series", headers=headers)
+
+
+async def _get_series(client, headers):
+    return await client.get(f"/series/{uuid.uuid4()}", headers=headers)
+
+
 async def _update_session(client, headers):
     return await client.patch(f"/sessions/{uuid.uuid4()}", json={"preview": "x"}, headers=headers)
 
@@ -135,6 +147,9 @@ TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
     ("PUT", "/class-types/{class_type_id}"): _rename_class_type,
     ("POST", "/class-types/{class_type_id}/archive"): _archive_class_type,
     ("POST", "/class-types/{class_type_id}/unarchive"): _unarchive_class_type,
+    ("POST", "/series"): _create_series,
+    ("GET", "/series"): _list_series,
+    ("GET", "/series/{series_id}"): _get_series,
     ("POST", "/sessions"): _create_session,
     ("GET", "/sessions"): _list_sessions,
     ("GET", "/sessions/{session_id}"): _get_session,

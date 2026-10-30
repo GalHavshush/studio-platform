@@ -14,6 +14,7 @@ from app.me import router as me_router
 from app.participants import router as participants_router
 from app.report_queue import router as report_queue_router
 from app.reports import router as reports_router
+from app.series import router as series_router
 from app.sessions import router as sessions_router
 from app.staff import router as staff_router
 from app.tenant import router as tenant_router
@@ -25,6 +26,7 @@ app.include_router(me_router)  # the logged-in user's own data
 app.include_router(tenant_router)  # the active studio's settings (enabled modules)
 app.include_router(class_types_router)  # what a studio offers (BJJ, Pilates...)
 app.include_router(sessions_router)  # one occurrence of a class: when, and who teaches
+app.include_router(series_router)  # weekly rules that sessions are generated from
 app.include_router(bookings_router)  # RSVPs, seats and the waitlist
 app.include_router(attendance_router)  # who actually came
 app.include_router(reports_router)  # the coach's report on a session

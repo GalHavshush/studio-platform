@@ -157,6 +157,40 @@ async def own_session(
     return row
 
 
+async def check_class_and_coach(
+    session: AsyncSession,
+    ctx: TenantContext,
+    class_type_id: uuid.UUID,
+    coach_id: uuid.UUID | None,
+) -> uuid.UUID:
+    """The rules for naming a class type and a coach on something new (a session, a series);
+    returns the coach's id (the caller when none is named).
+
+    A coach can only name themselves (`403 not_your_session`); an owner can name any coach or
+    owner of the studio (`422 invalid_coach` otherwise). A class type of another studio is
+    `404 class_type_not_found`; an archived one is `422 class_type_archived`.
+    """
+    coach_id = coach_id or ctx.user.id
+    if ctx.role == "coach" and coach_id != ctx.user.id:
+        raise HTTPException(status_code=403, detail="not_your_session")
+
+    class_type = (
+        await session.execute(
+            select(ClassType.archived_at).where(
+                ClassType.id == class_type_id, ClassType.tenant_id == ctx.tenant_id
+            )
+        )
+    ).first()
+    if class_type is None:
+        raise HTTPException(status_code=404, detail="class_type_not_found")
+    if class_type.archived_at is not None:
+        raise HTTPException(status_code=422, detail="class_type_archived")
+
+    if not await is_staff(session, ctx.tenant_id, coach_id):
+        raise HTTPException(status_code=422, detail="invalid_coach")
+    return coach_id
+
+
 @router.post("", status_code=201)
 async def create_session(
     body: SessionIn, ctx: CoachCtx, session: Annotated[AsyncSession, Depends(get_session)]
@@ -168,24 +202,7 @@ async def create_session(
     Times are stored in UTC. A class type of another studio gets `404 class_type_not_found`; an
     archived one gets `422 class_type_archived`.
     """
-    coach_id = body.coach_id or ctx.user.id
-    if ctx.role == "coach" and coach_id != ctx.user.id:
-        raise HTTPException(status_code=403, detail="not_your_session")
-
-    class_type = (
-        await session.execute(
-            select(ClassType.archived_at).where(
-                ClassType.id == body.class_type_id, ClassType.tenant_id == ctx.tenant_id
-            )
-        )
-    ).first()
-    if class_type is None:
-        raise HTTPException(status_code=404, detail="class_type_not_found")
-    if class_type.archived_at is not None:
-        raise HTTPException(status_code=422, detail="class_type_archived")
-
-    if not await is_staff(session, ctx.tenant_id, coach_id):
-        raise HTTPException(status_code=422, detail="invalid_coach")
+    coach_id = await check_class_and_coach(session, ctx, body.class_type_id, body.coach_id)
 
     row = ClassSession(
         tenant_id=ctx.tenant_id,
