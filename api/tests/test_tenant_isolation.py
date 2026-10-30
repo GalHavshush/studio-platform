@@ -62,6 +62,10 @@ async def _get_series(client, headers):
     return await client.get(f"/series/{uuid.uuid4()}", headers=headers)
 
 
+async def _update_series(client, headers):
+    return await client.patch(f"/series/{uuid.uuid4()}", json={"capacity": 5}, headers=headers)
+
+
 async def _extend_series(client, headers):
     return await client.post(f"/series/{uuid.uuid4()}/extend", headers=headers)
 
@@ -154,6 +158,7 @@ TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
     ("POST", "/series"): _create_series,
     ("GET", "/series"): _list_series,
     ("GET", "/series/{series_id}"): _get_series,
+    ("PATCH", "/series/{series_id}"): _update_series,
     ("POST", "/series/{series_id}/extend"): _extend_series,
     ("POST", "/sessions"): _create_session,
     ("GET", "/sessions"): _list_sessions,

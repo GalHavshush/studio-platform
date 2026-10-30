@@ -187,6 +187,9 @@ class ClassSession(Base):
     capacity: Mapped[int | None]
     # The series this session was generated from, if any. Same studio: composite FK below.
     series_id: Mapped[uuid.UUID | None]
+    # True once someone changed this series session's times, coach or capacity by hand: editing
+    # the series leaves it alone from then on.
+    is_overridden: Mapped[bool] = mapped_column(server_default=text("false"))
     __table_args__ = (
         CheckConstraint("status IN ('scheduled', 'cancelled')", name="ck_class_sessions_status"),
         CheckConstraint("capacity >= 1", name="ck_class_sessions_capacity_positive"),

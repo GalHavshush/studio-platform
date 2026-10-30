@@ -1,5 +1,5 @@
-"""Weekly class series: the rule only (this class, this coach, every Tuesday at 18:00). Generating
-the sessions from it is a later step. Only owners create them; a coach can read the ones they teach."""
+"""Weekly class series: a rule (this class, this coach, every Tuesday at 18:00) and the sessions
+generated from it. Only owners create and change them; a coach can read the ones they teach."""
 
 import uuid
 from datetime import UTC, date, datetime, time, timedelta
@@ -7,15 +7,17 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, PositiveInt, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, PositiveInt, model_validator
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bookings import booking_applies, promote_waitlist
 from app.class_types import OwnerCtx
 from app.db import get_session
-from app.models import ClassSeries, ClassSession, Tenant
-from app.sessions import CoachCtx, check_class_and_coach
+from app.models import ClassSeries, ClassSession, ClassType, Tenant
+from app.sessions import CoachCtx, check_class_and_coach, is_staff
 
 router = APIRouter(prefix="/series", tags=["series"])
 
@@ -77,26 +79,28 @@ async def generate_sessions(session: AsyncSession, series: ClassSeries) -> int:
     return len(inserted.all())
 
 
+def _no_offset(value: time) -> time:
+    if value.tzinfo is not None:
+        raise ValueError("start_time is the studio's wall clock: no offset")
+    return value
+
+
+# The studio's wall clock: an offset is refused (422), as a missing one is for a session's times.
+WallClock = Annotated[time, AfterValidator(_no_offset)]
+
+
 class SeriesIn(BaseModel):
     class_type_id: uuid.UUID
     # Omitted = the caller teaches it.
     coach_id: uuid.UUID | None = None
     weekday: Annotated[int, Field(ge=0, le=6)]  # 0 = Monday ... 6 = Sunday
-    # The studio's wall clock: an offset is refused (422), as a missing one is for a session's times.
-    start_time: time
+    start_time: WallClock
     duration_minutes: PositiveInt
     # Omitted = unlimited.
     capacity: PositiveInt | None = None
     first_date: date
     # Omitted = no end.
     last_date: date | None = None
-
-    @field_validator("start_time")
-    @classmethod
-    def no_offset(cls, value: time) -> time:
-        if value.tzinfo is not None:
-            raise ValueError("start_time is the studio's wall clock: no offset")
-        return value
 
     @model_validator(mode="after")
     def last_not_before_first(self) -> "SeriesIn":
@@ -198,3 +202,102 @@ async def extend_series(
     created = await generate_sessions(session, row)
     await session.commit()
     return ExtendOut(created=created)
+
+
+class SeriesPatch(BaseModel):
+    """A field that is left out stays unchanged; `capacity: null` makes the sessions unlimited.
+    Anything else (weekday, dates, class type) is refused with 422: end the series and make a new one."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    coach_id: uuid.UUID | None = None
+    start_time: WallClock | None = None
+    duration_minutes: PositiveInt | None = None
+    capacity: PositiveInt | None = None
+
+    @model_validator(mode="after")
+    def only_capacity_can_be_cleared(self) -> "SeriesPatch":
+        for field in ("coach_id", "start_time", "duration_minutes"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
+
+
+class SeriesEditOut(SeriesOut):
+    sessions_updated: int  # future scheduled sessions that took the change
+    sessions_kept: int  # future scheduled sessions left alone because they were changed by hand
+
+
+@router.patch("/{series_id}")
+async def update_series(
+    series_id: uuid.UUID,
+    body: SeriesPatch,
+    ctx: OwnerCtx,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> SeriesEditOut:
+    """Change the rule and every future session that follows it. Owner only.
+
+    Only sessions that are still to come, scheduled and not changed by hand follow the rule: past
+    and cancelled ones, and ones whose times, coach or capacity someone changed, are left as they
+    are (`sessions_kept` counts the last kind). A new start time keeps each session on its own
+    date, in the studio's timezone. A new coach must be staff (`422 invalid_coach`); a start time
+    that lands on an instant another session of the series already has is `409 session_time_clash`
+    and nothing is changed. Raising the capacity lets waiting people in, like editing one session.
+    """
+    row = await session.scalar(
+        select(ClassSeries)
+        .where(ClassSeries.id == series_id, ClassSeries.tenant_id == ctx.tenant_id)
+        .with_for_update()  # an `extend` running now waits for this edit
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="series_not_found")
+    changes = body.model_dump(exclude_unset=True)
+    if "coach_id" in changes and not await is_staff(session, ctx.tenant_id, changes["coach_id"]):
+        raise HTTPException(status_code=422, detail="invalid_coach")
+    future = list(
+        await session.scalars(
+            select(ClassSession)
+            .where(
+                ClassSession.series_id == row.id,
+                ClassSession.status == "scheduled",
+                ClassSession.starts_at > datetime.now(UTC),
+            )
+            .order_by(ClassSession.starts_at)
+        )
+    )
+    follow = [s for s in future if not s.is_overridden]
+    timezone = await session.scalar(select(Tenant.timezone).where(Tenant.id == row.tenant_id))
+    tz = ZoneInfo(timezone)
+    try:
+        # A savepoint, so a clash undoes the whole edit (the rule too) even if the caller goes on.
+        async with session.begin_nested():
+            for field, value in changes.items():
+                setattr(row, field, value)
+            for s in follow:
+                if "coach_id" in changes:
+                    s.coach_id = row.coach_id
+                if "capacity" in changes:
+                    s.capacity = row.capacity
+                if "start_time" in changes or "duration_minutes" in changes:
+                    day = s.starts_at.astimezone(tz).date()
+                    s.starts_at = datetime.combine(day, row.start_time, tzinfo=tz).astimezone(UTC)
+                    s.ends_at = s.starts_at + timedelta(minutes=row.duration_minutes)
+    except IntegrityError as error:
+        if "uq_class_sessions_series_id_starts_at" not in str(error.orig):
+            raise
+        raise HTTPException(status_code=409, detail="session_time_clash")
+
+    if "capacity" in changes and follow:  # more seats (or unlimited) may let waiting people in
+        mode = await session.scalar(
+            select(ClassType.attendance_mode).where(ClassType.id == row.class_type_id)
+        )
+        if await booking_applies(session, ctx.tenant_id, mode):
+            for s in follow:
+                await promote_waitlist(session, s.id, s.capacity)
+    result = SeriesEditOut(
+        **SeriesOut.model_validate(row).model_dump(),
+        sessions_updated=len(follow),
+        sessions_kept=len(future) - len(follow),
+    )
+    await session.commit()
+    return result
