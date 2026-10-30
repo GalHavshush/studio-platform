@@ -193,9 +193,9 @@ async def extend_series(
     `last_date`). Owner only; 404 `series_not_found` if it is not in this studio. Repeating it
     creates nothing new."""
     row = await session.scalar(
-        select(ClassSeries).where(
-            ClassSeries.id == series_id, ClassSeries.tenant_id == ctx.tenant_id
-        )
+        select(ClassSeries)
+        .where(ClassSeries.id == series_id, ClassSeries.tenant_id == ctx.tenant_id)
+        .with_for_update()  # an edit or an end running now finishes first: new sessions get its rule
     )
     if row is None:
         raise HTTPException(status_code=404, detail="series_not_found")
