@@ -1,6 +1,16 @@
 import { makeTranslator } from "@/i18n/translate";
 
-import { addDays, dayKey, formatDay, formatRange, formatTime, startOfDay, startOfWeek } from "./time";
+import {
+  addDays,
+  dayKey,
+  formatDay,
+  formatRange,
+  formatTime,
+  localTime,
+  startOfDay,
+  startOfWeek,
+  zonedInstant,
+} from "./time";
 
 const JERUSALEM = "Asia/Jerusalem"; // UTC+3 in summer (until the last Sunday of October), UTC+2 after
 const NEW_YORK = "America/New_York";
@@ -134,4 +144,20 @@ test("the same Saturday is the last day of a Sunday week and of a Monday week", 
 
   expect(startOfWeek(saturday, JERUSALEM, 1)).toBe(iso("2026-10-25T22:00:00Z")); // Mon 26 Oct
   expect(startOfWeek(saturday, JERUSALEM, 0)).toBe(iso("2026-10-24T21:00:00Z")); // Sun 25 Oct
+});
+
+test("zonedInstant reads the studio's clock, not the phone's", () => {
+  const day = Date.parse("2026-10-21T21:00:00Z"); // Thu 22 Oct 00:00 in Jerusalem (UTC+3 until 25 Oct)
+  expect(new Date(zonedInstant(day, 9, 30, "Asia/Jerusalem")).toISOString()).toBe("2026-10-22T06:30:00.000Z");
+  expect(localTime(zonedInstant(day, 9, 30, "Asia/Jerusalem"), "Asia/Jerusalem")).toEqual({ hour: 9, minute: 30 });
+});
+
+test("zonedInstant is right on the days the clocks change", () => {
+  // Jerusalem left summer time on Sun 25 Oct 2026 at 01:00: the day is 25 hours long, UTC+3 then UTC+2
+  const day = startOfDay(Date.parse("2026-10-25T12:00:00Z"), "Asia/Jerusalem");
+  expect(new Date(zonedInstant(day, 0, 30, "Asia/Jerusalem")).toISOString()).toBe("2026-10-24T21:30:00.000Z");
+  expect(new Date(zonedInstant(day, 9, 0, "Asia/Jerusalem")).toISOString()).toBe("2026-10-25T07:00:00.000Z");
+  // New York came back on Sun 1 Nov 2026 (UTC-4 then UTC-5): 09:00 there is 14:00 UTC
+  const ny = startOfDay(Date.parse("2026-11-01T17:00:00Z"), "America/New_York");
+  expect(new Date(zonedInstant(ny, 9, 0, "America/New_York")).toISOString()).toBe("2026-11-01T14:00:00.000Z");
 });

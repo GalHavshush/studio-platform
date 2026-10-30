@@ -12,7 +12,7 @@ import { TAB_BAR_SPACE } from "@/components/tab-bar";
 import { TodayCard, TodayRow } from "@/components/today-card";
 import { WeekStrip } from "@/components/week-strip";
 import { Text } from "@/components/text";
-import { roleLabel } from "@/auth/role";
+import { isStaff, roleLabel } from "@/auth/role";
 import { useSession, type Studio } from "@/auth/session";
 import { useT } from "@/i18n/use-language";
 import type { Translator } from "@/i18n/translate";
@@ -156,6 +156,9 @@ export default function Schedule() {
           }
           ListHeaderComponent={
             <View style={styles.header}>
+              {isStaff(studio.role) && (
+                <Button variant="outline" title={t("schedule.newClass")} onPress={() => router.push("/session/new")} />
+              )}
               <WeekStrip title={t("schedule.thisWeek")} range={weekRange(now, zone, t.locale, firstDay)} days={strip} />
               <Button
                 variant="outline"

@@ -47,6 +47,25 @@ export function startOfDay(instant: number, timeZone: string): number {
   return midnightAsIfUtc - offsetAt(guess, timeZone);
 }
 
+/** The studio's clock at `instant`: hour (0-23) and minute. */
+export function localTime(instant: number, timeZone: string): { hour: number; minute: number } {
+  const p = partsIn(instant, timeZone);
+  return { hour: p.hour, minute: p.minute };
+}
+
+/**
+ * The instant at which the studio's clock reads `hour:minute` on the studio day that begins at
+ * `dayStart`. The offset is looked up twice (as `startOfDay` does) because it can differ between the
+ * guess and the answer on a day the clocks change. A time the clocks skip (spring forward) lands an
+ * hour later on the studio's clock.
+ */
+export function zonedInstant(dayStart: number, hour: number, minute: number, timeZone: string): number {
+  const p = partsIn(dayStart + 12 * HOUR, timeZone); // midday: the date, whatever happens at midnight
+  const asIfUtc = Date.UTC(p.year, p.month - 1, p.day, hour, minute);
+  const guess = asIfUtc - offsetAt(asIfUtc - offsetAt(dayStart + 12 * HOUR, timeZone), timeZone);
+  return guess;
+}
+
 /** The studio's midnight `days` calendar days after (or before, if negative) the one of `instant`. */
 export function addDays(instant: number, days: number, timeZone: string): number {
   // Midday of the target day is far from any clock change, so it lands on the right date.
