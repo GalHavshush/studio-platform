@@ -140,9 +140,11 @@ async def committed_engine(committed_db: URL):
 @pytest.fixture
 def wait_for_lock_wait():
     """Returns an async function that polls Postgres until some connection is blocked on a lock,
-    so tests prove "it is waiting" without sleeping and hoping."""
+    so tests prove "it is waiting" without sleeping and hoping. It returns the moment a wait shows
+    up, so the generous timeout only costs time when the test is about to fail; a slow CI runner
+    needed more than 5 seconds for the request to even reach the lock."""
 
-    async def wait(engine, timeout: float = 5.0) -> None:
+    async def wait(engine, timeout: float = 20.0) -> None:
         deadline = asyncio.get_running_loop().time() + timeout
         async with engine.connect() as conn:
             while asyncio.get_running_loop().time() < deadline:
