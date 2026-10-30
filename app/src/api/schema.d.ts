@@ -401,7 +401,18 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Series
+         * @description Change the rule and every future session that follows it. Owner only.
+         *
+         *     Only sessions that are still to come, scheduled and not changed by hand follow the rule: past
+         *     and cancelled ones, and ones whose times, coach or capacity someone changed, are left as they
+         *     are (`sessions_kept` counts the last kind). A new start time keeps each session on its own
+         *     date, in the studio's timezone. A new coach must be staff (`422 invalid_coach`); a start time
+         *     that lands on an instant another session of the series already has is `409 session_time_clash`
+         *     and nothing is changed. Raising the capacity lets waiting people in, like editing one session.
+         */
+        patch: operations["update_series_series__series_id__patch"];
         trace?: never;
     };
     "/series/{series_id}/extend": {
@@ -1076,6 +1087,46 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** SeriesEditOut */
+        SeriesEditOut: {
+            /** Capacity */
+            capacity: number | null;
+            /**
+             * Class Type Id
+             * Format: uuid
+             */
+            class_type_id: string;
+            /**
+             * Coach Id
+             * Format: uuid
+             */
+            coach_id: string;
+            /** Duration Minutes */
+            duration_minutes: number;
+            /**
+             * First Date
+             * Format: date
+             */
+            first_date: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Date */
+            last_date: string | null;
+            /** Sessions Kept */
+            sessions_kept: number;
+            /** Sessions Updated */
+            sessions_updated: number;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            /** Weekday */
+            weekday: number;
+        };
         /** SeriesIn */
         SeriesIn: {
             /** Capacity */
@@ -1139,6 +1190,21 @@ export interface components {
             start_time: string;
             /** Weekday */
             weekday: number;
+        };
+        /**
+         * SeriesPatch
+         * @description A field that is left out stays unchanged; `capacity: null` makes the sessions unlimited.
+         *     Anything else (weekday, dates, class type) is refused with 422: end the series and make a new one.
+         */
+        SeriesPatch: {
+            /** Capacity */
+            capacity?: number | null;
+            /** Coach Id */
+            coach_id?: string | null;
+            /** Duration Minutes */
+            duration_minutes?: number | null;
+            /** Start Time */
+            start_time?: string | null;
         };
         /**
          * SessionDetail
@@ -2004,6 +2070,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_series_series__series_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+            };
+            path: {
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesEditOut"];
                 };
             };
             /** @description Validation Error */

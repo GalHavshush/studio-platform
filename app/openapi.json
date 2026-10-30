@@ -832,6 +832,89 @@
         "title": "RsvpOut",
         "type": "object"
       },
+      "SeriesEditOut": {
+        "properties": {
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "class_type_id": {
+            "format": "uuid",
+            "title": "Class Type Id",
+            "type": "string"
+          },
+          "coach_id": {
+            "format": "uuid",
+            "title": "Coach Id",
+            "type": "string"
+          },
+          "duration_minutes": {
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "first_date": {
+            "format": "date",
+            "title": "First Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Date"
+          },
+          "sessions_kept": {
+            "title": "Sessions Kept",
+            "type": "integer"
+          },
+          "sessions_updated": {
+            "title": "Sessions Updated",
+            "type": "integer"
+          },
+          "start_time": {
+            "format": "time",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "weekday": {
+            "title": "Weekday",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "class_type_id",
+          "coach_id",
+          "weekday",
+          "start_time",
+          "duration_minutes",
+          "capacity",
+          "first_date",
+          "last_date",
+          "sessions_updated",
+          "sessions_kept"
+        ],
+        "title": "SeriesEditOut",
+        "type": "object"
+      },
       "SeriesIn": {
         "properties": {
           "capacity": {
@@ -978,6 +1061,62 @@
           "last_date"
         ],
         "title": "SeriesOut",
+        "type": "object"
+      },
+      "SeriesPatch": {
+        "additionalProperties": false,
+        "description": "A field that is left out stays unchanged; `capacity: null` makes the sessions unlimited.\nAnything else (weekday, dates, class type) is refused with 422: end the series and make a new one.",
+        "properties": {
+          "capacity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "coach_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coach Id"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          }
+        },
+        "title": "SeriesPatch",
         "type": "object"
       },
       "SessionDetail": {
@@ -2736,6 +2875,79 @@
           }
         ],
         "summary": "Get Series By Id",
+        "tags": [
+          "series"
+        ]
+      },
+      "patch": {
+        "description": "Change the rule and every future session that follows it. Owner only.\n\nOnly sessions that are still to come, scheduled and not changed by hand follow the rule: past\nand cancelled ones, and ones whose times, coach or capacity someone changed, are left as they\nare (`sessions_kept` counts the last kind). A new start time keeps each session on its own\ndate, in the studio's timezone. A new coach must be staff (`422 invalid_coach`); a start time\nthat lands on an instant another session of the series already has is `409 session_time_clash`\nand nothing is changed. Raising the capacity lets waiting people in, like editing one session.",
+        "operationId": "update_series_series__series_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Series Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeriesPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesEditOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Series",
         "tags": [
           "series"
         ]

@@ -29,6 +29,10 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 # So a schedule query cannot pull the whole table. ponytail: fixed cap; add pagination if a studio needs more.
 MAX_RANGE = timedelta(days=62)
 
+# The fields of a series' session whose change by hand marks it as overridden (a preview is not one:
+# the series never writes it).
+HAND_EDITED_FIELDS = {"starts_at", "ends_at", "coach_id", "capacity"}
+
 # Coaches and owners create sessions (owners can do everything coaches can).
 CoachCtx = Annotated[TenantContext, Depends(require_role("coach"))]
 
@@ -347,8 +351,15 @@ async def update_session(
     if changes.get("ends_at", row.ends_at) <= changes.get("starts_at", row.starts_at):
         raise HTTPException(status_code=422, detail="invalid_times")
 
-    for field, value in changes.items():
-        setattr(row, field, value.astimezone(UTC) if isinstance(value, datetime) else value)
+    values = {k: v.astimezone(UTC) if isinstance(v, datetime) else v for k, v in changes.items()}
+    if row.series_id is not None and any(
+        getattr(row, field) != value
+        for field, value in values.items()
+        if field in HAND_EDITED_FIELDS
+    ):
+        row.is_overridden = True  # from now on a series edit leaves this session alone
+    for field, value in values.items():
+        setattr(row, field, value)
     await session.flush()
     if "capacity" in changes:  # more seats (or unlimited) may let waiting people in
         mode = await session.scalar(
