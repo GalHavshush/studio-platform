@@ -198,7 +198,8 @@ async def test_changing_a_session_waits_for_whoever_holds_its_lock(
     async with AsyncSession(committed_engine) as holder:
         await hold_the_session_lock(holder, session_id)
         request = asyncio.create_task(requests[change]())
-        await wait_for_lock_wait(committed_engine)  # it is now blocked on the row lock
+        # it is now blocked on the row lock
+        await wait_for_lock_wait(committed_engine, request=request)
         assert not request.done()
     # leaving the block closes the session and releases the lock
 

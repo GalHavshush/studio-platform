@@ -142,9 +142,12 @@ def wait_for_lock_wait():
     """Returns an async function that polls Postgres until some connection is blocked on a lock,
     so tests prove "it is waiting" without sleeping and hoping. It returns the moment a wait shows
     up, so the generous timeout only costs time when the test is about to fail; a slow CI runner
-    needed more than 5 seconds for the request to even reach the lock."""
+    needed more than 5 seconds for the request to even reach the lock.
 
-    async def wait(engine, timeout: float = 20.0) -> None:
+    Pass the request's task as `request` and the wait stops the moment that request has finished
+    without ever blocking, saying how it ended, instead of polling for the whole timeout."""
+
+    async def wait(engine, timeout: float = 20.0, request: asyncio.Task | None = None) -> None:
         deadline = asyncio.get_running_loop().time() + timeout
         async with engine.connect() as conn:
             while asyncio.get_running_loop().time() < deadline:
@@ -153,6 +156,11 @@ def wait_for_lock_wait():
                 )
                 if waiting:
                     return
+                if request is not None and request.done():
+                    outcome = request.exception() or request.result()
+                    raise AssertionError(
+                        f"the request finished without waiting on a lock: {outcome!r}"
+                    )
                 await asyncio.sleep(0.02)
         raise AssertionError("nothing ever started waiting on a lock")
 
