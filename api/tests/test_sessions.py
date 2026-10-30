@@ -341,6 +341,7 @@ async def test_every_member_gets_one_session_by_id(client, two_tenants, db_sessi
         "status": "scheduled",
         "preview": None,
         "capacity": None,
+        "series_id": None,
         "class_type_name": "Open mat",
         "attendance_mode": "rsvp",
         "coach_name": "coach of studio-a",

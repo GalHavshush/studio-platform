@@ -1302,6 +1302,18 @@
             ],
             "title": "Seats Left"
           },
+          "series_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series Id"
+          },
           "starts_at": {
             "format": "date-time",
             "title": "Starts At",
@@ -1321,6 +1333,7 @@
           "status",
           "preview",
           "capacity",
+          "series_id",
           "class_type_name",
           "attendance_mode",
           "coach_name",
@@ -1426,6 +1439,18 @@
             ],
             "title": "Preview"
           },
+          "series_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series Id"
+          },
           "starts_at": {
             "format": "date-time",
             "title": "Starts At",
@@ -1444,7 +1469,8 @@
           "ends_at",
           "status",
           "preview",
-          "capacity"
+          "capacity",
+          "series_id"
         ],
         "title": "SessionOut",
         "type": "object"

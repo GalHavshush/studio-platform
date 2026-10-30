@@ -1340,6 +1340,8 @@ export interface components {
             rsvp_counts: components["schemas"]["RsvpCounts"] | null;
             /** Seats Left */
             seats_left: number | null;
+            /** Series Id */
+            series_id: string | null;
             /**
              * Starts At
              * Format: date-time
@@ -1396,6 +1398,8 @@ export interface components {
             id: string;
             /** Preview */
             preview: string | null;
+            /** Series Id */
+            series_id: string | null;
             /**
              * Starts At
              * Format: date-time

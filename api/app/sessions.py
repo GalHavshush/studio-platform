@@ -106,6 +106,7 @@ class SessionOut(BaseModel):
     status: str
     preview: str | None
     capacity: int | None
+    series_id: uuid.UUID | None  # the weekly class it was made from, or null for a single class
 
 
 class RsvpCounts(BaseModel):
