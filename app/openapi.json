@@ -2899,6 +2899,62 @@
       }
     },
     "/series/{series_id}": {
+      "delete": {
+        "description": "Remove a series and all its sessions completely: for one created by mistake. Owner only;\n404 if it is not in this studio.\n\nAll or nothing: if any of its sessions has anything recorded on it (an RSVP, a booking,\nattendance, a report or a note) it is `409 series_has_history` and nothing is deleted. Use\n`end` for a series that has really run.",
+        "operationId": "delete_series_series__series_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Series Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Series",
+        "tags": [
+          "series"
+        ]
+      },
       "get": {
         "description": "One series: 404 if it is not in this studio, 403 `not_your_series` if a coach (not an\nowner) is not its coach.",
         "operationId": "get_series_by_id_series__series_id__get",
@@ -3309,6 +3365,62 @@
       }
     },
     "/sessions/{session_id}": {
+      "delete": {
+        "description": "Remove a session completely, as if it had never been made: for a class created by mistake.\nOwner only; 404 if it is not in this studio.\n\nRefused while anything is recorded on it (`409 session_has_history`: an RSVP, a booking,\nattendance, a report or a note; cancel it instead) and when it belongs to a series\n(`409 session_in_series`: the next `extend` would just recreate it; cancel it, or delete or end\nthe series). The database's foreign keys refuse the same deletes, so a record written at the\nlast moment is a 409 too, never a half-deleted session.",
+        "operationId": "delete_session_sessions__session_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Session",
+        "tags": [
+          "sessions"
+        ]
+      },
       "get": {
         "description": "One session of this studio, with its class type's name, the coach's name, the caller's own\nRSVP and attendance, the seats left (booking classes with a limit) and, for coaches and owners, how many chose\neach plan. Any member.\n\nThe coach's name is visible to every member; their email never is. `my_rsvp` is the caller's\nown plan (`going`, `not_going`, `maybe`, `waitlist`) or null; `my_attended` is whether they\nthemselves said they came (true, false, or null when not recorded), a separate fact from the\nplan, and never anyone else's. A session of another studio gets\nthe same `404 session_not_found` as one that does not exist, so ids cannot be probed.",
         "operationId": "get_session_by_id_sessions__session_id__get",

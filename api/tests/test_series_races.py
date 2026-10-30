@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ClassSeries, ClassSession, ClassType, Participant, Rsvp, Tenant
@@ -159,3 +159,75 @@ async def test_ending_a_series_waits_for_a_booking_in_flight_and_then_keeps_it(
         rsvps = list(await db.scalars(select(Rsvp.session_id).where(Rsvp.session_id == booked)))
     assert left == [(booked, "cancelled")]
     assert rsvps == [booked]
+
+
+async def test_deleting_a_series_waits_for_a_booking_in_flight_and_then_refuses(
+    real_client, committed_engine, wait_for_lock_wait
+):
+    """The booking commits its RSVP while the delete waits for the session lock; the delete then
+    sees it, answers 409 and removes nothing."""
+    series_id, ids, tenant_id, people = await running_series(committed_engine, real_client)
+
+    async with AsyncSession(committed_engine) as booking:
+        await booking.execute(
+            select(ClassSession.id).where(ClassSession.id == ids[1]).with_for_update(key_share=True)
+        )
+        participant = await booking.scalar(
+            select(Participant.id).where(Participant.user_id == people["member"])
+        )
+        booking.add(
+            Rsvp(session_id=ids[1], participant_id=participant, tenant_id=tenant_id, status="going")
+        )
+        await booking.flush()
+        request = asyncio.create_task(
+            real_client.delete(f"/series/{series_id}", headers=auth(tenant_id, people["owner"]))
+        )
+        await wait_for_lock_wait(committed_engine, timeout=5)
+        assert not request.done()
+        await booking.commit()
+
+    response = await asyncio.wait_for(request, timeout=10)
+    assert (response.status_code, response.json()) == (409, {"detail": "series_has_history"})
+    async with AsyncSession(committed_engine) as db:
+        left = await db.scalar(
+            select(func.count())
+            .select_from(ClassSession)
+            .where(ClassSession.series_id == series_id)
+        )
+    assert left == 4
+
+
+async def test_deleting_a_session_waits_for_a_booking_in_flight_and_then_refuses(
+    real_client, committed_engine, wait_for_lock_wait
+):
+    session_id, tenant_id, people = await booking_session(committed_engine, capacity=1)
+
+    async with AsyncSession(committed_engine) as booking:
+        await booking.execute(
+            select(ClassSession.id)
+            .where(ClassSession.id == session_id)
+            .with_for_update(key_share=True)
+        )
+        participant = await booking.scalar(
+            select(Participant.id).where(Participant.user_id == people["member"])
+        )
+        booking.add(
+            Rsvp(
+                session_id=session_id,
+                participant_id=participant,
+                tenant_id=tenant_id,
+                status="going",
+            )
+        )
+        await booking.flush()
+        request = asyncio.create_task(
+            real_client.delete(f"/sessions/{session_id}", headers=auth(tenant_id, people["owner"]))
+        )
+        await wait_for_lock_wait(committed_engine, timeout=5)
+        assert not request.done()
+        await booking.commit()
+
+    response = await asyncio.wait_for(request, timeout=10)
+    assert (response.status_code, response.json()) == (409, {"detail": "session_has_history"})
+    async with AsyncSession(committed_engine) as db:
+        assert await db.get(ClassSession, session_id) is not None

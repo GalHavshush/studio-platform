@@ -15,13 +15,24 @@ from pydantic import (
     StringConstraints,
     model_validator,
 )
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bookings import _count_going, booking_applies, promote_waitlist
+from app.class_types import OwnerCtx
 from app.db import get_session
 from app.deps import TenantContext, TenantCtx, require_role
-from app.models import ClassSession, ClassType, Membership, Participant, Rsvp, User
+from app.models import (
+    ClassReport,
+    ClassSession,
+    ClassType,
+    Membership,
+    Participant,
+    ParticipantNote,
+    Rsvp,
+    User,
+)
 from app.text import NoNul
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -388,3 +399,37 @@ async def cancel_session(
     cancelled = SessionOut.model_validate(row)
     await session.commit()
     return cancelled
+
+
+async def sessions_with_history(session: AsyncSession, ids: list[uuid.UUID]) -> set[uuid.UUID]:
+    """Which of these sessions have anything recorded on them: an RSVP row (a plan, a booking or an
+    attendance mark), a class report or a note. Those can no longer be deleted, only cancelled."""
+    found = set()
+    for column in (Rsvp.session_id, ClassReport.session_id, ParticipantNote.session_id):
+        found |= set(await session.scalars(select(column).where(column.in_(ids))))
+    return found
+
+
+@router.delete("/{session_id}", status_code=204)
+async def delete_session(
+    session_id: uuid.UUID, ctx: OwnerCtx, session: Annotated[AsyncSession, Depends(get_session)]
+) -> None:
+    """Remove a session completely, as if it had never been made: for a class created by mistake.
+    Owner only; 404 if it is not in this studio.
+
+    Refused while anything is recorded on it (`409 session_has_history`: an RSVP, a booking,
+    attendance, a report or a note; cancel it instead) and when it belongs to a series
+    (`409 session_in_series`: the next `extend` would just recreate it; cancel it, or delete or end
+    the series). The database's foreign keys refuse the same deletes, so a record written at the
+    last moment is a 409 too, never a half-deleted session.
+    """
+    row = await own_session(session_id, ctx, session)  # the lock a booking takes first
+    if row.series_id is not None:
+        raise HTTPException(status_code=409, detail="session_in_series")
+    if await sessions_with_history(session, [row.id]):
+        raise HTTPException(status_code=409, detail="session_has_history")
+    try:
+        await session.execute(delete(ClassSession).where(ClassSession.id == row.id))
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail="session_has_history")
+    await session.commit()

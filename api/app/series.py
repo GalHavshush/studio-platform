@@ -17,7 +17,7 @@ from app.bookings import booking_applies, promote_waitlist
 from app.class_types import OwnerCtx
 from app.db import get_session
 from app.models import ClassSeries, ClassSession, ClassType, Rsvp, Tenant
-from app.sessions import CoachCtx, check_class_and_coach, is_staff
+from app.sessions import CoachCtx, check_class_and_coach, is_staff, sessions_with_history
 
 router = APIRouter(prefix="/series", tags=["series"])
 
@@ -363,3 +363,39 @@ async def end_series(
     )
     await session.commit()
     return result
+
+
+@router.delete("/{series_id}", status_code=204)
+async def delete_series(
+    series_id: uuid.UUID, ctx: OwnerCtx, session: Annotated[AsyncSession, Depends(get_session)]
+) -> None:
+    """Remove a series and all its sessions completely: for one created by mistake. Owner only;
+    404 if it is not in this studio.
+
+    All or nothing: if any of its sessions has anything recorded on it (an RSVP, a booking,
+    attendance, a report or a note) it is `409 series_has_history` and nothing is deleted. Use
+    `end` for a series that has really run.
+    """
+    row = await session.scalar(
+        select(ClassSeries)
+        .where(ClassSeries.id == series_id, ClassSeries.tenant_id == ctx.tenant_id)
+        .with_for_update()  # an edit, an extend or an end running now finishes first
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="series_not_found")
+    ids = list(
+        await session.scalars(
+            select(ClassSession.id)
+            .where(ClassSession.series_id == row.id)
+            .order_by(ClassSession.id)
+            .with_for_update(key_share=True)  # the lock a booking takes first
+        )
+    )
+    if await sessions_with_history(session, ids):
+        raise HTTPException(status_code=409, detail="series_has_history")
+    try:
+        await session.execute(delete(ClassSession).where(ClassSession.series_id == row.id))
+        await session.execute(delete(ClassSeries).where(ClassSeries.id == row.id))
+    except IntegrityError:  # something was recorded between the check and the delete
+        raise HTTPException(status_code=409, detail="series_has_history")
+    await session.commit()
