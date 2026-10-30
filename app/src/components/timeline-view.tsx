@@ -9,7 +9,10 @@ import { Screen } from "@/components/screen";
 import { TAB_BAR_SPACE } from "@/components/tab-bar";
 import { Text } from "@/components/text";
 import { TimelineCard } from "@/components/timeline-card";
+import { HistoryRow } from "@/components/history-row";
 import { useT } from "@/i18n/use-language";
+import { useWeekStart } from "@/schedule/use-week-start";
+import { aboutYou } from "@/schedule/timeline";
 import { useTimeline } from "@/schedule/use-timeline";
 import { space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
@@ -34,6 +37,19 @@ export function TimelineView({ id, name, tab = false, header }: Props) {
   const timeline = useTimeline(id);
   // ponytail: read once when the screen opens; "upcoming" and "no record" are judged against it.
   const [now] = useState(Date.now);
+  const { firstDay } = useWeekStart();
+  const [open, setOpen] = useState<string | null>(null); // the history row whose card is shown
+  const zone = studio?.timezone ?? "UTC";
+
+  // ponytail: judged on the pages loaded so far (20 classes, newest first); a member with more than that
+  // many upcoming classes would not see last week's reports until "Show earlier".
+  // On the tab (your own classes) last week's reports are lifted out of the list, which keeps the rest
+  // as a compact history. Someone else's timeline stays the plain list of full cards.
+  const items = timeline.status === "ready" && studio ? timeline.items : [];
+  const about = tab ? aboutYou(items, now, zone, firstDay) : [];
+  const aboutIds = new Set(about.map((e) => e.session_id));
+  const rest = tab ? items.filter((e) => !aboutIds.has(e.session_id)) : items;
+  const ready = tab && timeline.status === "ready";
 
   return (
     <Screen>
@@ -42,15 +58,43 @@ export function TimelineView({ id, name, tab = false, header }: Props) {
       {/* One list, always mounted: the header (reports to write) must not remount when the timeline
           finishes loading, or it would reload and lose the weeks "Show earlier" added. */}
       <FlatList
-        data={timeline.status === "ready" && studio ? timeline.items : []}
+        data={rest}
         keyExtractor={(e) => e.session_id}
         contentContainerStyle={{
           padding: space.xl,
           paddingBottom: insets.bottom + space.xl + (tab ? TAB_BAR_SPACE : 0),
         }}
-        ListHeaderComponent={header ? <View style={styles.headerGap}>{header}</View> : undefined}
+        ListHeaderComponent={
+          header || ready ? (
+            <View style={styles.headerGap}>
+              {header}
+              {ready && (
+                <View style={styles.section}>
+                  <Text variant="title">{t("about.title")}</Text>
+                  {about.length === 0 && <Text color="textMuted">{t("about.none")}</Text>}
+                  {about.map((e) => (
+                    <TimelineCard key={e.session_id} entry={e} timeZone={zone} now={now} />
+                  ))}
+                  {rest.length > 0 && <Text variant="title">{t("history.title")}</Text>}
+                </View>
+              )}
+            </View>
+          ) : undefined
+        }
         ItemSeparatorComponent={() => <View style={styles.gap} />}
-        renderItem={({ item }) => <TimelineCard entry={item} timeZone={studio?.timezone ?? "UTC"} now={now} />}
+        renderItem={({ item }) =>
+          tab ? (
+            <HistoryRow
+              entry={item}
+              timeZone={zone}
+              now={now}
+              open={open === item.session_id}
+              onToggle={() => setOpen(open === item.session_id ? null : item.session_id)}
+            />
+          ) : (
+            <TimelineCard entry={item} timeZone={zone} now={now} />
+          )
+        }
         ListEmptyComponent={
           timeline.status === "loading" ? (
             <ActivityIndicator style={styles.empty} color={colors.textMuted} />
@@ -94,7 +138,8 @@ export function TimelineView({ id, name, tab = false, header }: Props) {
 const styles = StyleSheet.create({
   center: { alignItems: "center", gap: space.sm, padding: space.xl },
   gap: { height: space.md },
-  headerGap: { paddingBottom: space.xl },
+  headerGap: { gap: space.xl, paddingBottom: space.xl },
+  section: { gap: space.md },
   empty: { textAlign: "center", padding: space.xl },
   footer: { alignItems: "center", gap: space.sm, paddingTop: space.lg },
 });
