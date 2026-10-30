@@ -10,6 +10,7 @@ import {
   showSeats,
   times,
   toPayload,
+  toSeriesPayload,
   wrap,
   type ClassTypeChoice,
   type NewSessionForm,
@@ -103,4 +104,23 @@ test("a coach is sent only when an owner picked one", () => {
   const f = form({});
   expect(toPayload(f, ZONE, true)).not.toHaveProperty("coach_id");
   expect(toPayload({ ...f, coachId: "u2" }, ZONE, true)).toMatchObject({ coach_id: "u2" });
+});
+
+test("a weekly class is the chosen day, its weekday, and the studio's clock as typed", () => {
+  const f = form({ hour: 9, minute: 5, duration: 45, seats: "8" }); // Thu 29 Oct 2026, Jerusalem
+  expect(toSeriesPayload(f, ZONE, true)).toEqual({
+    class_type_id: "ct1",
+    weekday: 3, // Thursday, counting from Monday = 0
+    start_time: "09:05",
+    duration_minutes: 45,
+    first_date: "2026-10-29",
+    capacity: 8,
+  });
+  expect(toSeriesPayload(f, ZONE, false)).not.toHaveProperty("capacity");
+  expect(toSeriesPayload({ ...f, coachId: "u2" }, ZONE, true)).toMatchObject({ coach_id: "u2" });
+});
+
+test("a weekly class takes its date from the studio's calendar, not the phone's", () => {
+  const sunday = form({ dayStart: Date.parse("2026-10-31T22:00:00Z") }); // Sun 1 Nov 00:00 in Jerusalem
+  expect(toSeriesPayload(sunday, ZONE, false)).toMatchObject({ first_date: "2026-11-01", weekday: 6 });
 });
