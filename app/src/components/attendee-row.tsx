@@ -30,7 +30,7 @@ export function AttendeeRow({ name, hasNote, shared, open, onToggle, children }:
         onPress={onToggle}
         style={[styles.row, { backgroundColor: colors.surface }]}
       >
-        <Text variant="label" style={styles.name}>
+        <Text variant="rowName" style={styles.name}>
           {name}
         </Text>
         {hasNote && (
@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     borderRadius: radius.md,
   },
-  name: { flex: 1, fontSize: 16, lineHeight: 22 },
+  name: { flex: 1 },
   // the pill pins itself to the top of its parent; this wrapper centres the pair in the row instead
   tags: { flexDirection: "row", gap: space.xs, alignSelf: "center" },
   body: { gap: space.sm, paddingHorizontal: space.xs },

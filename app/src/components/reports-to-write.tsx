@@ -3,7 +3,8 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { useSession } from "@/auth/session";
 import { Button } from "@/components/button";
-import { ReportRow } from "@/components/report-row";
+import { ClassRow } from "@/components/class-row";
+import { Pill } from "@/components/pill";
 import { Text } from "@/components/text";
 import { useT } from "@/i18n/use-language";
 import { useReportQueue } from "@/schedule/use-report-queue";
@@ -40,12 +41,14 @@ export function ReportsToWrite() {
           {queue.items.length === 0 && <Text color="textMuted">{t("reports.none")}</Text>}
           {queue.items.map((i) => {
             const start = Date.parse(i.starts_at);
+            const when = `${formatDay(startOfDay(start, zone), now, zone, t)} · ${formatTime(start, zone, t.locale)}`;
             return (
-              <ReportRow
+              <ClassRow
                 key={i.session_id}
-                when={`${formatDay(startOfDay(start, zone), now, zone, t)} · ${formatTime(start, zone, t.locale)}`}
+                when={when}
                 title={i.class_type_name}
-                written={i.has_report}
+                tag={i.has_report ? <Pill label={t("reports.written")} tone="ink" /> : <Pill label={t("reports.toWrite")} />}
+                label={t("reports.rowLabel", { title: i.class_type_name, when })}
                 onPress={() => router.push({ pathname: "/session/report/[id]", params: { id: i.session_id } })}
               />
             );

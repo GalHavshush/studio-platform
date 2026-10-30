@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 
 import { api } from "@/api/client";
 
@@ -31,15 +32,34 @@ async function fetchWeek(timezone: string, firstDay: FirstDay, weeksBack: number
 export function useReportQueue(timezone: string, firstDay: FirstDay) {
   const [state, setState] = useState<State>({ status: "loading", items: [], weeks: 1, more: "idle" });
 
-  const load = useCallback(async () => {
-    setState({ status: "loading", items: [], weeks: 1, more: "idle" });
-    const items = await fetchWeek(timezone, firstDay, 0);
-    setState(items ? { status: "ready", items, weeks: 1, more: "idle" } : { status: "error", items: [], weeks: 1, more: "idle" });
+  const latest = useRef(state);
+  latest.current = state;
+
+  // Loads (or reloads) every week shown so far. A reload keeps what is on screen until the answer
+  // arrives, and keeps it if the answer fails.
+  const refresh = useCallback(async () => {
+    const weeks = latest.current.weeks;
+    const pages = await Promise.all(Array.from({ length: weeks }, (_, w) => fetchWeek(timezone, firstDay, w)));
+    setState((s) =>
+      pages.every((p) => p)
+        ? { status: "ready", items: pages.flat() as QueueItem[], weeks, more: "idle" }
+        : s.status === "loading"
+          ? { ...s, status: "error" }
+          : s,
+    );
   }, [timezone, firstDay]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // The tab stays mounted while a report is written on top of it, so it reloads whenever it is shown again.
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
+
+  const retry = () => {
+    setState({ status: "loading", items: [], weeks: 1, more: "idle" });
+    refresh();
+  };
 
   async function showEarlier() {
     if (state.status !== "ready" || state.more === "busy") return;
@@ -52,5 +72,5 @@ export function useReportQueue(timezone: string, firstDay: FirstDay) {
     );
   }
 
-  return { status: state.status, items: unwrittenFirst(state.items), more: state.more, retry: load, showEarlier };
+  return { status: state.status, items: unwrittenFirst(state.items), more: state.more, retry, showEarlier };
 }

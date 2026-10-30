@@ -41,7 +41,7 @@ export function Row({ time, title, tone, cancelled = false, onPress }: Props) {
     >
       <View style={[styles.chip, { backgroundColor: cancelled ? colors.surfaceMuted : colors[chip.bg] }]}>
         <Text
-          variant="label"
+          variant="rowName"
           color={cancelled ? "textMuted" : chip.fg}
           style={[styles.time, cancelled && styles.struck]}
         >
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg - 4,
   },
   chip: { minWidth: 64, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: 13 },
-  time: { fontSize: 16, lineHeight: 22, fontVariant: ["tabular-nums"], paddingHorizontal: space.sm },
+  time: { fontVariant: ["tabular-nums"], paddingHorizontal: space.sm },
   title: { flex: 1, fontSize: 17 },
   struck: { textDecorationLine: "line-through" },
   // the pill pins itself to the top of its parent; this wrapper centres it in the row instead

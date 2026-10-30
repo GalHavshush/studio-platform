@@ -64,6 +64,8 @@ export const type = {
   // a big number on a tile
   figure: { fontFamily: fontFamily.extrabold, fontSize: 34, lineHeight: 36, letterSpacing: -0.7 },
   body: { fontFamily: fontFamily.regular, fontSize: 16, lineHeight: 22, letterSpacing: 0 },
+  // a name in a list row ("Maya", "Cody Coach")
+  rowName: { fontFamily: fontFamily.bold, fontSize: 16, lineHeight: 22, letterSpacing: 0 },
   label: { fontFamily: fontFamily.bold, fontSize: 13, lineHeight: 18, letterSpacing: 0 },
   caption: { fontFamily: fontFamily.bold, fontSize: 12, lineHeight: 16, letterSpacing: 0 },
 } as const;
