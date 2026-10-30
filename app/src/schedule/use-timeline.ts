@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 
 import { api } from "@/api/client";
 
@@ -22,24 +23,30 @@ async function fetchPage(participantId: string, cursor?: string) {
 /** One person's timeline, a page at a time. The server decides what the caller may see. */
 export function useTimeline(participantId: string) {
   const [state, setState] = useState<State>({ status: "loading" });
-  const [tries, setTries] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { page, status } = await fetchPage(participantId);
-        if (cancelled) return;
-        if (page) setState({ status: "ready", items: page.items, next: page.next, more: "idle" });
-        else setState({ status: status === 404 ? "notFound" : "error" });
-      } catch {
-        if (!cancelled) setState({ status: "error" });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [participantId, tries]);
+  // Loads the first page, and again whenever the screen is shown: the tab stays mounted while a report
+  // is written elsewhere. A reload keeps what is on screen until the answer comes, and keeps it if it
+  // fails; pages added with "Show earlier" are dropped, the newest page is what counts.
+  const refresh = useCallback(async () => {
+    try {
+      const { page, status } = await fetchPage(participantId);
+      setState((s) =>
+        page
+          ? { status: "ready", items: page.items, next: page.next, more: "idle" }
+          : s.status === "ready"
+            ? s
+            : { status: status === 404 ? "notFound" : "error" },
+      );
+    } catch {
+      setState((s) => (s.status === "ready" ? s : { status: "error" }));
+    }
+  }, [participantId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
 
   async function showMore() {
     if (state.status !== "ready" || state.next === null || state.more === "busy") return;
@@ -59,7 +66,7 @@ export function useTimeline(participantId: string) {
 
   const retry = () => {
     setState({ status: "loading" });
-    setTries((n) => n + 1);
+    refresh();
   };
 
   return { ...state, retry, showMore };

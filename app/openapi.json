@@ -498,6 +498,27 @@
         "title": "ParticipantHit",
         "type": "object"
       },
+      "Queue": {
+        "properties": {
+          "has_earlier": {
+            "title": "Has Earlier",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QueueItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items",
+          "has_earlier"
+        ],
+        "title": "Queue",
+        "type": "object"
+      },
       "QueueItem": {
         "properties": {
           "class_type_name": {
@@ -2275,7 +2296,7 @@
     },
     "/report-queue": {
       "get": {
-        "description": "The classes starting in `[from, to)` whose report the caller may write, newest first. A\ncoach gets their own classes, an owner every class of the studio (the rule of `PUT\n/sessions/{id}/report`); a member gets `403 insufficient_role`.\n\nOnly classes that have started and were not cancelled are listed, because those are the ones\nthat route accepts (`409 session_not_started`, `409 session_cancelled` otherwise). The range\nfollows the schedule's rules: `from` included, `to` not, at most 62 days (`422 invalid_range`,\n`422 range_too_long`). One query: the class type's name and whether a report exists come from\njoins, so a long list costs no more round trips than a short one.",
+        "description": "The classes starting in `[from, to)` whose report the caller may write, newest first. A\ncoach gets their own classes, an owner every class of the studio (the rule of `PUT\n/sessions/{id}/report`); a member gets `403 insufficient_role`.\n\nOnly classes that have started and were not cancelled are listed, because those are the ones\nthat route accepts (`409 session_not_started`, `409 session_cancelled` otherwise). The range\nfollows the schedule's rules: `from` included, `to` not, at most 62 days (`422 invalid_range`,\n`422 range_too_long`). The class type's name and whether a report exists come from joins, so a\nlong list costs no more round trips than a short one; `has_earlier` is one more `EXISTS` query.",
         "operationId": "report_queue_report_queue_get",
         "parameters": [
           {
@@ -2320,11 +2341,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/QueueItem"
-                  },
-                  "title": "Response Report Queue Report Queue Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/Queue"
                 }
               }
             },

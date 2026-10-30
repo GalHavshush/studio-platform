@@ -344,8 +344,8 @@ export interface paths {
          *     Only classes that have started and were not cancelled are listed, because those are the ones
          *     that route accepts (`409 session_not_started`, `409 session_cancelled` otherwise). The range
          *     follows the schedule's rules: `from` included, `to` not, at most 62 days (`422 invalid_range`,
-         *     `422 range_too_long`). One query: the class type's name and whether a report exists come from
-         *     joins, so a long list costs no more round trips than a short one.
+         *     `422 range_too_long`). The class type's name and whether a report exists come from joins, so a
+         *     long list costs no more round trips than a short one; `has_earlier` is one more `EXISTS` query.
          */
         get: operations["report_queue_report_queue_get"];
         put?: never;
@@ -839,6 +839,13 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+        };
+        /** Queue */
+        Queue: {
+            /** Has Earlier */
+            has_earlier: boolean;
+            /** Items */
+            items: components["schemas"]["QueueItem"][];
         };
         /** QueueItem */
         QueueItem: {
@@ -1725,7 +1732,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["QueueItem"][];
+                    "application/json": components["schemas"]["Queue"];
                 };
             };
             /** @description Validation Error */
