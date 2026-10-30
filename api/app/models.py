@@ -185,6 +185,8 @@ class ClassSession(Base):
     preview: Mapped[str | None]
     # Seats for booking-mode classes (step 24); NULL = unlimited. Ignored in rsvp mode.
     capacity: Mapped[int | None]
+    # The series this session was generated from, if any. Same studio: composite FK below.
+    series_id: Mapped[uuid.UUID | None]
     __table_args__ = (
         CheckConstraint("status IN ('scheduled', 'cancelled')", name="ck_class_sessions_status"),
         CheckConstraint("capacity >= 1", name="ck_class_sessions_capacity_positive"),
@@ -197,6 +199,14 @@ class ClassSession(Base):
             ["class_types.tenant_id", "class_types.id"],
             name="fk_class_sessions_class_type_same_tenant",
         ),
+        ForeignKeyConstraint(
+            ["tenant_id", "series_id"],
+            ["class_series.tenant_id", "class_series.id"],
+            name="fk_class_sessions_series_same_tenant",
+        ),
+        # One session per series per instant: generating twice adds nothing. NULL series_id (a
+        # session made by hand) never collides, since NULLs are distinct in a unique constraint.
+        UniqueConstraint("series_id", "starts_at", name="uq_class_sessions_series_id_starts_at"),
         # For the schedule query: one studio's sessions in a time window, already in order.
         Index("ix_class_sessions_tenant_id_starts_at", "tenant_id", "starts_at"),
     )
