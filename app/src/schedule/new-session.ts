@@ -18,6 +18,7 @@ export type NewSessionForm = {
   minute: number;
   duration: number; // minutes
   seats: string; // what was typed; empty means unlimited
+  coachId: string | null; // an owner's pick; null means the caller
 };
 
 /** Today and the days after it, as the studio's midnights, for the day chips. */
@@ -34,6 +35,7 @@ export function initialForm(now: number, timeZone: string): NewSessionForm {
     minute: 0,
     duration: 60,
     seats: "",
+    coachId: null,
   };
 }
 
@@ -61,7 +63,7 @@ export function times(form: NewSessionForm, timeZone: string): { start: number; 
   return { start, end: start + form.duration * 60_000 };
 }
 
-/** The body of `POST /sessions`. No coach: the API makes the caller the coach. */
+/** The body of `POST /sessions`. Without a coach the API makes the caller the coach. */
 export function toPayload(form: NewSessionForm, timeZone: string, seatsShown: boolean) {
   const { start, end } = times(form, timeZone);
   const seats = seatsShown ? seatsValue(form.seats) : null;
@@ -70,6 +72,7 @@ export function toPayload(form: NewSessionForm, timeZone: string, seatsShown: bo
     starts_at: new Date(start).toISOString(),
     ends_at: new Date(end).toISOString(),
     ...(typeof seats === "number" ? { capacity: seats } : {}),
+    ...(form.coachId ? { coach_id: form.coachId } : {}),
   };
 }
 

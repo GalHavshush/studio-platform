@@ -60,10 +60,18 @@ test("the class's own day and length are offered even outside the usual choices"
   expect(editDurations(60)).toEqual([30, 45, 60, 90]);
 });
 
+test("a new coach is sent only when it differs from the class's", () => {
+  expect(editForm(session, Z).coachId).toBe("u1");
+  expect(toPatch({ ...editForm(session, Z), coachId: "u1" }, session, Z, true)).toEqual({});
+  expect(toPatch({ ...editForm(session, Z), coachId: "u2" }, session, Z, true)).toEqual({ coach_id: "u2" });
+});
+
 test("server answers become outcomes and messages", () => {
   expect(changeOutcome(403, "not_your_session")).toBe("notYours");
   expect(changeOutcome(409, "session_cancelled")).toBe("cancelled");
   expect(changeOutcome(422, "invalid_times")).toBe("badTimes");
+  expect(changeOutcome(422, "invalid_coach")).toBe("badCoach");
+  expect(changeMessage(t, "badCoach")).toBeTruthy();
   expect(changeOutcome(500, undefined)).toBe("error");
   expect(changeMessage(t, "ok")).toBeNull();
   expect(changeMessage(t, "badTimes")).toBeTruthy();

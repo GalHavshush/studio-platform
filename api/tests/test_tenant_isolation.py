@@ -120,6 +120,10 @@ async def _report_queue(client, headers):
     return await client.get("/report-queue", params=params, headers=headers)
 
 
+async def _list_staff(client, headers):
+    return await client.get("/staff", headers=headers)
+
+
 async def _search_participants(client, headers):
     return await client.get("/participants", params={"q": "a"}, headers=headers)
 
@@ -143,6 +147,7 @@ TENANT_SCOPED_ENDPOINTS: dict[tuple[str, str], object] = {
     ("GET", "/report-queue"): _report_queue,
     ("PUT", "/sessions/{session_id}/report"): _write_report,
     ("GET", "/sessions/{session_id}/report"): _read_report,
+    ("GET", "/staff"): _list_staff,
     ("GET", "/participants"): _search_participants,
     ("GET", "/participants/{participant_id}/notes"): _list_notes,
     ("GET", "/participants/{participant_id}/timeline"): _timeline,

@@ -98,3 +98,9 @@ test("a server answer becomes one outcome and one message", () => {
   expect(createMessage(t, "typeArchived")).toMatch(/archived/i);
   expect(createMessage(t, "unreachable")).toBe(t("common.cantReach"));
 });
+
+test("a coach is sent only when an owner picked one", () => {
+  const f = form({});
+  expect(toPayload(f, ZONE, true)).not.toHaveProperty("coach_id");
+  expect(toPayload({ ...f, coachId: "u2" }, ZONE, true)).toMatchObject({ coach_id: "u2" });
+});

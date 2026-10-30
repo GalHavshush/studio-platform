@@ -603,6 +603,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Staff
+         * @description The coaches and owners of this studio, by name. Owner only: nobody else may name a coach.
+         *     No emails: the picker needs only a name to show and an id to send.
+         */
+        get: operations["list_staff_staff_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tenant": {
         parameters: {
             query?: never;
@@ -1134,6 +1155,18 @@ export interface components {
             session_id: string | null;
             /** Shared With Member */
             shared_with_member: boolean;
+        };
+        /** StaffOut */
+        StaffOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Role */
+            role: string;
         };
         /** StaffTimeline */
         StaffTimeline: {
@@ -2115,6 +2148,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RsvpEntry"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_staff_staff_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffOut"][];
                 };
             };
             /** @description Validation Error */
