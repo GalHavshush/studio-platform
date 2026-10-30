@@ -29,6 +29,7 @@ import {
   attendanceText,
   type AttendOutcome,
 } from "@/schedule/attendance";
+import { canChange, changeMessage } from "@/schedule/edit-session";
 import { canWriteReport } from "@/schedule/report";
 import type { GroupKey } from "@/schedule/rsvp-list";
 import { formatRange } from "@/schedule/time";
@@ -78,7 +79,7 @@ export default function SessionScreen() {
           <Button variant="link" title={t("common.tryAgain")} onPress={detail.retry} />
         </View>
       )}
-      {ready && <Details session={detail.session} stale={detail.stale} rsvp={detail.rsvp} attend={detail.attend} />}
+      {ready && <Details session={detail.session} stale={detail.stale} rsvp={detail.rsvp} attend={detail.attend} cancel={detail.cancel} />}
     </Screen>
   );
 }
@@ -96,9 +97,10 @@ type DetailsProps = {
   stale: boolean;
   rsvp: (choice: Choice) => Promise<RsvpOutcome>;
   attend: (attended: boolean) => Promise<AttendOutcome>;
+  cancel: ReturnType<typeof useSessionDetail>["cancel"];
 };
 
-function Details({ session, stale, rsvp, attend }: DetailsProps) {
+function Details({ session, stale, rsvp, attend, cancel }: DetailsProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors } = useTheme();
@@ -113,6 +115,10 @@ function Details({ session, stale, rsvp, attend }: DetailsProps) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const cancelled = session.status === "cancelled";
+  const { studio, user } = useSession();
+  const mayChange = studio !== null && canChange(session, studio.role, user?.id);
+  const [cancelling, setCancelling] = useState(false);
+  const [changeNote, setChangeNote] = useState<string | null>(null);
   const attendance = attendanceState(session, now);
   const seats = seatsText(t, session.seats_left, session.my_rsvp);
   const selected = selectedChoice(session.my_rsvp);
@@ -133,6 +139,22 @@ function Details({ session, stale, rsvp, attend }: DetailsProps) {
     const outcome = await attend(attended);
     setAttending(false);
     setAttendNote(attendMessage(t, outcome));
+  }
+
+  function askCancel() {
+    Alert.alert(t("session.cancelAsk"), t("session.cancelAskBody"), [
+      { text: t("session.cancelKeep"), style: "cancel" },
+      {
+        text: t("session.cancelClass"),
+        style: "destructive",
+        onPress: async () => {
+          setCancelling(true);
+          setChangeNote(null);
+          setChangeNote(changeMessage(t, await cancel()));
+          setCancelling(false);
+        },
+      },
+    ]);
   }
 
   function choose(choice: Choice) {
@@ -220,6 +242,22 @@ function Details({ session, stale, rsvp, attend }: DetailsProps) {
           title={t("report.title")}
           onPress={() => router.push({ pathname: "/session/report/[id]", params: { id: session.id } })}
         />
+      )}
+
+      {mayChange && (
+        <View style={styles.group}>
+          <Button
+            variant="choice"
+            title={t("session.edit")}
+            onPress={() => router.push({ pathname: "/session/edit/[id]", params: { id: session.id } })}
+          />
+          <Button variant="outline" title={t("session.cancelClass")} busy={cancelling} onPress={askCancel} />
+          {changeNote && (
+            <Text color="danger" accessibilityRole="alert">
+              {changeNote}
+            </Text>
+          )}
+        </View>
       )}
 
       <View style={styles.spacer} />

@@ -8,29 +8,23 @@ import { Button } from "@/components/button";
 import { ChoiceChip } from "@/components/choice-chip";
 import { PageHeader } from "@/components/page-header";
 import { Screen } from "@/components/screen";
-import { Stepper } from "@/components/stepper";
+import { SessionFields } from "@/components/session-fields";
 import { Text } from "@/components/text";
-import { TextField } from "@/components/text-field";
 import { useT } from "@/i18n/use-language";
 import {
   DURATIONS,
-  MINUTE_STEP,
   canCreate,
   createMessage,
   dayChoices,
   initialForm,
-  seatsValue,
   showSeats,
   times,
   toPayload,
-  wrap,
 } from "@/schedule/new-session";
-import { formatDay, formatRange } from "@/schedule/time";
+import { formatRange } from "@/schedule/time";
 import { useNewSession } from "@/schedule/use-new-session";
 import { space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
-
-const two = (n: number) => String(n).padStart(2, "0");
 
 export default function NewSessionScreen() {
   const studio = useSession().studio as Studio;
@@ -93,70 +87,16 @@ export default function NewSessionScreen() {
               </View>
             </View>
 
-            <View style={styles.group}>
-              <Text variant="eyebrow">{t("newSession.day")}</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-                {days.map((d) => (
-                  <ChoiceChip
-                    key={d}
-                    label={formatDay(d, now, zone, t)}
-                    selected={form.dayStart === d}
-                    onPress={() => change({ dayStart: d })}
-                  />
-                ))}
-              </ScrollView>
-            </View>
-
-            <View style={styles.group}>
-              <Text variant="eyebrow">{t("newSession.start")}</Text>
-              <View style={styles.time}>
-                <Stepper
-                  value={two(form.hour)}
-                  onUp={() => change({ hour: wrap(form.hour, 1, 24) })}
-                  onDown={() => change({ hour: wrap(form.hour, -1, 24) })}
-                  upLabel={t("newSession.up", { what: t("newSession.hour") })}
-                  downLabel={t("newSession.down", { what: t("newSession.hour") })}
-                />
-                <Text variant="title">:</Text>
-                <Stepper
-                  value={two(form.minute)}
-                  onUp={() => change({ minute: wrap(form.minute, MINUTE_STEP, 60) })}
-                  onDown={() => change({ minute: wrap(form.minute, -MINUTE_STEP, 60) })}
-                  upLabel={t("newSession.up", { what: t("newSession.minute") })}
-                  downLabel={t("newSession.down", { what: t("newSession.minute") })}
-                />
-              </View>
-            </View>
-
-            <View style={styles.group}>
-              <Text variant="eyebrow">{t("newSession.length")}</Text>
-              <View style={styles.wrap}>
-                {DURATIONS.map((m) => (
-                  <ChoiceChip
-                    key={m}
-                    label={t("newSession.minutes", { n: m })}
-                    selected={form.duration === m}
-                    onPress={() => change({ duration: m })}
-                  />
-                ))}
-              </View>
-            </View>
-
-            {seatsShown && (
-              <View style={styles.group}>
-                <TextField
-                  label={t("newSession.seats")}
-                  value={form.seats}
-                  onChangeText={(seats) => change({ seats })}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  editable={!busy}
-                />
-                <Text color={seatsValue(form.seats) === "invalid" ? "danger" : "textMuted"}>
-                  {seatsValue(form.seats) === "invalid" ? t("newSession.seatsInvalid") : t("newSession.seatsHint")}
-                </Text>
-              </View>
-            )}
+            <SessionFields
+              form={form}
+              change={change}
+              days={days}
+              durations={DURATIONS}
+              now={now}
+              zone={zone}
+              seatsShown={seatsShown}
+              busy={busy}
+            />
 
             <Text variant="title">{formatRange(start, end, zone, t.locale)}</Text>
             {message && (
@@ -178,6 +118,4 @@ const styles = StyleSheet.create({
   form: { padding: space.xl, gap: space.xl },
   group: { gap: space.sm },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
-  chips: { flexDirection: "row", gap: space.sm },
-  time: { flexDirection: "row", alignItems: "center", gap: space.md },
 });

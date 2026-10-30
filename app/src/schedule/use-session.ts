@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "@/api/client";
 import type { components } from "@/api/schema";
 
+import { changeOutcome, type ChangeOutcome, type SessionChanges } from "./edit-session";
 import { attendOutcome, type AttendOutcome } from "./attendance";
 import type { Choice, RsvpOutcome } from "./plan";
 
@@ -38,7 +40,15 @@ export function useSessionDetail(id: string) {
     [id],
   );
 
+  // Coming back to this screen (from editing the class) shows what is now true; the first focus is the load below.
+  const opened = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (opened.current) void load(true);
+    }, [load]),
+  );
   useEffect(() => {
+    opened.current = true;
     load();
   }, [load]);
 
@@ -84,5 +94,31 @@ export function useSessionDetail(id: string) {
     [id, load],
   );
 
-  return { ...state, retry: () => load(), rsvp, attend };
+  // Edit and cancel: the server judges (owner or own class, a cancelled class), the screen waits for its answer.
+  const change = useCallback(
+    async (call: () => Promise<{ error?: unknown; response: Response }>): Promise<ChangeOutcome> => {
+      try {
+        const { error, response } = await call();
+        if (response.ok) {
+          await load(true);
+          return "ok";
+        }
+        return changeOutcome(response.status, (error as { detail?: unknown } | undefined)?.detail);
+      } catch {
+        return "unreachable";
+      }
+    },
+    [load],
+  );
+  const edit = useCallback(
+    (body: SessionChanges) =>
+      change(() => api.PATCH("/sessions/{session_id}", { params: { path: { session_id: id } }, body })),
+    [id, change],
+  );
+  const cancel = useCallback(
+    () => change(() => api.POST("/sessions/{session_id}/cancel", { params: { path: { session_id: id } } })),
+    [id, change],
+  );
+
+  return { ...state, retry: () => load(), rsvp, attend, edit, cancel };
 }
