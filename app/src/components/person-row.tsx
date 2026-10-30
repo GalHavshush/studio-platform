@@ -22,7 +22,7 @@ export function PersonRow({ name, position, onPress }: Props) {
       onPress={onPress}
       style={[styles.row, { backgroundColor: colors.surface }]}
     >
-      <Text variant="label" style={styles.name}>
+      <Text variant="rowName" style={styles.name}>
         {name}
       </Text>
       {position ? (
@@ -41,13 +41,13 @@ export function PersonRow({ name, position, onPress }: Props) {
 
 const styles = StyleSheet.create({
   row: {
-    minHeight: 44,
+    minHeight: 52,
     flexDirection: "row",
     alignItems: "center",
     gap: space.md,
     paddingHorizontal: space.lg,
     borderRadius: radius.md,
   },
-  name: { flex: 1, fontSize: 16, lineHeight: 22 },
+  name: { flex: 1 },
   badge: { minWidth: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
 });

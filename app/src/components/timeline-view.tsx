@@ -75,7 +75,7 @@ export function TimelineView({ id, name, tab = false, header }: Props) {
                   {about.map((e) => (
                     <TimelineCard key={e.session_id} entry={e} timeZone={zone} now={now} />
                   ))}
-                  {rest.length > 0 && <Text variant="title">{t("history.title")}</Text>}
+                  <Text variant="title">{t("history.title")}</Text>
                 </View>
               )}
             </View>
@@ -108,7 +108,7 @@ export function TimelineView({ id, name, tab = false, header }: Props) {
               <Button variant="link" title={t("common.tryAgain")} onPress={timeline.retry} />
             </View>
           ) : (
-            <Text color="textMuted" style={styles.empty}>
+            <Text color="textMuted" style={tab ? undefined : styles.empty}>
               {t("timeline.empty")}
             </Text>
           )
