@@ -255,3 +255,44 @@ async def test_the_database_refuses_a_second_session_at_the_same_instant(
                 )
             )
             await db_session.flush()
+
+
+# --- every session says which series it came from ---
+
+
+async def test_a_session_says_which_series_made_it_and_a_single_class_says_none(
+    client, two_tenants, db_session
+):
+    a = two_tenants.a
+    series_id = await create(client, two_tenants, db_session)
+    sid = await db_session.scalar(
+        select(ClassSession.id).where(ClassSession.series_id == series_id).limit(1)
+    )
+    type_id = await add_class_type(db_session, a, name="Open mat")
+    single = ClassSession(
+        tenant_id=a.id,
+        class_type_id=type_id,
+        coach_id=a.users["coach"],
+        starts_at=datetime.now(UTC) + timedelta(days=2),
+        ends_at=datetime.now(UTC) + timedelta(days=2, hours=1),
+    )
+    db_session.add(single)
+    await db_session.flush()
+    headers = two_tenants.headers(a.users["member"], a.id)  # a member sees it too: it is only an id
+
+    detail = await client.get(f"/sessions/{sid}", headers=headers)
+    alone = await client.get(f"/sessions/{single.id}", headers=headers)
+    listed = await client.get(
+        "/sessions",
+        params={
+            "from": datetime.now(UTC).isoformat(),
+            "to": (datetime.now(UTC) + timedelta(days=60)).isoformat(),
+        },
+        headers=headers,
+    )
+
+    assert detail.json()["series_id"] == series_id
+    assert alone.json()["series_id"] is None
+    by_id = {row["id"]: row["series_id"] for row in listed.json()}
+    assert by_id[str(sid)] == series_id
+    assert by_id[str(single.id)] is None

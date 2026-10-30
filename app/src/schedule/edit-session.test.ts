@@ -69,6 +69,7 @@ test("a new coach is sent only when it differs from the class's", () => {
 test("server answers become outcomes and messages", () => {
   expect(changeOutcome(403, "not_your_session")).toBe("notYours");
   expect(changeOutcome(409, "session_cancelled")).toBe("cancelled");
+  expect(changeOutcome(409, "session_has_history")).toBe("hasHistory");
   expect(changeOutcome(422, "invalid_times")).toBe("badTimes");
   expect(changeOutcome(422, "invalid_coach")).toBe("badCoach");
   expect(changeMessage(t, "badCoach")).toBeTruthy();
@@ -83,4 +84,8 @@ test("an owner changes any open class, a coach only their own, nobody a cancelle
   expect(canChange(session, "coach", "u2")).toBe(false);
   expect(canChange(session, "member", "u1")).toBe(false);
   expect(canChange({ ...session, status: "cancelled" }, "owner", "u1")).toBe(false);
+});
+
+test("a class with history says to cancel it instead", () => {
+  expect(changeMessage(t, "hasHistory")).toMatch(/Cancel it instead/);
 });

@@ -79,7 +79,7 @@ export default function SessionScreen() {
           <Button variant="link" title={t("common.tryAgain")} onPress={detail.retry} />
         </View>
       )}
-      {ready && <Details session={detail.session} stale={detail.stale} rsvp={detail.rsvp} attend={detail.attend} cancel={detail.cancel} />}
+      {ready && <Details session={detail.session} stale={detail.stale} rsvp={detail.rsvp} attend={detail.attend} cancel={detail.cancel} remove={detail.remove} />}
     </Screen>
   );
 }
@@ -98,9 +98,10 @@ type DetailsProps = {
   rsvp: (choice: Choice) => Promise<RsvpOutcome>;
   attend: (attended: boolean) => Promise<AttendOutcome>;
   cancel: ReturnType<typeof useSessionDetail>["cancel"];
+  remove: ReturnType<typeof useSessionDetail>["remove"];
 };
 
-function Details({ session, stale, rsvp, attend, cancel }: DetailsProps) {
+function Details({ session, stale, rsvp, attend, cancel, remove }: DetailsProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors } = useTheme();
@@ -118,6 +119,7 @@ function Details({ session, stale, rsvp, attend, cancel }: DetailsProps) {
   const { studio, user } = useSession();
   const mayChange = studio !== null && canChange(session, studio.role, user?.id);
   const [cancelling, setCancelling] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [changeNote, setChangeNote] = useState<string | null>(null);
   const attendance = attendanceState(session, now);
   const seats = seatsText(t, session.seats_left, session.my_rsvp);
@@ -152,6 +154,26 @@ function Details({ session, stale, rsvp, attend, cancel }: DetailsProps) {
           setChangeNote(null);
           setChangeNote(changeMessage(t, await cancel()));
           setCancelling(false);
+        },
+      },
+    ]);
+  }
+
+  function askDelete() {
+    Alert.alert(t("session.deleteAsk"), t("session.deleteAskBody"), [
+      { text: t("session.cancelKeep"), style: "cancel" },
+      {
+        text: t("session.deleteClass"),
+        style: "destructive",
+        onPress: async () => {
+          setDeleting(true);
+          setChangeNote(null);
+          const outcome = await remove();
+          if (outcome === "ok") router.back();
+          else {
+            setChangeNote(changeMessage(t, outcome));
+            setDeleting(false);
+          }
         },
       },
     ]);
@@ -244,6 +266,17 @@ function Details({ session, stale, rsvp, attend, cancel }: DetailsProps) {
         />
       )}
 
+      {session.series_id !== null &&
+        (studio?.role === "owner" ? (
+          <Button
+            variant="link"
+            title={t("session.partOfSeries")}
+            onPress={() => router.push({ pathname: "/series/[id]", params: { id: session.series_id as string } })}
+          />
+        ) : (
+          <Text color="textMuted">{t("session.partOfSeries")}</Text>
+        ))}
+
       {mayChange && (
         <View style={styles.group}>
           <Button
@@ -252,6 +285,9 @@ function Details({ session, stale, rsvp, attend, cancel }: DetailsProps) {
             onPress={() => router.push({ pathname: "/session/edit/[id]", params: { id: session.id } })}
           />
           <Button variant="outline" title={t("session.cancelClass")} busy={cancelling} onPress={askCancel} />
+          {studio?.role === "owner" && session.series_id === null && (
+            <Button variant="link" title={t("session.deleteClass")} busy={deleting} onPress={askDelete} danger />
+          )}
           {changeNote && (
             <Text color="danger" accessibilityRole="alert">
               {changeNote}

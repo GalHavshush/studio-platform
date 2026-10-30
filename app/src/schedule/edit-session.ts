@@ -53,11 +53,12 @@ export function toPatch(form: EditForm, session: SessionDetail, timeZone: string
   return patch;
 }
 
-export type ChangeOutcome = "ok" | "notYours" | "cancelled" | "badTimes" | "badCoach" | "unreachable" | "error";
+export type ChangeOutcome = "ok" | "notYours" | "cancelled" | "badTimes" | "badCoach" | "hasHistory" | "unreachable" | "error";
 
 export function changeOutcome(status: number, detail: unknown): ChangeOutcome {
   if (status === 403 && detail === "not_your_session") return "notYours";
   if (status === 409 && detail === "session_cancelled") return "cancelled";
+  if (status === 409 && detail === "session_has_history") return "hasHistory";
   if (status === 422 && detail === "invalid_times") return "badTimes";
   if (status === 422 && detail === "invalid_coach") return "badCoach";
   return "error";
@@ -76,6 +77,8 @@ export function changeMessage(t: Translator, outcome: ChangeOutcome): string | n
       return t("editSession.badTimes");
     case "badCoach":
       return t("editSession.badCoach");
+    case "hasHistory":
+      return t("session.hasHistory");
     case "unreachable":
       return t("common.cantReach");
     case "error":

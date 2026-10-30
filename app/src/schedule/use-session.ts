@@ -128,5 +128,18 @@ export function useSessionDetail(id: string) {
     [id, change],
   );
 
-  return { ...state, retry: () => load(), rsvp, attend, edit, cancel };
+  // Delete a class made by mistake. The class is gone afterwards, so nothing is reloaded.
+  const remove = useCallback(async (): Promise<ChangeOutcome> => {
+    try {
+      const { error, response } = await api.DELETE("/sessions/{session_id}", {
+        params: { path: { session_id: id } },
+      });
+      if (response.ok) return "ok";
+      return changeOutcome(response.status, (error as { detail?: unknown } | undefined)?.detail);
+    } catch {
+      return "unreachable";
+    }
+  }, [id]);
+
+  return { ...state, retry: () => load(), rsvp, attend, edit, cancel, remove };
 }
