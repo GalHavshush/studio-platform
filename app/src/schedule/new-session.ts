@@ -3,7 +3,7 @@
 import type { components } from "@/api/schema";
 import type { Translator } from "@/i18n/translate";
 
-import { addDays, localTime, startOfDay, zonedInstant } from "./time";
+import { addDays, dayKey, localTime, startOfDay, zonedInstant } from "./time";
 
 export type ClassTypeChoice = components["schemas"]["ClassTypeOut"];
 
@@ -71,6 +71,24 @@ export function toPayload(form: NewSessionForm, timeZone: string, seatsShown: bo
     class_type_id: form.classTypeId as string,
     starts_at: new Date(start).toISOString(),
     ends_at: new Date(end).toISOString(),
+    ...(typeof seats === "number" ? { capacity: seats } : {}),
+    ...(form.coachId ? { coach_id: form.coachId } : {}),
+  };
+}
+
+/**
+ * The body of `POST /series`: the chosen day is the first date, and its weekday (0 is Monday) is the
+ * weekday, so the two always agree. The time is the studio's wall clock, never converted to an instant.
+ */
+export function toSeriesPayload(form: NewSessionForm, timeZone: string, seatsShown: boolean) {
+  const first_date = dayKey(form.dayStart, timeZone);
+  const seats = seatsShown ? seatsValue(form.seats) : null;
+  return {
+    class_type_id: form.classTypeId as string,
+    weekday: (new Date(`${first_date}T00:00:00Z`).getUTCDay() + 6) % 7,
+    start_time: `${String(form.hour).padStart(2, "0")}:${String(form.minute).padStart(2, "0")}`,
+    duration_minutes: form.duration,
+    first_date,
     ...(typeof seats === "number" ? { capacity: seats } : {}),
     ...(form.coachId ? { coach_id: form.coachId } : {}),
   };
