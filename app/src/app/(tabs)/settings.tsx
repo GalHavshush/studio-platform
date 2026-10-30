@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,7 +21,8 @@ import { useTheme } from "@/theme/use-theme";
 // Everything about the account and the phone: which studio, how the app looks, the language, and
 // the way out. Replaces the sheet that used to open from the avatar on the schedule.
 export default function Settings() {
-  const { user, leaveStudio, signOut, deleteAccount } = useSession();
+  const { user, studio, leaveStudio, signOut, deleteAccount } = useSession();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { preference, setPreference } = usePreference();
   const { t, choice, setChoice } = useLanguage();
@@ -84,6 +86,12 @@ export default function Settings() {
             />
           </View>
         </View>
+        {studio?.role === "owner" && (
+          <View style={styles.group}>
+            <Text variant="eyebrow">{t("settings.studio")}</Text>
+            <Button variant="choice" title={t("settings.classTypes")} onPress={() => router.push("/class-types")} />
+          </View>
+        )}
         <View>
           <Button variant="link" title={t("account.signOut")} onPress={signOut} />
           <Button variant="link" danger title={t("delete.link")} onPress={() => setDeleting(true)} />
