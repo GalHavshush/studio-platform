@@ -915,6 +915,89 @@
         "title": "SeriesEditOut",
         "type": "object"
       },
+      "SeriesEndOut": {
+        "properties": {
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "class_type_id": {
+            "format": "uuid",
+            "title": "Class Type Id",
+            "type": "string"
+          },
+          "coach_id": {
+            "format": "uuid",
+            "title": "Coach Id",
+            "type": "string"
+          },
+          "duration_minutes": {
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "first_date": {
+            "format": "date",
+            "title": "First Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Date"
+          },
+          "sessions_cancelled": {
+            "title": "Sessions Cancelled",
+            "type": "integer"
+          },
+          "sessions_deleted": {
+            "title": "Sessions Deleted",
+            "type": "integer"
+          },
+          "start_time": {
+            "format": "time",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "weekday": {
+            "title": "Weekday",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "class_type_id",
+          "coach_id",
+          "weekday",
+          "start_time",
+          "duration_minutes",
+          "capacity",
+          "first_date",
+          "last_date",
+          "sessions_deleted",
+          "sessions_cancelled"
+        ],
+        "title": "SeriesEndOut",
+        "type": "object"
+      },
       "SeriesIn": {
         "properties": {
           "capacity": {
@@ -2948,6 +3031,71 @@
           }
         ],
         "summary": "Update Series",
+        "tags": [
+          "series"
+        ]
+      }
+    },
+    "/series/{series_id}/end": {
+      "post": {
+        "description": "Stop a series from today (the studio's date). Owner only.\n\n`last_date` becomes today (never later than it already was), so no more sessions are\ngenerated. Everything that already happened is untouched. Sessions of later dates that are\nstill scheduled go: the ones nobody RSVP'd to are deleted, the ones with an RSVP are\ncancelled so those people see it. Today's class stays, and already cancelled ones are left\nas they are. A series whose `first_date` is still ahead gets `409 series_not_started` (it\nnever ran: that is a mistake to delete). Repeating it changes nothing (200, zeros).",
+        "operationId": "end_series_series__series_id__end_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Series Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesEndOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "End Series",
         "tags": [
           "series"
         ]

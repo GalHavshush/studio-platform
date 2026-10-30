@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, PositiveInt, model_validator
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.bookings import booking_applies, promote_waitlist
 from app.class_types import OwnerCtx
 from app.db import get_session
-from app.models import ClassSeries, ClassSession, ClassType, Tenant
+from app.models import ClassSeries, ClassSession, ClassType, Rsvp, Tenant
 from app.sessions import CoachCtx, check_class_and_coach, is_staff
 
 router = APIRouter(prefix="/series", tags=["series"])
@@ -298,6 +298,68 @@ async def update_series(
         **SeriesOut.model_validate(row).model_dump(),
         sessions_updated=len(follow),
         sessions_kept=len(future) - len(follow),
+    )
+    await session.commit()
+    return result
+
+
+class SeriesEndOut(SeriesOut):
+    sessions_deleted: int  # future sessions nobody had RSVP'd to: gone from the schedule
+    sessions_cancelled: int  # future sessions with RSVPs: kept, as cancelled
+
+
+@router.post("/{series_id}/end")
+async def end_series(
+    series_id: uuid.UUID, ctx: OwnerCtx, session: Annotated[AsyncSession, Depends(get_session)]
+) -> SeriesEndOut:
+    """Stop a series from today (the studio's date). Owner only.
+
+    `last_date` becomes today (never later than it already was), so no more sessions are
+    generated. Everything that already happened is untouched. Sessions of later dates that are
+    still scheduled go: the ones nobody RSVP'd to are deleted, the ones with an RSVP are
+    cancelled so those people see it. Today's class stays, and already cancelled ones are left
+    as they are. A series whose `first_date` is still ahead gets `409 series_not_started` (it
+    never ran: that is a mistake to delete). Repeating it changes nothing (200, zeros).
+    """
+    row = await session.scalar(
+        select(ClassSeries)
+        .where(ClassSeries.id == series_id, ClassSeries.tenant_id == ctx.tenant_id)
+        .with_for_update()  # an `extend` or an edit running now waits for this
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="series_not_found")
+    timezone = await session.scalar(select(Tenant.timezone).where(Tenant.id == row.tenant_id))
+    tz = ZoneInfo(timezone)
+    today = datetime.now(tz).date()
+    if row.first_date > today:
+        raise HTTPException(status_code=409, detail="series_not_started")
+
+    tomorrow = datetime.combine(today + timedelta(days=1), time.min, tzinfo=tz).astimezone(UTC)
+    # The lock a booking takes first (see `own_session`): once we hold it nobody can add an RSVP
+    # to these sessions, and the RSVP query below sees every one that was committed before.
+    ids = list(
+        await session.scalars(
+            select(ClassSession.id)
+            .where(
+                ClassSession.series_id == row.id,
+                ClassSession.status == "scheduled",
+                ClassSession.starts_at >= tomorrow,
+            )
+            .order_by(ClassSession.id)
+            .with_for_update(key_share=True)
+        )
+    )
+    booked = set(await session.scalars(select(Rsvp.session_id).where(Rsvp.session_id.in_(ids))))
+    empty = [i for i in ids if i not in booked]
+    await session.execute(delete(ClassSession).where(ClassSession.id.in_(empty)))
+    await session.execute(
+        update(ClassSession).where(ClassSession.id.in_(booked)).values(status="cancelled")
+    )
+    row.last_date = min(row.last_date or today, today)
+    result = SeriesEndOut(
+        **SeriesOut.model_validate(row).model_dump(),
+        sessions_deleted=len(empty),
+        sessions_cancelled=len(booked),
     )
     await session.commit()
     return result
