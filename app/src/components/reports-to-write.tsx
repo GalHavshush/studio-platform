@@ -10,6 +10,7 @@ import { useT } from "@/i18n/use-language";
 import { useReportQueue } from "@/schedule/use-report-queue";
 import { useWeekStart } from "@/schedule/use-week-start";
 import { formatDay, formatTime, startOfDay } from "@/schedule/time";
+import { useNow } from "@/schedule/use-now";
 import { space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
@@ -22,7 +23,7 @@ export function ReportsToWrite() {
   const t = useT();
   const zone = studio?.timezone ?? "UTC";
   const queue = useReportQueue(zone, firstDay);
-  const now = Date.now();
+  const now = useNow(60_000);
 
   return (
     <View style={styles.wrap}>

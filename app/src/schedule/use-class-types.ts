@@ -10,6 +10,15 @@ type State =
   | { status: "ready"; types: ClassType[] }
   | { status: "error" };
 
+async function fetchTypes(): Promise<ClassType[] | null> {
+  try {
+    const { data } = await api.GET("/class-types", { params: { query: { include_archived: true } } });
+    return data ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Every class type of the studio, archived ones too, and the owner's actions on them. */
 export function useClassTypes() {
   const [state, setState] = useState<State>({ status: "loading" });
@@ -17,13 +26,9 @@ export function useClassTypes() {
   // quiet: keep showing the list while it reloads, and keep it if the reload fails
   const load = useCallback(async (quiet = false) => {
     if (!quiet) setState({ status: "loading" });
-    try {
-      const { data } = await api.GET("/class-types", { params: { query: { include_archived: true } } });
-      if (data) setState({ status: "ready", types: data });
-      else if (!quiet) setState({ status: "error" });
-    } catch {
-      if (!quiet) setState({ status: "error" });
-    }
+    const data = await fetchTypes();
+    if (data) setState({ status: "ready", types: data });
+    else if (!quiet) setState({ status: "error" });
   }, []);
 
   // Coming back from the form shows what is now true; the first focus is the load below.
@@ -35,8 +40,12 @@ export function useClassTypes() {
   );
   useEffect(() => {
     opened.current = true;
-    load();
-  }, [load]);
+    let current = true;
+    void fetchTypes().then((data) => current && setState(data ? { status: "ready", types: data } : { status: "error" }));
+    return () => {
+      current = false;
+    };
+  }, []);
 
   // The server judges (the name, the module, the role); the list is refreshed from its answer.
   const act = useCallback(

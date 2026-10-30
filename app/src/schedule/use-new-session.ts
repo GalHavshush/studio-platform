@@ -9,23 +9,31 @@ type State =
   | { status: "ready"; types: ClassTypeChoice[] }
   | { status: "error" };
 
+async function fetchTypes(): Promise<State> {
+  try {
+    const { data } = await api.GET("/class-types");
+    return data ? { status: "ready", types: data } : { status: "error" };
+  } catch {
+    return { status: "error" };
+  }
+}
+
 /** The class types a new class can be of (archived ones are left out by the API), and the call that creates it. */
 export function useNewSession() {
   const [state, setState] = useState<State>({ status: "loading" });
 
-  const load = useCallback(async () => {
+  const retry = useCallback(async () => {
     setState({ status: "loading" });
-    try {
-      const { data } = await api.GET("/class-types");
-      setState(data ? { status: "ready", types: data } : { status: "error" });
-    } catch {
-      setState({ status: "error" });
-    }
+    setState(await fetchTypes());
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let current = true;
+    void fetchTypes().then((next) => current && setState(next));
+    return () => {
+      current = false;
+    };
+  }, []);
 
   const create = useCallback(async (payload: ReturnType<typeof toPayload>): Promise<{ outcome: CreateOutcome; id?: string }> => {
     try {
@@ -37,5 +45,5 @@ export function useNewSession() {
     }
   }, []);
 
-  return { ...state, retry: load, create };
+  return { ...state, retry, create };
 }

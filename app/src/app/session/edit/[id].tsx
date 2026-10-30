@@ -12,7 +12,7 @@ import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { useT } from "@/i18n/use-language";
 import { changeMessage, editDays, editDurations, editForm, toPatch } from "@/schedule/edit-session";
-import { seatsValue, showSeats, times } from "@/schedule/new-session";
+import { seatsValue, times } from "@/schedule/new-session";
 import { formatRange } from "@/schedule/time";
 import { useStaff } from "@/schedule/use-staff";
 import { useSessionDetail, type SessionDetail } from "@/schedule/use-session";

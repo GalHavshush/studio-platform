@@ -1,6 +1,6 @@
-jest.mock("expo-secure-store", () => ({}));
-
 import { firstDayOf, parseMondayStart } from "./week-start";
+
+jest.mock("expo-secure-store", () => ({}));
 
 test("a saved Monday and a saved Sunday are kept", () => {
   expect(parseMondayStart("monday")).toBe(true);

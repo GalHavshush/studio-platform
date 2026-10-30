@@ -1,6 +1,6 @@
-jest.mock("expo-secure-store", () => ({}));
-
 import { parseChoice, resolveLanguage } from "./language";
+
+jest.mock("expo-secure-store", () => ({}));
 
 test("a saved language is kept", () => {
   expect(parseChoice("en")).toBe("en");

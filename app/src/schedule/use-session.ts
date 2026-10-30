@@ -17,6 +17,18 @@ type State =
   | { status: "notFound" } // no such session in this studio: trying again will not help
   | { status: "error" }; // no answer, or a server error: trying again may help
 
+async function fetchSession(id: string): Promise<State> {
+  try {
+    const { data, response } = await api.GET("/sessions/{session_id}", {
+      params: { path: { session_id: id } },
+    });
+    if (data) return { status: "ready", session: data, stale: false };
+    return { status: response.status === 404 ? "notFound" : "error" };
+  } catch {
+    return { status: "error" };
+  }
+}
+
 /** One session with its names, the caller's own RSVP and (for staff) the RSVP counts. */
 export function useSessionDetail(id: string) {
   const [state, setState] = useState<State>({ status: "loading" });
@@ -25,17 +37,9 @@ export function useSessionDetail(id: string) {
   const load = useCallback(
     async (quiet = false) => {
       if (!quiet) setState({ status: "loading" });
-      try {
-        const { data, response } = await api.GET("/sessions/{session_id}", {
-          params: { path: { session_id: id } },
-        });
-        if (data) setState({ status: "ready", session: data, stale: false });
-        else if (quiet) setState((s) => (s.status === "ready" ? { ...s, stale: true } : s));
-        else setState({ status: response.status === 404 ? "notFound" : "error" });
-      } catch {
-        if (quiet) setState((s) => (s.status === "ready" ? { ...s, stale: true } : s));
-        else setState({ status: "error" });
-      }
+      const next = await fetchSession(id);
+      if (next.status === "ready" || !quiet) setState(next);
+      else setState((s) => (s.status === "ready" ? { ...s, stale: true } : s));
     },
     [id],
   );
@@ -49,8 +53,12 @@ export function useSessionDetail(id: string) {
   );
   useEffect(() => {
     opened.current = true;
-    load();
-  }, [load]);
+    let current = true;
+    void fetchSession(id).then((next) => current && setState(next));
+    return () => {
+      current = false;
+    };
+  }, [id]);
 
   // The server decides the result (a "going" on a full class becomes the waiting list), so the
   // screen is not changed until the answer is in; then it is refreshed to show the real state.

@@ -75,7 +75,9 @@ function merge(a: ScheduledSession[], b: ScheduledSession[]): ScheduledSession[]
 export function useSchedule(timezone: string, firstDay: FirstDay) {
   const [state, setState] = useState<State>(() => empty(timezone, firstDay));
   const latest = useRef(state);
-  latest.current = state;
+  useEffect(() => {
+    latest.current = state;
+  });
   const busy = useRef(false); // taps while a load is running are ignored
 
   const refresh = useCallback(async () => {
