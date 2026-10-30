@@ -51,6 +51,7 @@ function Navigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="class-types/index" />
         <Stack.Screen name="class-types/[id]" />
+        <Stack.Screen name="series/index" />
         <Stack.Screen name="session/new" />
         <Stack.Screen name="session/[id]" />
         <Stack.Screen name="session/edit/[id]" />

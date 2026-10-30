@@ -90,6 +90,7 @@ export default function Settings() {
           <View style={styles.group}>
             <Text variant="eyebrow">{t("settings.studio")}</Text>
             <Button variant="choice" title={t("settings.classTypes")} onPress={() => router.push("/class-types")} />
+            <Button variant="choice" title={t("settings.weeklyClasses")} onPress={() => router.push("/series")} />
           </View>
         )}
         <View>
