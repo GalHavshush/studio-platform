@@ -124,6 +124,7 @@ api/                         FastAPI backend (Python, managed with uv)
 │   ├── class_types.py       GET/POST /class-types, PUT /class-types/{id}, POST /class-types/{id}/archive and /unarchive (a studio's class types; writes are owner-only; archived ones are hidden by default; each has an attendance mode, rsvp or booking)
 │   ├── sessions.py          POST/GET /sessions, GET/PATCH /sessions/{id}, POST /sessions/{id}/cancel; the helpers the other session files share (own_session, is_staff)
 │   ├── bookings.py          PUT /sessions/{id}/rsvp (going / not_going / maybe; seats are limited in booking mode, with a waitlist and its promotion), GET /sessions/{id}/rsvps (staff only: who is coming, in order, with waiting-list positions)
+│   ├── series.py            POST /series, GET /series, GET /series/{id} (a weekly class rule: class type, coach, weekday, start time in studio time, length, capacity, first and last date; an owner creates, an owner reads all and a coach reads the ones they teach; it does not generate sessions yet)
 │   ├── attendance.py        POST /sessions/{id}/attendance (attended or not; check-in opens 15 min before start)
 │   ├── reports.py           PUT /sessions/{id}/report (the coach's class report, with a private note per attendee, saved in one transaction), GET /sessions/{id}/report (staff: the whole report; a member: only the summary, and only if they attended)
 │   ├── report_queue.py      GET /report-queue?from&to (staff: the classes that already took place whose report the caller may write, newest first, each with whether a report exists, plus `has_earlier`: whether an older one is waiting; a coach sees their own, an owner all)
@@ -138,7 +139,7 @@ api/                         FastAPI backend (Python, managed with uv)
 │   ├── deletion.py          what deleting an account erases, anonymizes and keeps (the policy, in one place)
 │   ├── config.py            settings read from the environment / .env (DATABASE_URL, JWT_SECRET)
 │   ├── db.py                async engine and the per-request session dependency
-│   ├── models.py            SQLAlchemy models: User, Tenant, Membership, ClassType, Participant, ClassSession, Rsvp, ClassReport, ParticipantNote, RefreshToken
+│   ├── models.py            SQLAlchemy models: User, Tenant, Membership, ClassType, Participant, ClassSeries, ClassSession, Rsvp, ClassReport, ParticipantNote, RefreshToken
 │   ├── security.py          password hashing (argon2), access tokens (JWT), refresh-token generation and hashing
 │   └── seed.py              creates the pilot studio, its people and their participants, plus a marked demo studio (python -m app.seed)
 ├── migrations/              Alembic
@@ -146,7 +147,7 @@ api/                         FastAPI backend (Python, managed with uv)
 │   └── versions/            one file per schema change
 ├── tests/
 │   ├── conftest.py          test database, migrated_db, client, real-commit and two-studio fixtures
-│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, refresh, token_families, reuse_detection, tenant_ctx, tenant_isolation, class_types, participants, sessions, rsvps, attendance, modules, capacity, waitlist, booking_race (concurrency and the session row lock), same_studio_links, reports, notes (incl. sharing), report_summaries, report_queue, timeline, account_deletion, nul_characters, seed_demo, session_detail, openapi_snapshot, docs
+│   └── test_*.py            config, health, migrations, users, tenants, memberships, seed, security, auth, deps, me, refresh_tokens, logout, refresh, token_families, reuse_detection, tenant_ctx, tenant_isolation, class_types, participants, sessions, rsvps, attendance, modules, capacity, waitlist, booking_race (concurrency and the session row lock), same_studio_links, reports, notes (incl. sharing), report_summaries, report_queue, timeline, series, account_deletion, nul_characters, seed_demo, session_detail, openapi_snapshot, docs
 ├── alembic.ini
 ├── pyproject.toml           dependencies and tool settings
 └── .env.example             template for api/.env
