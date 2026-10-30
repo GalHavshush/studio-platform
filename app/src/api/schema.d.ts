@@ -415,6 +415,33 @@ export interface paths {
         patch: operations["update_series_series__series_id__patch"];
         trace?: never;
     };
+    "/series/{series_id}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End Series
+         * @description Stop a series from today (the studio's date). Owner only.
+         *
+         *     `last_date` becomes today (never later than it already was), so no more sessions are
+         *     generated. Everything that already happened is untouched. Sessions of later dates that are
+         *     still scheduled go: the ones nobody RSVP'd to are deleted, the ones with an RSVP are
+         *     cancelled so those people see it. Today's class stays, and already cancelled ones are left
+         *     as they are. A series whose `first_date` is still ahead gets `409 series_not_started` (it
+         *     never ran: that is a mistake to delete). Repeating it changes nothing (200, zeros).
+         */
+        post: operations["end_series_series__series_id__end_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/series/{series_id}/extend": {
         parameters: {
             query?: never;
@@ -1119,6 +1146,46 @@ export interface components {
             sessions_kept: number;
             /** Sessions Updated */
             sessions_updated: number;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            /** Weekday */
+            weekday: number;
+        };
+        /** SeriesEndOut */
+        SeriesEndOut: {
+            /** Capacity */
+            capacity: number | null;
+            /**
+             * Class Type Id
+             * Format: uuid
+             */
+            class_type_id: string;
+            /**
+             * Coach Id
+             * Format: uuid
+             */
+            coach_id: string;
+            /** Duration Minutes */
+            duration_minutes: number;
+            /**
+             * First Date
+             * Format: date
+             */
+            first_date: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Date */
+            last_date: string | null;
+            /** Sessions Cancelled */
+            sessions_cancelled: number;
+            /** Sessions Deleted */
+            sessions_deleted: number;
             /**
              * Start Time
              * Format: time
@@ -2107,6 +2174,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesEditOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    end_series_series__series_id__end_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+            };
+            path: {
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesEndOut"];
                 };
             };
             /** @description Validation Error */
