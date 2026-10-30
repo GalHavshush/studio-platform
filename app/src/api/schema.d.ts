@@ -374,7 +374,7 @@ export interface paths {
          * @description Create a series in the studio named by `X-Tenant-Id`. Owner only (`403 insufficient_role`).
          *
          *     The class type and coach follow the rules of `POST /sessions`. `first_date` must fall on
-         *     `weekday` (`422 first_date_not_on_weekday`).
+         *     `weekday` (`422 first_date_not_on_weekday`). The first four weeks of sessions are created with it.
          */
         post: operations["create_series_series_post"];
         delete?: never;
@@ -398,6 +398,28 @@ export interface paths {
         get: operations["get_series_by_id_series__series_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{series_id}/extend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extend Series
+         * @description Create the sessions the series is missing up to its horizon (four weeks from today, or
+         *     `last_date`). Owner only; 404 `series_not_found` if it is not in this studio. Repeating it
+         *     creates nothing new.
+         */
+        post: operations["extend_series_series__series_id__extend_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -761,6 +783,11 @@ export interface components {
         DeleteAccountRequest: {
             /** Password */
             password: string;
+        };
+        /** ExtendOut */
+        ExtendOut: {
+            /** Created */
+            created: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1977,6 +2004,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    extend_series_series__series_id__extend_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+            };
+            path: {
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtendOut"];
                 };
             };
             /** @description Validation Error */

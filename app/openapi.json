@@ -156,6 +156,19 @@
         "title": "DeleteAccountRequest",
         "type": "object"
       },
+      "ExtendOut": {
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "created"
+        ],
+        "title": "ExtendOut",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2600,7 +2613,7 @@
         ]
       },
       "post": {
-        "description": "Create a series in the studio named by `X-Tenant-Id`. Owner only (`403 insufficient_role`).\n\nThe class type and coach follow the rules of `POST /sessions`. `first_date` must fall on\n`weekday` (`422 first_date_not_on_weekday`).",
+        "description": "Create a series in the studio named by `X-Tenant-Id`. Owner only (`403 insufficient_role`).\n\nThe class type and coach follow the rules of `POST /sessions`. `first_date` must fall on\n`weekday` (`422 first_date_not_on_weekday`). The first four weeks of sessions are created with it.",
         "operationId": "create_series_series_post",
         "parameters": [
           {
@@ -2723,6 +2736,71 @@
           }
         ],
         "summary": "Get Series By Id",
+        "tags": [
+          "series"
+        ]
+      }
+    },
+    "/series/{series_id}/extend": {
+      "post": {
+        "description": "Create the sessions the series is missing up to its horizon (four weeks from today, or\n`last_date`). Owner only; 404 `series_not_found` if it is not in this studio. Repeating it\ncreates nothing new.",
+        "operationId": "extend_series_series__series_id__extend_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Series Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Extend Series",
         "tags": [
           "series"
         ]
