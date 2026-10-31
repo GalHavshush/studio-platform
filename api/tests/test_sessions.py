@@ -1,9 +1,10 @@
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import func, select, text
 
-from app.models import ClassSession, ClassType
+from app.models import ClassSession, ClassType, Participant, Rsvp
 
 START = "2026-10-20T18:00:00+03:00"  # 15:00 UTC
 END = "2026-10-20T19:00:00+03:00"
@@ -247,6 +248,65 @@ async def test_every_member_lists_only_their_studios_sessions_in_time_order(
 
     assert response.status_code == 200
     assert [s["id"] for s in response.json()] == [str(early), str(late)]
+
+
+async def answer(db_session, studio, role, session_id, status):
+    """Record `role`'s plan for a session straight in the database."""
+    participant = await db_session.scalar(
+        select(Participant.id).where(
+            Participant.tenant_id == studio.id, Participant.user_id == studio.users[role]
+        )
+    )
+    db_session.add(
+        Rsvp(
+            tenant_id=studio.id,
+            session_id=session_id,
+            participant_id=participant,
+            status=status,
+            waitlisted_at=datetime.now(UTC) if status == "waitlist" else None,
+        )
+    )
+    await db_session.flush()
+
+
+async def test_the_list_carries_the_callers_own_answer_and_null_when_there_is_none(
+    client, two_tenants, db_session
+):
+    a = two_tenants.a
+    ct = await add_class_type(db_session, a)
+    answered = await add_session(db_session, a, ct, "2026-10-20T07:00:00+00:00")
+    waiting = await add_session(db_session, a, ct, "2026-10-21T07:00:00+00:00")
+    unanswered = await add_session(db_session, a, ct, "2026-10-22T07:00:00+00:00")
+    await answer(db_session, a, "member", answered, "going")
+    await answer(db_session, a, "member", waiting, "waitlist")
+
+    response = await listing(
+        client,
+        two_tenants,
+        a,
+        "member",
+        **{"from": "2026-10-20T00:00:00+00:00", "to": "2026-10-23T00:00:00+00:00"},
+    )
+
+    mine = {s["id"]: s["my_rsvp"] for s in response.json()}
+    assert mine == {str(answered): "going", str(waiting): "waitlist", str(unanswered): None}
+
+
+async def test_someone_elses_answer_is_never_in_my_row(client, two_tenants, db_session):
+    a = two_tenants.a
+    ct = await add_class_type(db_session, a)
+    session_id = await add_session(db_session, a, ct, "2026-10-20T07:00:00+00:00")
+    await answer(db_session, a, "coach", session_id, "going")
+
+    response = await listing(
+        client,
+        two_tenants,
+        a,
+        "member",
+        **{"from": "2026-10-20T00:00:00+00:00", "to": "2026-10-21T00:00:00+00:00"},
+    )
+
+    assert [s["my_rsvp"] for s in response.json()] == [None]
 
 
 async def test_the_range_includes_from_and_excludes_to(client, two_tenants, db_session):

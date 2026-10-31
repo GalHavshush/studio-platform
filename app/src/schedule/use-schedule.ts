@@ -6,7 +6,7 @@ import type { components } from "@/api/schema";
 
 import { addDays, startOfDay, startOfWeek, type FirstDay } from "./time";
 
-export type ScheduledSession = components["schemas"]["SessionOut"];
+export type ScheduledSession = components["schemas"]["SessionListItem"];
 
 const WEEK_DAYS = 7;
 
