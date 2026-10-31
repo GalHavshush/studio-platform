@@ -6,13 +6,13 @@ import { useTheme } from "@/theme/use-theme";
 
 type Tone = "surface" | "accent" | "soft" | "primary" | "muted";
 
-// For each tone: the fill, the text on it, and the colour of the small label.
-const TONES: Record<Tone, { bg: ColorName; fg: ColorName; label: ColorName }> = {
-  surface: { bg: "surface", fg: "text", label: "textMuted" },
-  accent: { bg: "accent", fg: "onAccent", label: "onAccent" },
-  soft: { bg: "soft", fg: "onSoft", label: "onSoft" },
-  primary: { bg: "primary", fg: "onPrimary", label: "soft" },
-  muted: { bg: "surfaceMuted", fg: "text", label: "text" },
+// The small dot that names a count's kind; a plain tile has none.
+const DOT: Record<Tone, ColorName | null> = {
+  surface: null,
+  accent: "accent",
+  soft: "soft",
+  primary: "primary",
+  muted: "textMuted",
 };
 
 type Props = {
@@ -23,32 +23,32 @@ type Props = {
   figure?: boolean;
 };
 
+// A white hairline card with a label and a value. The tone only picks the colour of a small dot.
 export function Tile({ label, value, tone = "surface", figure = false }: Props) {
   const { colors } = useTheme();
-  const t = TONES[tone];
+  const dot = DOT[tone];
   return (
     <View
       accessible
       accessibilityLabel={`${label}: ${value}`}
-      style={[styles.tile, { backgroundColor: colors[t.bg] }]}
+      style={[styles.tile, { backgroundColor: colors.surface, borderColor: colors.border }]}
     >
       {figure ? (
         <>
-          <Text variant="figure" color={t.fg}>
-            {value}
-          </Text>
-          <Text variant="label" color={t.label}>
-            {label}
-          </Text>
+          <Text variant="figure">{value}</Text>
+          <View style={styles.name}>
+            {dot && <View style={[styles.dot, { backgroundColor: colors[dot] }]} />}
+            <Text variant="label" color="textMuted">
+              {label}
+            </Text>
+          </View>
         </>
       ) : (
         <>
-          <Text variant="eyebrow" color={t.label} style={styles.small}>
+          <Text variant="eyebrow" color="textMuted">
             {label}
           </Text>
-          <Text variant="title" color={t.fg}>
-            {value}
-          </Text>
+          <Text variant="title">{value}</Text>
         </>
       )}
     </View>
@@ -56,6 +56,7 @@ export function Tile({ label, value, tone = "surface", figure = false }: Props) 
 }
 
 const styles = StyleSheet.create({
-  tile: { flex: 1, borderRadius: radius.lg - 4, padding: space.lg, gap: 2 },
-  small: { fontSize: 12, letterSpacing: 0.7 },
+  tile: { flex: 1, borderRadius: radius.lg - 4, borderWidth: 1, padding: space.lg, gap: 2 },
+  name: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  dot: { width: 8, height: 8, borderRadius: 4 },
 });
