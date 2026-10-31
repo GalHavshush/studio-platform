@@ -1395,6 +1395,99 @@
         "title": "SessionIn",
         "type": "object"
       },
+      "SessionListItem": {
+        "description": "A session as the schedule lists it: the caller's own plan too (`going`, `maybe`,\n`not_going`, `waitlist`, or null when they have not answered), so a screen can ask for answers\nwithout opening every class. The same fact as `SessionDetail.my_rsvp`.",
+        "properties": {
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "class_type_id": {
+            "format": "uuid",
+            "title": "Class Type Id",
+            "type": "string"
+          },
+          "coach_id": {
+            "format": "uuid",
+            "title": "Coach Id",
+            "type": "string"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "my_rsvp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Rsvp"
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview"
+          },
+          "series_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series Id"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "class_type_id",
+          "coach_id",
+          "starts_at",
+          "ends_at",
+          "status",
+          "preview",
+          "capacity",
+          "series_id",
+          "my_rsvp"
+        ],
+        "title": "SessionListItem",
+        "type": "object"
+      },
       "SessionOut": {
         "properties": {
           "capacity": {
@@ -3250,7 +3343,7 @@
     },
     "/sessions": {
       "get": {
-        "description": "The studio's sessions that start in `[from, to)`, earliest first. Any member.\n\nBoth times need an offset. `from` is included and `to` is not, so back-to-back ranges neither\noverlap nor miss a session. Invalid ranges get `422 invalid_range` (`to` not after `from`) or\n`422 range_too_long` (over 62 days).",
+        "description": "The studio's sessions that start in `[from, to)`, earliest first, each with the caller's own\nplan (`my_rsvp`, null when unanswered). Any member.\n\nBoth times need an offset. `from` is included and `to` is not, so back-to-back ranges neither\noverlap nor miss a session. Invalid ranges get `422 invalid_range` (`to` not after `from`) or\n`422 range_too_long` (over 62 days).",
         "operationId": "list_sessions_sessions_get",
         "parameters": [
           {
@@ -3296,7 +3389,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/SessionOut"
+                    "$ref": "#/components/schemas/SessionListItem"
                   },
                   "title": "Response List Sessions Sessions Get",
                   "type": "array"

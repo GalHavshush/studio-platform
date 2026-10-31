@@ -482,7 +482,8 @@ export interface paths {
         };
         /**
          * List Sessions
-         * @description The studio's sessions that start in `[from, to)`, earliest first. Any member.
+         * @description The studio's sessions that start in `[from, to)`, earliest first, each with the caller's own
+         *     plan (`my_rsvp`, null when unanswered). Any member.
          *
          *     Both times need an offset. `from` is included and `to` is not, so back-to-back ranges neither
          *     overlap nor miss a session. Invalid ranges get `422 invalid_range` (`to` not after `from`) or
@@ -1371,6 +1372,49 @@ export interface components {
              * Format: date-time
              */
             starts_at: string;
+        };
+        /**
+         * SessionListItem
+         * @description A session as the schedule lists it: the caller's own plan too (`going`, `maybe`,
+         *     `not_going`, `waitlist`, or null when they have not answered), so a screen can ask for answers
+         *     without opening every class. The same fact as `SessionDetail.my_rsvp`.
+         */
+        SessionListItem: {
+            /** Capacity */
+            capacity: number | null;
+            /**
+             * Class Type Id
+             * Format: uuid
+             */
+            class_type_id: string;
+            /**
+             * Coach Id
+             * Format: uuid
+             */
+            coach_id: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** My Rsvp */
+            my_rsvp: string | null;
+            /** Preview */
+            preview: string | null;
+            /** Series Id */
+            series_id: string | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Status */
+            status: string;
         };
         /** SessionOut */
         SessionOut: {
@@ -2328,7 +2372,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SessionOut"][];
+                    "application/json": components["schemas"]["SessionListItem"][];
                 };
             };
             /** @description Validation Error */

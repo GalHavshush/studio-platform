@@ -109,6 +109,14 @@ class SessionOut(BaseModel):
     series_id: uuid.UUID | None  # the weekly class it was made from, or null for a single class
 
 
+class SessionListItem(SessionOut):
+    """A session as the schedule lists it: the caller's own plan too (`going`, `maybe`,
+    `not_going`, `waitlist`, or null when they have not answered), so a screen can ask for answers
+    without opening every class. The same fact as `SessionDetail.my_rsvp`."""
+
+    my_rsvp: str | None
+
+
 class RsvpCounts(BaseModel):
     """How many people chose each plan. Counts only: never who."""
 
@@ -242,16 +250,29 @@ async def list_sessions(
     # `from` is a Python keyword, so the parameter is named from_ and exposed as ?from=.
     from_: Annotated[AwareDatetime, Query(alias="from")],
     to: AwareDatetime,
-) -> list[SessionOut]:
-    """The studio's sessions that start in `[from, to)`, earliest first. Any member.
+) -> list[SessionListItem]:
+    """The studio's sessions that start in `[from, to)`, earliest first, each with the caller's own
+    plan (`my_rsvp`, null when unanswered). Any member.
 
     Both times need an offset. `from` is included and `to` is not, so back-to-back ranges neither
     overlap nor miss a session. Invalid ranges get `422 invalid_range` (`to` not after `from`) or
     `422 range_too_long` (over 62 days).
     """
     check_range(from_, to)
-    rows = await session.scalars(
-        select(ClassSession)
+    # The caller's own answer, through their participant in this studio (never an id from the
+    # client), outer-joined so a class they have not answered still appears, with null.
+    rows = await session.execute(
+        select(ClassSession, Rsvp.status)
+        .outerjoin(
+            Rsvp,
+            (Rsvp.session_id == ClassSession.id)
+            & (Rsvp.tenant_id == ClassSession.tenant_id)
+            & Rsvp.participant_id.in_(
+                select(Participant.id).where(
+                    Participant.tenant_id == ctx.tenant_id, Participant.user_id == ctx.user.id
+                )
+            ),
+        )
         .where(
             ClassSession.tenant_id == ctx.tenant_id,
             ClassSession.starts_at >= from_,
@@ -259,7 +280,10 @@ async def list_sessions(
         )
         .order_by(ClassSession.starts_at, ClassSession.id)  # id: a stable order for equal times
     )
-    return [SessionOut.model_validate(row) for row in rows]
+    return [
+        SessionListItem(**SessionOut.model_validate(row).model_dump(), my_rsvp=mine)
+        for row, mine in rows
+    ]
 
 
 @router.get("/{session_id}")
