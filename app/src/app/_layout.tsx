@@ -1,3 +1,4 @@
+import { BarlowCondensed_600SemiBold, BarlowCondensed_700Bold } from "@expo-google-fonts/barlow-condensed";
 import {
   Figtree_400Regular,
   Figtree_600SemiBold,
@@ -31,6 +32,8 @@ function Navigator() {
     Figtree_600SemiBold,
     Figtree_700Bold,
     Figtree_800ExtraBold,
+    BarlowCondensed_600SemiBold,
+    BarlowCondensed_700Bold,
   });
   const ready =
     status !== "loading" && preferenceLoaded && languageLoaded && weekStartLoaded && (fontsLoaded || fontError !== null);

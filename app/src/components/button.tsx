@@ -7,8 +7,8 @@ import { useTheme } from "@/theme/use-theme";
 type Props = {
   title: string;
   onPress: () => void;
-  // primary: the one main action; link: quiet underlined text; outline: a small pill ("Show later");
-  // choice: one of several answers, filled when `selected`
+  // primary: the one main action (orange); link: quiet underlined text; outline: the secondary
+  // button, a quiet fill ("Show later"); choice: one of several answers, navy when `selected`
   variant?: "primary" | "link" | "outline" | "choice";
   selected?: boolean;
   busy?: boolean;
@@ -29,17 +29,20 @@ export function Button({
   const { colors } = useTheme();
   const off = disabled || busy;
   const filled = variant === "primary" || (variant === "choice" && selected);
+  const orange = variant === "primary";
 
   const box =
     variant === "link"
       ? styles.link
       : variant === "outline"
-        ? [styles.outline, { borderColor: colors.border }]
+        ? [styles.outline, { backgroundColor: colors.secondary }]
         : [
             styles.filled,
-            filled
-              ? { backgroundColor: colors.primary, borderColor: colors.primary }
-              : { backgroundColor: colors.surface, borderColor: colors.border },
+            orange
+              ? { backgroundColor: colors.accent, borderColor: colors.accent }
+              : filled
+                ? { backgroundColor: colors.text, borderColor: colors.text }
+                : { backgroundColor: colors.surface, borderColor: colors.border },
           ];
 
   return (
@@ -51,11 +54,11 @@ export function Button({
       style={[styles.base, box, off && !busy && styles.disabled]}
     >
       {busy ? (
-        <ActivityIndicator color={filled ? colors.onPrimary : colors.textMuted} />
+        <ActivityIndicator color={orange ? colors.onAccent : filled ? colors.background : colors.textMuted} />
       ) : (
         <Text
           variant="label"
-          color={filled ? "onPrimary" : variant === "choice" ? "text" : danger ? "danger" : "textMuted"}
+          color={orange ? "onAccent" : filled ? "background" : variant === "choice" || variant === "outline" ? "text" : danger ? "danger" : "textMuted"}
           style={variant === "link" ? styles.linkText : variant === "outline" ? undefined : styles.large}
         >
           {title}
@@ -68,10 +71,10 @@ export function Button({
 const styles = StyleSheet.create({
   // 44pt is the smallest comfortable touch target; the filled buttons are taller.
   base: { minHeight: 44, alignItems: "center", justifyContent: "center" },
-  filled: { minHeight: 56, borderRadius: radius.md, borderWidth: 1.5 },
+  filled: { minHeight: 52, borderRadius: radius.md, borderWidth: 1 },
   large: { fontSize: 16, lineHeight: 22, textAlign: "center" },
   link: { paddingHorizontal: space.lg },
   linkText: { fontSize: 15, textDecorationLine: "underline" },
-  outline: { alignSelf: "center", paddingHorizontal: space.lg, borderRadius: radius.pill, borderWidth: 1.5 },
+  outline: { alignSelf: "center", paddingHorizontal: space.lg, borderRadius: radius.md },
   disabled: { opacity: 0.4 },
 });

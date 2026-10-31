@@ -4,10 +4,8 @@ import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackButton } from "@/components/back-button";
-import { Logo } from "@/components/logo";
 import { Text } from "@/components/text";
 import { space } from "@/theme/tokens";
-import { useTheme } from "@/theme/use-theme";
 
 type Props = {
   title: string;
@@ -19,28 +17,24 @@ type Props = {
   backLabel?: string;
 };
 
-// The one-row orange header at the top of every page but sign in and choose studio: back button,
-// title and a small logo.
+// The plain header at the top of every page but sign in and choose studio: back button and title.
 export function PageHeader({ title, subtitle, tag, backLabel }: Props) {
-  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.bar, { backgroundColor: colors.accent, paddingTop: insets.top + space.xs }]}>
-      {/* The header is orange in light and dark mode, so its status bar content is always dark. */}
-      <StatusBar style="dark" />
+    <View style={[styles.bar, { paddingTop: insets.top + space.xs }]}>
+      <StatusBar style="auto" />
       {backLabel && <BackButton label={backLabel} />}
       <View style={styles.titles}>
         {tag}
-        <Text variant="pageTitle" color="onAccent" numberOfLines={2}>
+        <Text variant="pageTitle" color="text" numberOfLines={2}>
           {title}
         </Text>
         {subtitle && (
-          <Text variant="label" color="onAccent" style={styles.subtitle}>
+          <Text variant="label" color="textMuted" style={styles.subtitle}>
             {subtitle}
           </Text>
         )}
       </View>
-      <Logo size={32} />
     </View>
   );
 }
@@ -51,9 +45,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: space.md,
     paddingHorizontal: space.xl,
-    paddingBottom: space.md,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingBottom: space.sm,
   },
   titles: { flex: 1, gap: space.xs },
   subtitle: { fontSize: 14, lineHeight: 20 },

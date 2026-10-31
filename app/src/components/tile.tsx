@@ -56,6 +56,6 @@ export function Tile({ label, value, tone = "surface", figure = false }: Props) 
 }
 
 const styles = StyleSheet.create({
-  tile: { flex: 1, borderRadius: radius.lg - 2, padding: space.lg, gap: 2 },
+  tile: { flex: 1, borderRadius: radius.lg - 4, padding: space.lg, gap: 2 },
   small: { fontSize: 12, letterSpacing: 0.7 },
 });

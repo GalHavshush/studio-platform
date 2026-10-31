@@ -2,12 +2,11 @@ import type { BottomTabBarProps } from "expo-router/js-tabs";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { Text } from "@/components/text";
-import { radius, space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
-// The bar floats over the screens, so each one leaves this much room at the bottom of its content
-// (the bar itself plus the gap under it; the safe area is added on top).
-export const TAB_BAR_SPACE = 88;
+// The bar sits over the bottom of the screens, so each one leaves this much room at the bottom of
+// its content (the bar itself; the safe area is added on top).
+export const TAB_BAR_SPACE = 64;
 
 const ICON = 24;
 const STROKE = 2;
@@ -45,8 +44,7 @@ function Icon({ name, color }: { name: string; color: string }) {
   );
 }
 
-// The floating tab bar: a rounded capsule over the content, the current tab filled with the primary
-// colour. A route whose options say `href: null` has no tab (the member's own timeline when the
+// The flat tab bar: a white strip with a hairline on top, the current tab in orange. A route whose options say `href: null` has no tab (the member's own timeline when the
 // studio has no participant for them).
 export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: BottomTabBarProps) {
   const { colors } = useTheme();
@@ -55,7 +53,7 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
     <View
       style={[
         styles.bar,
-        { bottom: insets.bottom, backgroundColor: colors.surface, borderColor: colors.border },
+        { paddingBottom: insets.bottom, backgroundColor: colors.surface, borderColor: colors.border },
       ]}
     >
       {state.routes.map((route, index) => {
@@ -63,7 +61,7 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
         if ((options as { href?: string | null }).href === null) return null;
         const focused = state.index === index;
         const label = options.title ?? route.name;
-        const color = focused ? colors.onPrimary : colors.textMuted;
+        const color = focused ? colors.accent : colors.textMuted;
 
         function press() {
           const event = emitter.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
@@ -77,7 +75,7 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
             accessibilityLabel={label}
             accessibilityState={{ selected: focused }}
             onPress={press}
-            style={[styles.tab, focused && { backgroundColor: colors.primary }]}
+            style={styles.tab}
           >
             <Icon name={route.name} color={color} />
             <Text variant="caption" style={{ color }}>
@@ -93,27 +91,13 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
 const styles = StyleSheet.create({
   bar: {
     position: "absolute",
-    left: space.xl,
-    right: space.xl,
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: "row",
-    gap: space.xs,
-    padding: 6,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    shadowColor: "#0B1A2B",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.18,
-    shadowRadius: 30,
-    elevation: 8,
+    borderTopWidth: 1,
   },
-  tab: {
-    flex: 1,
-    minHeight: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
-    borderRadius: radius.pill,
-  },
+  tab: { flex: 1, minHeight: TAB_BAR_SPACE, alignItems: "center", justifyContent: "center", gap: 2 },
   icon: { width: ICON, height: ICON },
   calendar: { position: "absolute", left: 2, right: 2, top: 4, bottom: 2, borderWidth: STROKE, borderRadius: 5 },
   clock: { position: "absolute", left: 2, right: 2, top: 2, bottom: 2, borderWidth: STROKE, borderRadius: 10 },
