@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { isStaff } from "@/auth/role";
 import { useSession } from "@/auth/session";
 import { PageHeader } from "@/components/page-header";
+import { StudioBadge } from "@/components/studio-badge";
 import { ReportsToWrite } from "@/components/reports-to-write";
 import { Screen } from "@/components/screen";
 import { TAB_BAR_SPACE } from "@/components/tab-bar";
@@ -22,7 +23,7 @@ export default function MyClasses() {
   if (studio?.participantId) return <TimelineView id={studio.participantId} tab header={reports} />;
   return (
     <Screen>
-      <PageHeader title={t("tabs.timeline")} />
+      <PageHeader title={t("tabs.timeline")} tag={<StudioBadge />} />
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + space.xl + TAB_BAR_SPACE }]}>
         {reports}
       </ScrollView>

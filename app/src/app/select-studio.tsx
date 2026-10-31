@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { Button } from "@/components/button";
 import { Pill } from "@/components/pill";
 import { Hero, Screen, Sheet } from "@/components/screen";
+import { StudioMark } from "@/components/studio-badge";
 import { Text } from "@/components/text";
 import { roleLabel } from "@/auth/role";
 import { useSession, type SelectResult } from "@/auth/session";
@@ -59,6 +60,7 @@ export default function SelectStudio() {
               busyId !== null && styles.disabled,
             ]}
           >
+            <StudioMark name={m.tenant.name} size={48} />
             <View style={styles.cardText}>
               <Text variant="title">{m.tenant.name}</Text>
               <Pill label={roleLabel(t, m.role)} />
@@ -81,13 +83,12 @@ export default function SelectStudio() {
 
 const styles = StyleSheet.create({
   card: {
-    minHeight: 88,
+    minHeight: 80,
     flexDirection: "row",
     alignItems: "center",
     gap: space.lg,
     padding: space.lg,
-    paddingHorizontal: space.xl - 4,
-    borderRadius: radius.lg,
+    borderRadius: radius.lg - 4,
   },
   cardText: { flex: 1, gap: space.sm },
   disabled: { opacity: 0.5 },

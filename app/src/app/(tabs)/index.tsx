@@ -5,14 +5,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/button";
 import { PageHeader } from "@/components/page-header";
-import { Pill } from "@/components/pill";
 import { Row } from "@/components/row";
 import { Screen } from "@/components/screen";
 import { TAB_BAR_SPACE } from "@/components/tab-bar";
 import { TodayCard, TodayRow } from "@/components/today-card";
 import { WeekStrip } from "@/components/week-strip";
+import { StudioBadge } from "@/components/studio-badge";
 import { Text } from "@/components/text";
-import { isStaff, roleLabel } from "@/auth/role";
+import { isStaff } from "@/auth/role";
 import { useSession, type Studio } from "@/auth/session";
 import { useT } from "@/i18n/use-language";
 import type { Translator } from "@/i18n/translate";
@@ -130,7 +130,7 @@ export default function Schedule() {
 
   return (
     <Screen>
-      <PageHeader title={studio.name} tag={<Pill label={roleLabel(t, studio.role)} tone="ink" />} />
+      <PageHeader title={t("tabs.schedule")} tag={<StudioBadge />} />
 
       {schedule.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
       {schedule.status === "error" && (

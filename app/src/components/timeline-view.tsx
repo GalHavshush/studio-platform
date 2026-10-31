@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSession } from "@/auth/session";
 import { Button } from "@/components/button";
 import { PageHeader } from "@/components/page-header";
+import { StudioBadge } from "@/components/studio-badge";
 import { Screen } from "@/components/screen";
 import { TAB_BAR_SPACE } from "@/components/tab-bar";
 import { Text } from "@/components/text";
@@ -53,7 +54,7 @@ export function TimelineView({ id, name, tab = false, header }: Props) {
 
   return (
     <Screen>
-      <PageHeader title={tab ? t("tabs.timeline") : t("timeline.title")} subtitle={name} backLabel={tab ? undefined : t("timeline.back")} />
+      <PageHeader title={tab ? t("tabs.timeline") : t("timeline.title")} tag={tab ? <StudioBadge /> : undefined} subtitle={name} backLabel={tab ? undefined : t("timeline.back")} />
 
       {/* One list, always mounted: the header (reports to write) must not remount when the timeline
           finishes loading, or it would reload and lose the weeks "Show earlier" added. */}
