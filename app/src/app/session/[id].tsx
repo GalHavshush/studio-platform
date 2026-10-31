@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-na
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/button";
+import { ClassPass } from "@/components/class-pass";
 import { PageHeader } from "@/components/page-header";
 import { PersonRow } from "@/components/person-row";
 import { Pill } from "@/components/pill";
@@ -32,11 +33,11 @@ import {
 import { canChange, changeMessage } from "@/schedule/edit-session";
 import { canWriteReport } from "@/schedule/report";
 import type { GroupKey } from "@/schedule/rsvp-list";
-import { formatRange } from "@/schedule/time";
+import { formatDay, formatTime, startOfDay } from "@/schedule/time";
 import { useNow } from "@/schedule/use-now";
 import { useRsvpList } from "@/schedule/use-rsvp-list";
 import { useSessionDetail, type SessionDetail } from "@/schedule/use-session";
-import { space, type ColorName } from "@/theme/tokens";
+import { radius, space, type ColorName } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
 export default function SessionScreen() {
@@ -45,6 +46,7 @@ export default function SessionScreen() {
   const { colors } = useTheme();
   const t = useT();
   const detail = useSessionDetail(id);
+  const now = useNow(60_000);
   const ready = detail.status === "ready" && studio;
 
   return (
@@ -54,11 +56,11 @@ export default function SessionScreen() {
           backLabel={t("session.back")}
           tag={detail.session.status === "cancelled" ? <Pill label={t("common.cancelled")} tone="ink" /> : undefined}
           title={detail.session.class_type_name}
-          subtitle={formatRange(
-            Date.parse(detail.session.starts_at),
-            Date.parse(detail.session.ends_at),
+          subtitle={formatDay(
+            startOfDay(Date.parse(detail.session.starts_at), studio.timezone),
+            now,
             studio.timezone,
-            t.locale,
+            t,
           )}
         />
       ) : (
@@ -190,186 +192,201 @@ function Details({ session, stale, rsvp, attend, cancel, remove }: DetailsProps)
     ]);
   }
 
+  const start = Date.parse(session.starts_at);
+  const minutes = Math.round((Date.parse(session.ends_at) - start) / 60_000);
+
   return (
-    <ScrollView
-      contentContainerStyle={[styles.details, { paddingBottom: insets.bottom + space.xl }]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.tiles}>
-        <Tile label={t("session.coach")} value={session.coach_name} />
-        {seats ? (
-          <Tile label={t("session.seats")} value={seats} tone="primary" />
-        ) : session.capacity !== null ? (
-          <Tile label={t("session.capacity")} value={String(session.capacity)} />
-        ) : null}
-      </View>
-
-      {session.preview && <Text>{session.preview}</Text>}
-
-      {counts && (
-        <View style={styles.group}>
-          <Text variant="eyebrow">{t("session.whoIsComing")}</Text>
-          <View style={styles.tiles}>
-            <Tile figure label={t("rsvp.going")} value={String(counts.going)} tone="accent" />
-            <Tile figure label={t("rsvp.maybe")} value={String(counts.maybe)} tone="soft" />
-          </View>
-          <View style={styles.tiles}>
-            <Tile figure label={t("rsvp.notGoing")} value={String(counts.not_going)} tone="primary" />
-            <Tile figure label={t("session.waiting")} value={String(counts.waitlist)} tone="muted" />
-          </View>
-          <Button
-            variant="choice"
-            title={t(list.state.status === "closed" ? "session.seeList" : "session.hideList")}
-            onPress={list.toggle}
-          />
-          {list.state.status === "loading" && <ActivityIndicator color={colors.textMuted} />}
-          {list.state.status === "error" && (
-            <View style={styles.listMessage}>
-              <Text color="danger" accessibilityRole="alert">
-                {t("session.listError")}
-              </Text>
-              <Button variant="link" title={t("common.tryAgain")} onPress={list.retry} />
-            </View>
-          )}
-          {list.state.status === "ready" && list.state.groups.length === 0 && (
-            <Text color="textMuted">{t("session.nobody")}</Text>
-          )}
-          {list.state.status === "ready" &&
-            list.state.groups.map((g) => (
-              <View key={g.key} style={styles.people}>
-                <View style={styles.groupTitle}>
-                  <View style={[styles.dot, { backgroundColor: colors[DOT[g.key]] }]} />
-                  <Text variant="eyebrow">
-                    {t("session.groupTitle", { title: t(g.titleKey), count: g.entries.length })}
-                  </Text>
-                </View>
-                {g.entries.map((e) => (
-                  <PersonRow
-                    key={e.participant_id}
-                    name={e.name}
-                    position={e.waitlist_position}
-                    onPress={() =>
-                      router.push({ pathname: "/timeline/[id]", params: { id: e.participant_id, name: e.name } })
-                    }
-                  />
-                ))}
-              </View>
-            ))}
-        </View>
-      )}
-
-      {canWriteReport(session, openedAt) && (
-        <Button
-          variant="choice"
-          title={t("report.title")}
-          onPress={() => router.push({ pathname: "/session/report/[id]", params: { id: session.id } })}
+    <View style={styles.page}>
+      <ScrollView contentContainerStyle={styles.details} showsVerticalScrollIndicator={false}>
+        <ClassPass
+          time={formatTime(start, studio?.timezone ?? "UTC", t.locale)}
+          minutes={minutes}
+          coach={session.coach_name}
+          seats={seats}
+          capacity={session.capacity}
+          seatsLeft={session.seats_left}
         />
-      )}
 
-      {session.series_id !== null &&
-        (studio?.role === "owner" ? (
-          <Button
-            variant="link"
-            title={t("session.partOfSeries")}
-            onPress={() => router.push({ pathname: "/series/[id]", params: { id: session.series_id as string } })}
-          />
-        ) : (
-          <Text color="textMuted">{t("session.partOfSeries")}</Text>
-        ))}
+        {session.preview && (
+          <View style={[styles.about, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text variant="eyebrow" color="textMuted">
+              {t("session.about")}
+            </Text>
+            <Text>{session.preview}</Text>
+          </View>
+        )}
 
-      {mayChange && (
-        <View style={styles.group}>
+        {counts && (
+          <View style={styles.group}>
+            <Text variant="eyebrow">{t("session.whoIsComing")}</Text>
+            <View style={styles.tiles}>
+              <Tile figure label={t("rsvp.going")} value={String(counts.going)} tone="accent" />
+              <Tile figure label={t("rsvp.maybe")} value={String(counts.maybe)} tone="soft" />
+            </View>
+            <View style={styles.tiles}>
+              <Tile figure label={t("rsvp.notGoing")} value={String(counts.not_going)} tone="primary" />
+              <Tile figure label={t("session.waiting")} value={String(counts.waitlist)} tone="muted" />
+            </View>
+            <Button
+              variant="choice"
+              title={t(list.state.status === "closed" ? "session.seeList" : "session.hideList")}
+              onPress={list.toggle}
+            />
+            {list.state.status === "loading" && <ActivityIndicator color={colors.textMuted} />}
+            {list.state.status === "error" && (
+              <View style={styles.listMessage}>
+                <Text color="danger" accessibilityRole="alert">
+                  {t("session.listError")}
+                </Text>
+                <Button variant="link" title={t("common.tryAgain")} onPress={list.retry} />
+              </View>
+            )}
+            {list.state.status === "ready" && list.state.groups.length === 0 && (
+              <Text color="textMuted">{t("session.nobody")}</Text>
+            )}
+            {list.state.status === "ready" &&
+              list.state.groups.map((g) => (
+                <View key={g.key} style={styles.people}>
+                  <View style={styles.groupTitle}>
+                    <View style={[styles.dot, { backgroundColor: colors[DOT[g.key]] }]} />
+                    <Text variant="eyebrow">
+                      {t("session.groupTitle", { title: t(g.titleKey), count: g.entries.length })}
+                    </Text>
+                  </View>
+                  {g.entries.map((e) => (
+                    <PersonRow
+                      key={e.participant_id}
+                      name={e.name}
+                      position={e.waitlist_position}
+                      onPress={() =>
+                        router.push({ pathname: "/timeline/[id]", params: { id: e.participant_id, name: e.name } })
+                      }
+                    />
+                  ))}
+                </View>
+              ))}
+          </View>
+        )}
+
+        {canWriteReport(session, openedAt) && (
           <Button
             variant="choice"
-            title={t("session.edit")}
-            onPress={() => router.push({ pathname: "/session/edit/[id]", params: { id: session.id } })}
+            title={t("report.title")}
+            onPress={() => router.push({ pathname: "/session/report/[id]", params: { id: session.id } })}
           />
-          <Button variant="outline" title={t("session.cancelClass")} busy={cancelling} onPress={askCancel} />
-          {studio?.role === "owner" && session.series_id === null && (
-            <Button variant="link" title={t("session.deleteClass")} busy={deleting} onPress={askDelete} danger />
-          )}
-          {changeNote && (
-            <Text color="danger" accessibilityRole="alert">
-              {changeNote}
-            </Text>
-          )}
-        </View>
-      )}
+        )}
 
-      <View style={styles.spacer} />
-
-      <View style={styles.group}>
-        <View style={styles.planHeader}>
-          <Text variant="eyebrow">{t("session.yourPlan")}</Text>
-          <Text variant="label" color="textMuted">
-            {planLabel(t, session.my_rsvp)}
-          </Text>
-        </View>
-        <View style={styles.choices}>
-          {CHOICES.map((c) => (
-            <View key={c.value} style={styles.choice}>
-              <Button
-                variant="choice"
-                title={t(c.label)}
-                selected={c.value === selected}
-                disabled={saving || cancelled}
-                onPress={() => choose(c.value)}
-              />
-            </View>
+        {session.series_id !== null &&
+          (studio?.role === "owner" ? (
+            <Button
+              variant="link"
+              title={t("session.partOfSeries")}
+              onPress={() => router.push({ pathname: "/series/[id]", params: { id: session.series_id as string } })}
+            />
+          ) : (
+            <Text color="textMuted">{t("session.partOfSeries")}</Text>
           ))}
-        </View>
-        {message && (
-          <Text color="danger" accessibilityRole="alert">
-            {message}
-          </Text>
-        )}
-        {stale && (
-          <Text color="danger" accessibilityRole="alert">
-            {t("session.stale")}
-          </Text>
-        )}
-      </View>
 
-      {attendance === "open" && (
+        {mayChange && (
+          <View style={styles.group}>
+            <Button
+              variant="choice"
+              title={t("session.edit")}
+              onPress={() => router.push({ pathname: "/session/edit/[id]", params: { id: session.id } })}
+            />
+            <Button variant="outline" title={t("session.cancelClass")} busy={cancelling} onPress={askCancel} />
+            {studio?.role === "owner" && session.series_id === null && (
+              <Button variant="link" title={t("session.deleteClass")} busy={deleting} onPress={askDelete} danger />
+            )}
+            {changeNote && (
+              <Text color="danger" accessibilityRole="alert">
+                {changeNote}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {attendance === "open" && (
+          <View style={styles.group}>
+            <Text variant="eyebrow">{t("attendance.title")}</Text>
+            <View style={styles.choices}>
+              {ATTENDANCE_CHOICES.map((c) => (
+                <View key={c.label} style={styles.choice}>
+                  <Button
+                    variant="choice"
+                    title={t(c.label)}
+                    selected={c.value === session.my_attended}
+                    disabled={attending}
+                    onPress={() => answer(c.value)}
+                  />
+                </View>
+              ))}
+            </View>
+            {attendNote && (
+              <Text color="danger" accessibilityRole="alert">
+                {attendNote}
+              </Text>
+            )}
+          </View>
+        )}
+        {attendance === "closed" && attendanceText(t, session.my_attended) && (
+          <Text color="textMuted">{attendanceText(t, session.my_attended)}</Text>
+        )}
+      </ScrollView>
+      <View
+        style={[
+          styles.footer,
+          { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + space.md },
+        ]}
+      >
         <View style={styles.group}>
-          <Text variant="eyebrow">{t("attendance.title")}</Text>
+          <View style={styles.planHeader}>
+            <Text variant="eyebrow">{t("session.yourPlan")}</Text>
+            <Text variant="label" color="textMuted">
+              {planLabel(t, session.my_rsvp)}
+            </Text>
+          </View>
           <View style={styles.choices}>
-            {ATTENDANCE_CHOICES.map((c) => (
-              <View key={c.label} style={styles.choice}>
+            {CHOICES.map((c) => (
+              <View key={c.value} style={styles.choice}>
                 <Button
                   variant="choice"
                   title={t(c.label)}
-                  selected={c.value === session.my_attended}
-                  disabled={attending}
-                  onPress={() => answer(c.value)}
+                  selected={c.value === selected}
+                  disabled={saving || cancelled}
+                  onPress={() => choose(c.value)}
                 />
               </View>
             ))}
           </View>
-          {attendNote && (
+          {message && (
             <Text color="danger" accessibilityRole="alert">
-              {attendNote}
+              {message}
+            </Text>
+          )}
+          {stale && (
+            <Text color="danger" accessibilityRole="alert">
+              {t("session.stale")}
             </Text>
           )}
         </View>
-      )}
-      {attendance === "closed" && attendanceText(t, session.my_attended) && (
-        <Text color="textMuted">{attendanceText(t, session.my_attended)}</Text>
-      )}
-    </ScrollView>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
+  page: { flex: 1 },
   details: { flexGrow: 1, padding: space.xl, gap: space.xl },
+  about: { borderRadius: radius.lg - 4, borderWidth: 1, padding: space.lg, gap: space.sm },
+  footer: { borderTopWidth: 1, paddingHorizontal: space.xl, paddingTop: space.md },
   tiles: { flexDirection: "row", gap: space.md },
   listMessage: { alignItems: "center", gap: space.xs },
   people: { gap: space.sm },
   groupTitle: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingTop: space.sm },
   dot: { width: 10, height: 10, borderRadius: 5 },
   group: { gap: space.md },
-  spacer: { flexGrow: 1 },
   planHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
   choices: { flexDirection: "row", gap: space.sm },
   choice: { flex: 1 },

@@ -175,7 +175,7 @@ export const en = {
   "session.notAvailable": "This session isn't available.",
   "session.loadError": "Couldn't load the session.",
   "session.coach": "Coach",
-  "session.seats": "Seats",
+  "session.about": "About this class",
   "session.capacity": "Capacity",
   "session.whoIsComing": "Who's coming",
   "session.waiting": "Waiting",
