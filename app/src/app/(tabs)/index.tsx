@@ -89,7 +89,7 @@ export default function Schedule() {
       return (
         <TodayCard title={day.title} date={dayDate(now, zone, t.locale)}>
           {day.data.length === 0 && (
-            <Text color="onPrimary" style={styles.nothing}>
+            <Text color="textMuted" style={styles.nothing}>
               {t("schedule.nothingToday")}
             </Text>
           )}
@@ -98,7 +98,6 @@ export default function Schedule() {
               key={s.id}
               time={timeOf(s)}
               title={nameOf(s)}
-              tone={chipTone(s.class_type_id)}
               state={states.get(s.id)}
               cancelled={s.status === "cancelled"}
               onPress={() => open(s.id)}

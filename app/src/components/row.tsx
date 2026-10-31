@@ -7,11 +7,7 @@ import type { ChipTone } from "@/schedule/chip";
 import { radius, space, type ColorName } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
-const CHIP: Record<ChipTone, { bg: ColorName; fg: ColorName }> = {
-  accent: { bg: "accent", fg: "onAccent" },
-  soft: { bg: "soft", fg: "onSoft" },
-  primary: { bg: "primary", fg: "onPrimary" },
-};
+const CHIP: Record<ChipTone, ColorName> = { accent: "accent", soft: "soft", primary: "primary" };
 
 type Props = {
   time: string;
@@ -21,12 +17,13 @@ type Props = {
   onPress: () => void;
 };
 
-// One line of the schedule: a coloured time chip, the class name, and a chevron to open it.
-// A cancelled class stays in the list, struck through and outlined, so nobody thinks it vanished.
+// One line of the schedule: a white card with the time, the class name, a coloured edge for its
+// type and a chevron to open it. A cancelled class stays in the list, struck through and dashed,
+// so nobody thinks it vanished.
 export function Row({ time, title, tone, cancelled = false, onPress }: Props) {
   const { colors } = useTheme();
   const t = useT();
-  const chip = CHIP[tone];
+  const edge = colors[CHIP[tone]];
   return (
     <Pressable
       accessibilityRole="button"
@@ -35,19 +32,14 @@ export function Row({ time, title, tone, cancelled = false, onPress }: Props) {
       style={[
         styles.row,
         cancelled
-          ? { borderColor: colors.border, borderStyle: "dashed", borderWidth: 1.5 }
-          : { backgroundColor: colors.surface },
+          ? { borderColor: colors.border, borderStyle: "dashed" }
+          : { backgroundColor: colors.surface, borderColor: colors.border },
       ]}
     >
-      <View style={[styles.chip, { backgroundColor: cancelled ? colors.surfaceMuted : colors[chip.bg] }]}>
-        <Text
-          variant="rowName"
-          color={cancelled ? "textMuted" : chip.fg}
-          style={[styles.time, cancelled && styles.struck]}
-        >
-          {time}
-        </Text>
-      </View>
+      <View style={[styles.bar, { backgroundColor: cancelled ? colors.border : edge }]} />
+      <Text variant="time" color={cancelled ? "textMuted" : "text"} style={[styles.time, cancelled && styles.struck]}>
+        {time}
+      </Text>
       <Text
         variant="title"
         color={cancelled ? "textMuted" : "text"}
@@ -74,14 +66,15 @@ const styles = StyleSheet.create({
     minHeight: 60,
     flexDirection: "row",
     alignItems: "center",
-    gap: space.lg,
-    padding: 6,
+    gap: space.md,
     paddingRight: space.lg,
     borderRadius: radius.lg - 4,
+    borderWidth: 1,
+    overflow: "hidden",
   },
-  chip: { minWidth: 64, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: 13 },
-  time: { fontVariant: ["tabular-nums"], paddingHorizontal: space.sm },
-  title: { flex: 1, fontSize: 17 },
+  bar: { width: 4, alignSelf: "stretch" },
+  time: { minWidth: 64 },
+  title: { flex: 1 },
   struck: { textDecorationLine: "line-through" },
   // the pill pins itself to the top of its parent; this wrapper centres it in the row instead
   tag: { alignSelf: "center" },

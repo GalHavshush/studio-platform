@@ -69,6 +69,8 @@ export const type = {
   },
   // a big number on a tile
   figure: { fontFamily: fontFamily.display, fontSize: 40, lineHeight: 40, letterSpacing: 0, fontVariant: ["tabular-nums"] },
+  // a class's start time in a list row: "07:00"
+  time: { fontFamily: fontFamily.display, fontSize: 26, lineHeight: 28, letterSpacing: 0, fontVariant: ["tabular-nums"] },
   body: { fontFamily: fontFamily.regular, fontSize: 16, lineHeight: 22, letterSpacing: 0 },
   // a name in a list row ("Maya", "Cody Coach")
   rowName: { fontFamily: fontFamily.bold, fontSize: 16, lineHeight: 22, letterSpacing: 0 },
