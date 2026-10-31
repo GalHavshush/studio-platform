@@ -6,7 +6,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSession } from "@/auth/session";
 import { Button } from "@/components/button";
 import { DeleteAccountSheet } from "@/components/delete-account-sheet";
+import { Logo } from "@/components/logo";
 import { PageHeader } from "@/components/page-header";
+import { StudioBadge } from "@/components/studio-badge";
 import { Screen } from "@/components/screen";
 import { TAB_BAR_SPACE } from "@/components/tab-bar";
 import { Text } from "@/components/text";
@@ -34,7 +36,7 @@ export default function Settings() {
 
   return (
     <Screen>
-      <PageHeader title={t("settings.title")} />
+      <PageHeader title={t("settings.title")} tag={<StudioBadge />} />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xl + TAB_BAR_SPACE }]}
@@ -97,6 +99,12 @@ export default function Settings() {
           <Button variant="link" title={t("account.signOut")} onPress={signOut} />
           <Button variant="link" danger title={t("delete.link")} onPress={() => setDeleting(true)} />
         </View>
+        <View style={styles.powered}>
+          <Logo size={24} />
+          <Text variant="caption" color="textMuted">
+            {t("settings.poweredBy")}
+          </Text>
+        </View>
       </ScrollView>
 
       {deleting && <DeleteAccountSheet onDelete={deleteAccount} onClose={() => setDeleting(false)} />}
@@ -111,4 +119,5 @@ const styles = StyleSheet.create({
   option: { flex: 1 },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md },
   switchLabel: { flex: 1 },
+  powered: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.sm },
 });

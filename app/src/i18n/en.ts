@@ -41,6 +41,7 @@ export const en = {
   "settings.studio": "Studio",
   "settings.classTypes": "Class types",
   "settings.weeklyClasses": "Weekly classes",
+  "settings.poweredBy": "Powered by Studio Platform",
   "settings.mondayStart": "Week starts on Monday",
 
   "account.switchStudio": "Switch studio",
