@@ -4,27 +4,20 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { Pill } from "@/components/pill";
 import { Text } from "@/components/text";
 import { useT } from "@/i18n/use-language";
-import type { ChipTone } from "@/schedule/chip";
 import type { TodayState } from "@/schedule/week";
-import { radius, space, type ColorName } from "@/theme/tokens";
+import { radius, space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
-const CHIP: Record<ChipTone, { bg: ColorName; fg: ColorName }> = {
-  accent: { bg: "accent", fg: "onAccent" },
-  soft: { bg: "soft", fg: "onSoft" },
-  primary: { bg: "primary", fg: "onPrimary" },
-};
-
-// The block the schedule is about: a blue card holding today's classes under a big "Today".
+// The block the schedule is about: a white card holding today's classes under a big "Today".
 export function TodayCard({ title, date, children }: { title: string; date: string; children: ReactNode }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.card, { backgroundColor: colors.primary }]}>
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.head}>
-        <Text variant="heading" color="onPrimary" style={styles.title}>
+        <Text variant="heading" style={styles.title}>
           {title}
         </Text>
-        <Text variant="label" color="soft">
+        <Text variant="label" color="textMuted">
           {date}
         </Text>
       </View>
@@ -36,49 +29,30 @@ export function TodayCard({ title, date, children }: { title: string; date: stri
 type RowProps = {
   time: string;
   title: string;
-  tone: ChipTone;
-  // "done" classes are faded, the "next" one stands out in the accent colour; undefined for a
+  // "done" classes are faded, the "next" one gets the orange edge and a tag; undefined for a
   // cancelled class
   state?: TodayState;
   cancelled?: boolean;
   onPress: () => void;
 };
 
-// One of today's classes: bigger than a row of another day, so the day reads as the main thing.
-export function TodayRow({ time, title, tone, state, cancelled = false, onPress }: RowProps) {
+// One of today's classes: a bigger row than another day's, so the day reads as the main thing.
+export function TodayRow({ time, title, state, cancelled = false, onPress }: RowProps) {
   const { colors } = useTheme();
   const t = useT();
   const next = state === "next";
-  const chip = CHIP[tone];
-  const fg: ColorName = cancelled ? "textMuted" : next ? "onAccent" : "text";
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={t(cancelled ? "schedule.rowLabelCancelled" : "schedule.rowLabel", { time, title })}
       onPress={onPress}
-      style={[
-        styles.row,
-        cancelled
-          ? { borderColor: colors.border, borderStyle: "dashed", borderWidth: 1.5 }
-          : { backgroundColor: next ? colors.accent : colors.surface },
-        state === "done" && styles.done,
-      ]}
+      style={[styles.row, { borderTopColor: colors.border }, state === "done" && styles.done]}
     >
-      <View
-        style={[
-          styles.chip,
-          { backgroundColor: cancelled ? colors.surfaceMuted : next ? colors.soft : colors[chip.bg] },
-        ]}
-      >
-        <Text
-          variant="title"
-          color={cancelled ? "textMuted" : next ? "onSoft" : chip.fg}
-          style={[styles.time, cancelled && styles.struck]}
-        >
-          {time}
-        </Text>
-      </View>
-      <Text variant="title" color={fg} style={[styles.name, cancelled && styles.struck]} numberOfLines={2}>
+      <View style={[styles.bar, { backgroundColor: next ? colors.accent : colors.border }]} />
+      <Text variant="time" color={cancelled ? "textMuted" : "text"} style={[styles.time, cancelled && styles.struck]}>
+        {time}
+      </Text>
+      <Text variant="title" color={cancelled ? "textMuted" : "text"} style={[styles.name, cancelled && styles.struck]} numberOfLines={2}>
         {title}
       </Text>
       {cancelled ? (
@@ -90,7 +64,7 @@ export function TodayRow({ time, title, tone, state, cancelled = false, onPress 
           <Pill label={t("schedule.next")} />
         </View>
       ) : (
-        <Text variant="title" color="textMuted">
+        <Text variant="title" color="textMuted" style={styles.chevron}>
           ›
         </Text>
       )}
@@ -99,23 +73,15 @@ export function TodayRow({ time, title, tone, state, cancelled = false, onPress 
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: radius.lg - 4, paddingHorizontal: space.lg, paddingTop: space.xl - 4, paddingBottom: space.sm, gap: space.sm },
-  head: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingHorizontal: space.xs, paddingBottom: space.sm },
+  card: { borderRadius: radius.lg - 4, borderWidth: 1, overflow: "hidden" },
+  head: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingHorizontal: space.lg, paddingTop: space.lg, paddingBottom: space.md },
   title: { fontSize: 36, lineHeight: 36 },
-  row: {
-    minHeight: 76,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.lg,
-    padding: space.sm,
-    paddingRight: space.lg,
-    borderRadius: radius.lg - 6,
-    marginBottom: space.sm,
-  },
+  row: { minHeight: 68, flexDirection: "row", alignItems: "center", gap: space.md, paddingRight: space.lg, borderTopWidth: 1 },
+  bar: { width: 4, alignSelf: "stretch" },
   done: { opacity: 0.6 },
-  chip: { minWidth: 76, minHeight: 60, alignItems: "center", justifyContent: "center", borderRadius: 15 },
-  time: { fontVariant: ["tabular-nums"], paddingHorizontal: space.sm },
+  time: { minWidth: 64 },
   name: { flex: 1 },
   struck: { textDecorationLine: "line-through" },
   tag: { alignSelf: "center" },
+  chevron: { paddingLeft: space.xs },
 });
