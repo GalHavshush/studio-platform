@@ -99,9 +99,9 @@ export function TodayRow({ time, title, tone, state, cancelled = false, onPress 
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: radius.lg + 6, paddingHorizontal: space.lg, paddingTop: space.xl - 4, paddingBottom: space.sm, gap: space.sm },
+  card: { borderRadius: radius.lg - 4, paddingHorizontal: space.lg, paddingTop: space.xl - 4, paddingBottom: space.sm, gap: space.sm },
   head: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingHorizontal: space.xs, paddingBottom: space.sm },
-  title: { fontSize: 32, lineHeight: 34, letterSpacing: -1.2 },
+  title: { fontSize: 36, lineHeight: 36 },
   row: {
     minHeight: 76,
     flexDirection: "row",
@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
     gap: space.lg,
     padding: space.sm,
     paddingRight: space.lg,
-    borderRadius: radius.lg - 2,
+    borderRadius: radius.lg - 6,
     marginBottom: space.sm,
   },
   done: { opacity: 0.6 },
