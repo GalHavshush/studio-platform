@@ -62,6 +62,7 @@ function Navigator() {
         <Stack.Screen name="session/[id]" />
         <Stack.Screen name="session/edit/[id]" />
         <Stack.Screen name="session/report/[id]" />
+        <Stack.Screen name="session/summary/[id]" />
         <Stack.Screen name="timeline/[id]" />
       </Stack.Protected>
       <Stack.Protected guard={status === "signedIn" && studio === null}>

@@ -5,13 +5,20 @@ import { radius, space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
 // A small tag. `soft` is peach (a role); `ink` stands out the most (a cancelled class) and flips
-// with the theme: dark on light, light on dark.
-export function Pill({ label, tone = "soft" }: { label: string; tone?: "soft" | "ink" }) {
+// with the theme: dark on light, light on dark; `accent` is orange (something for you to read);
+// `outline` is a quiet white tag with a hairline (a class you did not attend).
+export function Pill({ label, tone = "soft" }: { label: string; tone?: "soft" | "ink" | "accent" | "outline" }) {
   const { colors } = useTheme();
-  const ink = tone === "ink";
+  const look = {
+    soft: { backgroundColor: colors.soft, color: "onSoft" },
+    ink: { backgroundColor: colors.text, color: "background" },
+    accent: { backgroundColor: colors.accent, color: "onAccent" },
+    outline: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, color: "textMuted" },
+  } as const;
+  const { color, ...box } = look[tone];
   return (
-    <View style={[styles.pill, { backgroundColor: ink ? colors.text : colors.soft }]}>
-      <Text variant="caption" color={ink ? "background" : "onSoft"}>
+    <View style={[styles.pill, box]}>
+      <Text variant="caption" color={color}>
         {label}
       </Text>
     </View>

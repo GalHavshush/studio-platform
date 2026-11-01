@@ -2,8 +2,6 @@
 // Every function that words something takes the translator `t` first.
 import type { Translator } from "@/i18n/translate";
 
-import { addDays, startOfWeek, type FirstDay } from "./time";
-
 // One note as the timeline shows it. A member's notes have only the first three fields: the
 // server leaves out the author and the flag for them, and the app shows what is there.
 export type TimelineNote = {
@@ -74,17 +72,3 @@ export function noteMeta(t: Translator, note: TimelineNote): string | null {
  * private ones out); on a staff member's own timeline the flag decides. */
 export const sharedNotes = (entry: Pick<TimelineEntry, "notes">): TimelineNote[] =>
   entry.notes.filter((n) => n.shared_with_member !== false);
-
-/**
- * "Reports about you": the classes of last calendar week (the week before the one containing `now`,
- * in the studio's zone, from `firstDay`) that have a summary or a note shared with the person. The
- * entries come back with only the shared notes. A cancelled class has no report to show.
- */
-export function aboutYou(entries: TimelineEntry[], now: number, timeZone: string, firstDay: FirstDay): TimelineEntry[] {
-  const to = startOfWeek(now, timeZone, firstDay);
-  const from = addDays(to, -7, timeZone);
-  return entries
-    .filter((e) => e.status !== "cancelled" && Date.parse(e.starts_at) >= from && Date.parse(e.starts_at) < to)
-    .map((e) => ({ ...e, notes: sharedNotes(e) }))
-    .filter((e) => e.summary || e.notes.length > 0);
-}
