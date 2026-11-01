@@ -131,6 +131,10 @@ export const en = {
   "series.unknownType": "Unknown class type",
   "series.from": "From {from}",
   "series.fromTo": "{from} to {to}",
+  "series.ongoing": "ongoing",
+  "series.until": "until {date}",
+  "series.starts": "starts {date}",
+  "series.ended": "ended {date}",
 
   "classTypes.title": "Class types",
   "classTypes.back": "Back",
