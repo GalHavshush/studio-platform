@@ -5,12 +5,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/button";
 import { ClassPass } from "@/components/class-pass";
+import { ClassStaff } from "@/components/class-staff";
 import { PageHeader } from "@/components/page-header";
-import { PersonRow } from "@/components/person-row";
 import { Pill } from "@/components/pill";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
-import { Tile } from "@/components/tile";
 import { useSession } from "@/auth/session";
 import { useT } from "@/i18n/use-language";
 import {
@@ -32,12 +31,10 @@ import {
 } from "@/schedule/attendance";
 import { canChange, changeMessage } from "@/schedule/edit-session";
 import { canWriteReport } from "@/schedule/report";
-import type { GroupKey } from "@/schedule/rsvp-list";
 import { formatDay, formatTime, startOfDay } from "@/schedule/time";
 import { useNow } from "@/schedule/use-now";
-import { useRsvpList } from "@/schedule/use-rsvp-list";
 import { useSessionDetail, type SessionDetail } from "@/schedule/use-session";
-import { radius, space, type ColorName } from "@/theme/tokens";
+import { radius, space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
 export default function SessionScreen() {
@@ -86,14 +83,6 @@ export default function SessionScreen() {
   );
 }
 
-// The small dot beside each group title, in the colour of the matching count tile.
-const DOT: Record<GroupKey, ColorName> = {
-  going: "accent",
-  waitlist: "textMuted",
-  maybe: "soft",
-  not_going: "primary",
-};
-
 type DetailsProps = {
   session: SessionDetail;
   stale: boolean;
@@ -111,7 +100,6 @@ function Details({ session, stale, rsvp, attend, cancel, remove }: DetailsProps)
   const counts = session.rsvp_counts;
   // ponytail: read once when the screen opens, so a class that starts while it is open shows the report button on the next visit.
   const [openedAt] = useState(Date.now);
-  const list = useRsvpList(session.id);
   const now = useNow(30_000); // the check-in window can open while the screen is open
   const [attending, setAttending] = useState(false);
   const [attendNote, setAttendNote] = useState<string | null>(null);
@@ -131,7 +119,6 @@ function Details({ session, stale, rsvp, attend, cancel, remove }: DetailsProps)
     setSaving(true);
     setMessage(null);
     const outcome = await rsvp(choice);
-    if (outcome === "ok") void list.reload(); // the staff member's own name may have moved
     setSaving(false);
     setMessage(outcomeMessage(t, outcome));
   }
@@ -216,57 +203,7 @@ function Details({ session, stale, rsvp, attend, cancel, remove }: DetailsProps)
           </View>
         )}
 
-        {counts && (
-          <View style={styles.group}>
-            <Text variant="eyebrow">{t("session.whoIsComing")}</Text>
-            <View style={styles.tiles}>
-              <Tile figure label={t("rsvp.going")} value={String(counts.going)} tone="accent" />
-              <Tile figure label={t("rsvp.maybe")} value={String(counts.maybe)} tone="soft" />
-            </View>
-            <View style={styles.tiles}>
-              <Tile figure label={t("rsvp.notGoing")} value={String(counts.not_going)} tone="primary" />
-              <Tile figure label={t("session.waiting")} value={String(counts.waitlist)} tone="muted" />
-            </View>
-            <Button
-              variant="choice"
-              title={t(list.state.status === "closed" ? "session.seeList" : "session.hideList")}
-              onPress={list.toggle}
-            />
-            {list.state.status === "loading" && <ActivityIndicator color={colors.textMuted} />}
-            {list.state.status === "error" && (
-              <View style={styles.listMessage}>
-                <Text color="danger" accessibilityRole="alert">
-                  {t("session.listError")}
-                </Text>
-                <Button variant="link" title={t("common.tryAgain")} onPress={list.retry} />
-              </View>
-            )}
-            {list.state.status === "ready" && list.state.groups.length === 0 && (
-              <Text color="textMuted">{t("session.nobody")}</Text>
-            )}
-            {list.state.status === "ready" &&
-              list.state.groups.map((g) => (
-                <View key={g.key} style={styles.people}>
-                  <View style={styles.groupTitle}>
-                    <View style={[styles.dot, { backgroundColor: colors[DOT[g.key]] }]} />
-                    <Text variant="eyebrow">
-                      {t("session.groupTitle", { title: t(g.titleKey), count: g.entries.length })}
-                    </Text>
-                  </View>
-                  {g.entries.map((e) => (
-                    <PersonRow
-                      key={e.participant_id}
-                      name={e.name}
-                      position={e.waitlist_position}
-                      onPress={() =>
-                        router.push({ pathname: "/timeline/[id]", params: { id: e.participant_id, name: e.name } })
-                      }
-                    />
-                  ))}
-                </View>
-              ))}
-          </View>
-        )}
+        {counts && <ClassStaff session={session} open={attendance === "open"} reloadKey={session.my_rsvp} />}
 
         {canWriteReport(session, openedAt) && (
           <Button
@@ -381,11 +318,6 @@ const styles = StyleSheet.create({
   details: { flexGrow: 1, padding: space.xl, gap: space.xl },
   about: { borderRadius: radius.lg - 4, borderWidth: 1, padding: space.lg, gap: space.sm },
   footer: { borderTopWidth: 1, paddingHorizontal: space.xl, paddingTop: space.md },
-  tiles: { flexDirection: "row", gap: space.md },
-  listMessage: { alignItems: "center", gap: space.xs },
-  people: { gap: space.sm },
-  groupTitle: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingTop: space.sm },
-  dot: { width: 10, height: 10, borderRadius: 5 },
   group: { gap: space.md },
   planHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
   choices: { flexDirection: "row", gap: space.sm },
