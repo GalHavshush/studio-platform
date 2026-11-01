@@ -7,7 +7,9 @@ import {
   canWriteReport,
   formFromReport,
   isDirty,
+  initials,
   noteFor,
+  noteLabel,
   removeAttendee,
   saveMessage,
   saveOutcome,
@@ -181,4 +183,18 @@ test("removing an attendee does not touch their note, which stays in the form", 
   removeAttendee([{ participant_id: ANN, name: "Amy" }], ANN);
 
   expect(toPayload(form).notes).toEqual([{ participant_id: ANN, body: "Strong", shared_with_member: true }]);
+});
+
+test("noteLabel tells none, staff-only and shared apart; blank text is no note", () => {
+  expect(noteLabel({ body: "", shared: false })).toBe("none");
+  expect(noteLabel({ body: "  ", shared: true })).toBe("none");
+  expect(noteLabel({ body: "Strong", shared: false })).toBe("staff");
+  expect(noteLabel({ body: "Strong", shared: true })).toBe("shared");
+});
+
+test("initials take the first and last word, and survive odd names", () => {
+  expect(initials("Maya Member")).toBe("MM");
+  expect(initials("  ana  maria  lopez ")).toBe("AL");
+  expect(initials("Cher")).toBe("C");
+  expect(initials("")).toBe("");
 });

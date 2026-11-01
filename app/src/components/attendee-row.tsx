@@ -1,65 +1,54 @@
-import type { ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { Pill } from "@/components/pill";
 import { Text } from "@/components/text";
 import { useT } from "@/i18n/use-language";
+import { initials, noteLabel, type NoteDraft } from "@/schedule/report";
 import { radius, space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
-type Props = {
-  name: string;
-  hasNote: boolean;
-  shared: boolean;
-  open: boolean;
-  onToggle: () => void;
-  children: ReactNode; // the note, its share switch and the links: shown only while the row is open
-};
+type Props = { name: string; note: NoteDraft; onPress: () => void };
 
-// One attendee of the report in a line, with what is already written ("Note", "Shared") visible
-// without opening it. The text lives in the form, so closing a row loses nothing.
-export function AttendeeRow({ name, hasNote, shared, open, onToggle, children }: Props) {
+// One attendee of the report in a line: initials, name and what is written ("Shared note",
+// "Staff note", "Add note"). A tap opens the note sheet; the text lives in the form, not here.
+export function AttendeeRow({ name, note, onPress }: Props) {
   const { colors } = useTheme();
   const t = useT();
+  const label = noteLabel(note);
+  const tag = { none: t("report.addNote"), staff: t("report.staffNote"), shared: t("report.sharedNote") }[label];
   return (
-    <View style={styles.wrap}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        accessibilityLabel={t("report.rowLabel", { name })}
-        onPress={onToggle}
-        style={[styles.row, { backgroundColor: colors.surface }]}
-      >
-        <Text variant="rowName" style={styles.name}>
-          {name}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t("report.rowLabel", { name })}
+      onPress={onPress}
+      style={[styles.row, { backgroundColor: colors.surface }]}
+    >
+      <View style={[styles.avatar, { backgroundColor: colors.soft }]}>
+        <Text variant="caption" color="onSoft">
+          {initials(name)}
         </Text>
-        {hasNote && (
-          <View style={styles.tags}>
-            <Pill label={t("report.hasNote")} />
-            {shared && <Pill label={t("timeline.shared")} tone="ink" />}
-          </View>
-        )}
-        <Text variant="title" color="textMuted">
-          {open ? "⌃" : "›"}
-        </Text>
-      </Pressable>
-      {open && <View style={styles.body}>{children}</View>}
-    </View>
+      </View>
+      <Text variant="rowName" style={styles.name}>
+        {name}
+      </Text>
+      <Text variant="caption" color={label === "none" ? "textMuted" : "text"}>
+        {tag}
+      </Text>
+      <Text variant="title" color="textMuted">
+        ›
+      </Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: space.sm },
   row: {
-    minHeight: 52,
+    minHeight: 56,
     flexDirection: "row",
     alignItems: "center",
     gap: space.sm,
     paddingHorizontal: space.lg,
     borderRadius: radius.md,
   },
+  avatar: { width: 32, height: 32, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
   name: { flex: 1 },
-  // the pill pins itself to the top of its parent; this wrapper centres the pair in the row instead
-  tags: { flexDirection: "row", gap: space.xs, alignSelf: "center" },
-  body: { gap: space.sm, paddingHorizontal: space.xs },
 });
