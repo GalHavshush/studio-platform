@@ -15,10 +15,12 @@ type Props = {
   tag?: ReactNode;
   // with a label the header has a back button; without it, none (a top-level screen)
   backLabel?: string;
+  // a button at the far end of the bar (the class page's "⋯")
+  action?: ReactNode;
 };
 
 // The plain header at the top of every page but sign in and choose studio: back button and title.
-export function PageHeader({ title, subtitle, tag, backLabel }: Props) {
+export function PageHeader({ title, subtitle, tag, backLabel, action }: Props) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.bar, { paddingTop: insets.top + space.xs }]}>
@@ -35,6 +37,7 @@ export function PageHeader({ title, subtitle, tag, backLabel }: Props) {
           </Text>
         )}
       </View>
+      {action}
     </View>
   );
 }
