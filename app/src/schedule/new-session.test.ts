@@ -5,6 +5,7 @@ import {
   createMessage,
   createOutcome,
   dayChoices,
+  formFromLastClass,
   initialForm,
   seatsValue,
   showSeats,
@@ -123,4 +124,48 @@ test("a weekly class is the chosen day, its weekday, and the studio's clock as t
 test("a weekly class takes its date from the studio's calendar, not the phone's", () => {
   const sunday = form({ dayStart: Date.parse("2026-10-31T22:00:00Z") }); // Sun 1 Nov 00:00 in Jerusalem
   expect(toSeriesPayload(sunday, ZONE, false)).toMatchObject({ first_date: "2026-11-01", weekday: 6 });
+});
+
+const past = (over: Record<string, unknown> = {}) => ({
+  class_type_id: "ct1",
+  coach_id: "me",
+  starts_at: "2026-10-27T06:00:00Z", // 08:00 in Jerusalem
+  ends_at: "2026-10-27T07:30:00Z",
+  capacity: 12 as number | null,
+  status: "scheduled",
+  ...over,
+});
+
+test("the form starts from the caller's latest started class", () => {
+  const sessions = [
+    past({ starts_at: "2026-10-26T06:00:00Z", ends_at: "2026-10-26T07:00:00Z", class_type_id: "ct2" }),
+    past(),
+    past({ starts_at: "2026-10-31T06:00:00Z", ends_at: "2026-10-31T07:00:00Z", class_type_id: "ct2" }), // not started
+  ];
+  expect(formFromLastClass(sessions, ["ct1", "ct2"], NOW, ZONE, "me")).toEqual({
+    classTypeId: "ct1",
+    coachId: null,
+    hour: 8,
+    minute: 0,
+    duration: 90,
+    seats: "12",
+  });
+});
+
+test("an owner who does not teach takes the latest class of anyone, with that coach", () => {
+  expect(formFromLastClass([past({ coach_id: "cody", capacity: null })], ["ct1"], NOW, ZONE, "owner")).toMatchObject({
+    coachId: "cody",
+    seats: "",
+  });
+});
+
+test("the caller's class wins over a later one of someone else", () => {
+  const sessions = [past(), past({ coach_id: "cody", starts_at: "2026-10-28T06:00:00Z", ends_at: "2026-10-28T07:00:00Z" })];
+  expect(formFromLastClass(sessions, ["ct1"], NOW, ZONE, "me")?.duration).toBe(90);
+});
+
+test("cancelled classes and archived class types are skipped; none left means no pre-fill", () => {
+  expect(formFromLastClass([past({ status: "cancelled" })], ["ct1"], NOW, ZONE, "me")).toBeNull();
+  expect(formFromLastClass([past()], ["ct9"], NOW, ZONE, "me")).toBeNull();
+  expect(formFromLastClass([], ["ct1"], NOW, ZONE, "me")).toBeNull();
 });
