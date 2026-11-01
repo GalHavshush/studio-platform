@@ -116,7 +116,6 @@ export const en = {
   "seriesScreen.clash": "Another class of this weekly class is already at that time. Pick another start time.",
   "seriesScreen.gone": "This weekly class no longer exists.",
   "newSeries.title": "New weekly class",
-  "newSeries.back": "Back",
   "newSeries.summary": "Every {day} from {from}",
   "newSeries.create": "Create weekly class",
   "series.back": "Back",

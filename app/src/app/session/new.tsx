@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -50,7 +50,9 @@ export default function NewSessionScreen() {
   const staff = useStaff(studio.role === "owner");
   const owner = studio.role === "owner";
   const { create: createSeries } = useNewSeries();
-  const [weekly, setWeekly] = useState(false);
+  // the "New weekly class" button on the weekly classes list opens this form with the switch already on
+  const { repeat } = useLocalSearchParams<{ repeat?: string }>();
+  const [weekly, setWeekly] = useState(owner && repeat === "1");
   const { firstDay } = useWeekStart();
   const schedule = useSchedule(zone, firstDay);
   // Starts from the last class once, when both lists have arrived, unless the person already changed something.
@@ -91,7 +93,7 @@ export default function NewSessionScreen() {
 
   return (
     <Screen>
-      <PageHeader title={t("newSession.title")} backLabel={t("newSession.back")} />
+      <PageHeader title={t(weekly ? "newSeries.title" : "newSession.title")} backLabel={t("newSession.back")} />
       {classTypes.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
       {classTypes.status === "error" && (
         <View style={styles.center}>

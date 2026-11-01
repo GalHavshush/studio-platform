@@ -40,7 +40,7 @@ export default function WeeklyClassesScreen() {
       )}
       {list.status === "ready" && (
         <ScrollView contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + space.xl }]}>
-          <Button title={t("series.new")} onPress={() => router.push("/series/new")} />
+          <Button title={t("series.new")} onPress={() => router.push({ pathname: "/session/new", params: { repeat: "1" } })} />
           {list.series.length === 0 && <Text color="textMuted">{t("series.empty")}</Text>}
           {seriesGroups(t, list.series, list.types, list.staff, todayIn(now, studio?.timezone ?? "UTC"), firstDay).map((group) => (
             <View key={group.weekday} style={styles.group}>
