@@ -27,8 +27,7 @@ import { useTheme } from "@/theme/use-theme";
 type Tab = "upcoming" | "past";
 
 // The member's own classes tab: this month in two numbers, then what is coming and what has been.
-// `header` (the staff's reports to write) sits on top, whatever state the timeline is in.
-export function MyClassesView({ id, header }: { id: string; header?: ReactNode }) {
+export function MyClassesView({ id }: { id: string }) {
   const studio = useSession().studio as Studio;
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -84,7 +83,6 @@ export function MyClassesView({ id, header }: { id: string; header?: ReactNode }
     <Screen>
       <PageHeader title={t("tabs.timeline")} tag={<StudioBadge />} />
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + space.xl + TAB_BAR_SPACE }]}>
-        {header}
         {timeline.status === "loading" && <ActivityIndicator color={colors.textMuted} />}
         {timeline.status === "error" && (
           <View style={styles.center}>

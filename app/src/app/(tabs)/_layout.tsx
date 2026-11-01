@@ -17,23 +17,25 @@ export default function TabsLayout() {
   const router = useRouter();
   const landed = useRef(false);
 
-  // "/" is the schedule; a member's first page is Home, so they are sent there once when the tabs open.
+  // "/" is the schedule; a member's and a coach's first page is Home, so they are sent there once when the tabs open.
+  const hasHome = studio?.role === "member" || studio?.role === "coach";
   useEffect(() => {
-    if (studio?.role !== "member" || landed.current) return;
+    if (!hasHome || landed.current) return;
     landed.current = true;
     router.navigate("/home");
-  }, [studio?.role, router]);
+  }, [hasHome, router]);
 
   return (
     <Tabs
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.background } }}
     >
-      {/* Home is the member's first page; coaches and owners get theirs in later steps. */}
-      <Tabs.Screen name="home" options={{ title: t("tabs.home"), href: studio?.role === "member" ? undefined : null }} />
+      {/* Home is the member's and the coach's first page; the owner gets theirs in a later step. */}
+      <Tabs.Screen name="home" options={{ title: t("tabs.home"), href: hasHome ? undefined : null }} />
       <Tabs.Screen name="index" options={{ title: t("tabs.schedule") }} />
-      {/* Someone with a participant has a timeline of their own; staff have reports to write. */}
-      <Tabs.Screen name="timeline" options={{ title: t("tabs.timeline"), href: studio?.participantId || (studio && isStaff(studio.role)) ? undefined : null }} />
+      <Tabs.Screen name="reports" options={{ title: t("tabs.reports"), href: studio && isStaff(studio.role) ? undefined : null }} />
+      {/* Anyone with a participant has a timeline of their own, staff included. */}
+      <Tabs.Screen name="timeline" options={{ title: t("tabs.timeline"), href: studio?.participantId ? undefined : null }} />
       <Tabs.Screen name="settings" options={{ title: t("tabs.settings") }} />
     </Tabs>
   );

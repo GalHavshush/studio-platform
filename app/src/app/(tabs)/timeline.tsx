@@ -1,34 +1,8 @@
-import { ScrollView, StyleSheet } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-import { isStaff } from "@/auth/role";
-import { useSession } from "@/auth/session";
-import { PageHeader } from "@/components/page-header";
-import { StudioBadge } from "@/components/studio-badge";
-import { ReportsToWrite } from "@/components/reports-to-write";
-import { Screen } from "@/components/screen";
-import { TAB_BAR_SPACE } from "@/components/tab-bar";
+import { useSession, type Studio } from "@/auth/session";
 import { MyClassesView } from "@/components/my-classes-view";
-import { useT } from "@/i18n/use-language";
-import { space } from "@/theme/tokens";
 
-// "My classes": the staff's reports to write on top, then the person's own timeline when the studio
-// named their participant. The tab exists only for one of the two.
+// "My classes": the person's own timeline. The tab exists only when the studio named their participant.
 export default function MyClasses() {
   const { studio } = useSession();
-  const insets = useSafeAreaInsets();
-  const t = useT();
-  const reports = studio && isStaff(studio.role) ? <ReportsToWrite /> : undefined;
-
-  if (studio?.participantId) return <MyClassesView id={studio.participantId} header={reports} />;
-  return (
-    <Screen>
-      <PageHeader title={t("tabs.timeline")} tag={<StudioBadge />} />
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + space.xl + TAB_BAR_SPACE }]}>
-        {reports}
-      </ScrollView>
-    </Screen>
-  );
+  return <MyClassesView id={(studio as Studio).participantId as string} />;
 }
-
-const styles = StyleSheet.create({ body: { padding: space.xl } });
