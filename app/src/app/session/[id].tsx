@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-na
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/button";
+import { ClassActionsSheet, MoreButton } from "@/components/class-actions-sheet";
 import { ClassPass } from "@/components/class-pass";
 import { ClassStaff } from "@/components/class-staff";
 import { PageHeader } from "@/components/page-header";
@@ -29,6 +30,7 @@ import {
   attendanceText,
   type AttendOutcome,
 } from "@/schedule/attendance";
+import { classActions, type ClassAction } from "@/schedule/class-actions";
 import { canChange, changeMessage } from "@/schedule/edit-session";
 import { canWriteReport } from "@/schedule/report";
 import { formatDay, formatTime, startOfDay } from "@/schedule/time";
@@ -43,26 +45,11 @@ export default function SessionScreen() {
   const { colors } = useTheme();
   const t = useT();
   const detail = useSessionDetail(id);
-  const now = useNow(60_000);
   const ready = detail.status === "ready" && studio;
 
   return (
     <Screen>
-      {detail.status === "ready" && studio ? (
-        <PageHeader
-          backLabel={t("session.back")}
-          tag={detail.session.status === "cancelled" ? <Pill label={t("common.cancelled")} tone="ink" /> : undefined}
-          title={detail.session.class_type_name}
-          subtitle={formatDay(
-            startOfDay(Date.parse(detail.session.starts_at), studio.timezone),
-            now,
-            studio.timezone,
-            t,
-          )}
-        />
-      ) : (
-        <PageHeader backLabel={t("session.back")} title={t("session.title")} />
-      )}
+      {!ready && <PageHeader backLabel={t("session.back")} title={t("session.title")} />}
 
       {detail.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
       {detail.status === "notFound" && (
@@ -108,8 +95,7 @@ function Details({ session, stale, rsvp, attend, cancel, remove }: DetailsProps)
   const cancelled = session.status === "cancelled";
   const { studio, user } = useSession();
   const mayChange = studio !== null && canChange(session, studio.role, user?.id);
-  const [cancelling, setCancelling] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [menu, setMenu] = useState(false);
   const [changeNote, setChangeNote] = useState<string | null>(null);
   const attendance = attendanceState(session, now);
   const seats = seatsText(t, session.seats_left, session.my_rsvp);
@@ -139,10 +125,8 @@ function Details({ session, stale, rsvp, attend, cancel, remove }: DetailsProps)
         text: t("session.cancelClass"),
         style: "destructive",
         onPress: async () => {
-          setCancelling(true);
           setChangeNote(null);
           setChangeNote(changeMessage(t, await cancel()));
-          setCancelling(false);
         },
       },
     ]);
@@ -155,13 +139,11 @@ function Details({ session, stale, rsvp, attend, cancel, remove }: DetailsProps)
         text: t("session.deleteClass"),
         style: "destructive",
         onPress: async () => {
-          setDeleting(true);
           setChangeNote(null);
           const outcome = await remove();
           if (outcome === "ok") router.back();
           else {
             setChangeNote(changeMessage(t, outcome));
-            setDeleting(false);
           }
         },
       },
@@ -180,13 +162,38 @@ function Details({ session, stale, rsvp, attend, cancel, remove }: DetailsProps)
   }
 
   const start = Date.parse(session.starts_at);
+  const zone = studio?.timezone ?? "UTC";
   const minutes = Math.round((Date.parse(session.ends_at) - start) / 60_000);
 
+  const actions = classActions({
+    mayChange,
+    owner: studio?.role === "owner",
+    inSeries: session.series_id !== null,
+    canReport: canWriteReport(session, openedAt),
+  });
+  const classLine = `${session.class_type_name} · ${formatDay(startOfDay(start, zone), now, zone, t)}`;
+
+  function pick(action: ClassAction) {
+    if (action === "edit") router.push({ pathname: "/session/edit/[id]", params: { id: session.id } });
+    else if (action === "weekly") router.push({ pathname: "/series/[id]", params: { id: session.series_id as string } });
+    else if (action === "report") router.push({ pathname: "/session/report/[id]", params: { id: session.id } });
+    else if (action === "cancel") askCancel();
+    else askDelete();
+  }
+
   return (
+    <>
+      <PageHeader
+        backLabel={t("session.back")}
+        tag={cancelled ? <Pill label={t("common.cancelled")} tone="ink" /> : undefined}
+        title={session.class_type_name}
+        subtitle={formatDay(startOfDay(start, zone), now, zone, t)}
+        action={actions.length > 0 ? <MoreButton onPress={() => setMenu(true)} /> : undefined}
+      />
     <View style={styles.page}>
       <ScrollView contentContainerStyle={styles.details} showsVerticalScrollIndicator={false}>
         <ClassPass
-          time={formatTime(start, studio?.timezone ?? "UTC", t.locale)}
+          time={formatTime(start, zone, t.locale)}
           minutes={minutes}
           coach={session.coach_name}
           seats={seats}
@@ -205,42 +212,12 @@ function Details({ session, stale, rsvp, attend, cancel, remove }: DetailsProps)
 
         {counts && <ClassStaff session={session} open={attendance === "open"} reloadKey={session.my_rsvp} />}
 
-        {canWriteReport(session, openedAt) && (
-          <Button
-            variant="choice"
-            title={t("report.title")}
-            onPress={() => router.push({ pathname: "/session/report/[id]", params: { id: session.id } })}
-          />
-        )}
+        {session.series_id !== null && studio?.role !== "owner" && <Text color="textMuted">{t("session.partOfSeries")}</Text>}
 
-        {session.series_id !== null &&
-          (studio?.role === "owner" ? (
-            <Button
-              variant="link"
-              title={t("session.partOfSeries")}
-              onPress={() => router.push({ pathname: "/series/[id]", params: { id: session.series_id as string } })}
-            />
-          ) : (
-            <Text color="textMuted">{t("session.partOfSeries")}</Text>
-          ))}
-
-        {mayChange && (
-          <View style={styles.group}>
-            <Button
-              variant="choice"
-              title={t("session.edit")}
-              onPress={() => router.push({ pathname: "/session/edit/[id]", params: { id: session.id } })}
-            />
-            <Button variant="outline" title={t("session.cancelClass")} busy={cancelling} onPress={askCancel} />
-            {studio?.role === "owner" && session.series_id === null && (
-              <Button variant="link" title={t("session.deleteClass")} busy={deleting} onPress={askDelete} danger />
-            )}
-            {changeNote && (
-              <Text color="danger" accessibilityRole="alert">
-                {changeNote}
-              </Text>
-            )}
-          </View>
+        {changeNote && (
+          <Text color="danger" accessibilityRole="alert">
+            {changeNote}
+          </Text>
         )}
 
         {attendance === "open" && (
@@ -308,7 +285,9 @@ function Details({ session, stale, rsvp, attend, cancel, remove }: DetailsProps)
           )}
         </View>
       </View>
+      {menu && <ClassActionsSheet actions={actions} classLine={classLine} onPick={pick} onClose={() => setMenu(false)} />}
     </View>
+    </>
   );
 }
 
