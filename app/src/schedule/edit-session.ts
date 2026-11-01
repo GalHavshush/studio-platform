@@ -53,6 +53,20 @@ export function toPatch(form: EditForm, session: SessionDetail, timeZone: string
   return patch;
 }
 
+/** How many things the person changed, for "Save 2 changes": day and time count apart, as the form shows them apart. */
+export function changeCount(form: EditForm, session: SessionDetail, timeZone: string, seatsShown: boolean): number {
+  const was = editForm(session, timeZone);
+  const patch = toPatch(form, session, timeZone, seatsShown);
+  return [
+    form.dayStart !== was.dayStart,
+    form.hour !== was.hour || form.minute !== was.minute,
+    form.duration !== was.duration,
+    "capacity" in patch,
+    "coach_id" in patch,
+    "preview" in patch,
+  ].filter(Boolean).length;
+}
+
 export type ChangeOutcome = "ok" | "notYours" | "cancelled" | "badTimes" | "badCoach" | "hasHistory" | "unreachable" | "error";
 
 export function changeOutcome(status: number, detail: unknown): ChangeOutcome {
