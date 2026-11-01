@@ -14,8 +14,9 @@ import { useNow } from "@/schedule/use-now";
 import { space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
-// The staff's list of classes that took place and need (or have) a report, this week first.
-export function ReportsToWrite() {
+// The staff's classes that took place, either still to write or already written, this week first.
+// With a `limit` it is a short list (the coach's Today) without "Show earlier".
+export function ReportsToWrite({ written = false, limit }: { written?: boolean; limit?: number }) {
   const { studio } = useSession();
   const { firstDay } = useWeekStart();
   const { colors } = useTheme();
@@ -24,10 +25,11 @@ export function ReportsToWrite() {
   const zone = studio?.timezone ?? "UTC";
   const queue = useReportQueue(zone, firstDay);
   const now = useNow(60_000);
+  const items = queue.items.filter((i) => i.has_report === written);
+  const shown = limit ? items.slice(0, limit) : items;
 
   return (
     <View style={styles.wrap}>
-      <Text variant="title">{t("reports.title")}</Text>
       {queue.status === "loading" && <ActivityIndicator color={colors.textMuted} />}
       {queue.status === "error" && (
         <View style={styles.gap}>
@@ -39,8 +41,8 @@ export function ReportsToWrite() {
       )}
       {queue.status === "ready" && (
         <>
-          {queue.items.length === 0 && <Text color="textMuted">{t("reports.none")}</Text>}
-          {queue.items.map((i) => {
+          {shown.length === 0 && <Text color="textMuted">{t(written ? "reports.noneWritten" : "reports.allDone")}</Text>}
+          {shown.map((i) => {
             const start = Date.parse(i.starts_at);
             const when = `${formatDay(startOfDay(start, zone), now, zone, t)} · ${formatTime(start, zone, t.locale)}`;
             return (
@@ -54,12 +56,12 @@ export function ReportsToWrite() {
               />
             );
           })}
-          {queue.more === "failed" && (
+          {!limit && queue.more === "failed" && (
             <Text color="danger" accessibilityRole="alert">
               {t("timeline.moreError")}
             </Text>
           )}
-          {queue.hasEarlier && (
+          {!limit && queue.hasEarlier && (
             <Button
               variant="outline"
               title={t("schedule.showEarlier")}

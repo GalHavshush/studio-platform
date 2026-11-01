@@ -5,10 +5,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSession, type Studio } from "@/auth/session";
 import { Button } from "@/components/button";
+import { CoachToday } from "@/components/coach-today";
 import { CoachNoteCard, NextClassCard } from "@/components/home-cards";
 import { NeedsAnswerCard } from "@/components/needs-answer-card";
 import { Screen } from "@/components/screen";
-import { StudioMark } from "@/components/studio-badge";
+import { HomeHeader } from "@/components/home-header";
 import { TAB_BAR_SPACE } from "@/components/tab-bar";
 import { Text } from "@/components/text";
 import { useT } from "@/i18n/use-language";
@@ -23,8 +24,8 @@ import { space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
 // The member's first page: what needs an answer, what is coming and the latest word from a coach.
-export default function Home() {
-  const { studio: current, user } = useSession();
+function MemberHome() {
+  const { studio: current } = useSession();
   const studio = current as Studio;
   const { colors } = useTheme();
   const t = useT();
@@ -51,19 +52,7 @@ export default function Home() {
 
   return (
     <Screen>
-      <View style={[styles.header, { paddingTop: insets.top + space.md }]}>
-        <StudioMark name={studio.name} size={48} />
-        <View style={styles.titles}>
-          <Text variant="pageTitle" numberOfLines={1}>
-            {studio.name}
-          </Text>
-          {user && (
-            <Text variant="label" color="textMuted">
-              {t("home.hi", { name: user.name.split(" ")[0] })}
-            </Text>
-          )}
-        </View>
-      </View>
+      <HomeHeader />
       <ScrollView
         contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + space.xl + TAB_BAR_SPACE }]}
         refreshControl={<RefreshControl refreshing={schedule.busy === "refresh"} onRefresh={() => { schedule.refresh(); timeline.refresh(); }} />}
@@ -125,10 +114,14 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", gap: space.md, paddingHorizontal: space.xl, paddingBottom: space.md },
-  titles: { flex: 1 },
   body: { padding: space.xl, paddingTop: space.md, gap: space.xl },
   section: { gap: space.sm },
   sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   center: { alignItems: "center", gap: space.sm },
 });
+
+// Home is set by the role: a member's answers and notes, a coach's day.
+export default function Home() {
+  const { studio } = useSession();
+  return studio?.role === "member" ? <MemberHome /> : <CoachToday />;
+}

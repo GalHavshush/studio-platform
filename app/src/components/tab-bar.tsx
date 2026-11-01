@@ -32,6 +32,15 @@ function Icon({ name, color }: { name: string; color: string }) {
       </View>
     );
   }
+  if (name === "reports") {
+    return (
+      <View style={styles.icon}>
+        <View style={[styles.page, { borderColor: color }]} />
+        <View style={[line, { left: 8, right: 8, top: 8, height: STROKE }]} />
+        <View style={[line, { left: 8, right: 8, top: 13, height: STROKE }]} />
+      </View>
+    );
+  }
   if (name === "timeline") {
     return (
       <View style={styles.icon}>
@@ -107,6 +116,7 @@ const styles = StyleSheet.create({
   },
   tab: { flex: 1, minHeight: TAB_BAR_SPACE, alignItems: "center", justifyContent: "center", gap: 2 },
   icon: { width: ICON, height: ICON },
+  page: { position: "absolute", left: 4, right: 4, top: 2, bottom: 2, borderWidth: STROKE, borderRadius: 4 },
   calendar: { position: "absolute", left: 2, right: 2, top: 4, bottom: 2, borderWidth: STROKE, borderRadius: 5 },
   roof: { position: "absolute", left: 6, top: 3, width: 12, height: 12, borderLeftWidth: STROKE, borderTopWidth: STROKE, transform: [{ rotate: "45deg" }] },
   house: { position: "absolute", left: 4, right: 4, top: 11, bottom: 2, borderWidth: STROKE, borderTopWidth: 0, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
