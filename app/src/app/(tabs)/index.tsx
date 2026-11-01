@@ -10,7 +10,6 @@ import { Screen } from "@/components/screen";
 import { TAB_BAR_SPACE } from "@/components/tab-bar";
 import { TodayCard, TodayRow } from "@/components/today-card";
 import { WeekStrip } from "@/components/week-strip";
-import { NeedsAnswerCard } from "@/components/needs-answer-card";
 import { StudioBadge } from "@/components/studio-badge";
 import { Text } from "@/components/text";
 import { isStaff } from "@/auth/role";
@@ -20,7 +19,6 @@ import type { Translator } from "@/i18n/translate";
 import { chipTone } from "@/schedule/chip";
 import { useSchedule, type ScheduledSession } from "@/schedule/use-schedule";
 import { dayKey, formatDay, formatTime, startOfDay } from "@/schedule/time";
-import { needsAnswer } from "@/schedule/needs-answer";
 import { useNow } from "@/schedule/use-now";
 import { useWeekStart } from "@/schedule/use-week-start";
 import { dayDate, todayStates, weekDays, weekRange } from "@/schedule/week";
@@ -80,12 +78,6 @@ export default function Schedule() {
       hasClasses: withClasses.has(d.key),
     }));
   }, [schedule.all, now, zone, t.locale, todayKey, firstDay]);
-
-  // only a member is asked; staff see classes they run, not ones to answer
-  const answer = useMemo(
-    () => (studio.role === "member" ? needsAnswer(schedule.all, now) : { shown: [], more: 0 }),
-    [studio.role, schedule.all, now],
-  );
 
   const open = (id: string) => router.push({ pathname: "/session/[id]", params: { id } });
   const nameOf = (s: ScheduledSession) => schedule.classTypeNames[s.class_type_id] ?? t("schedule.classFallback");
@@ -163,16 +155,6 @@ export default function Schedule() {
           }
           ListHeaderComponent={
             <View style={styles.header}>
-              {answer.shown.length > 0 && (
-                <NeedsAnswerCard
-                  sessions={answer.shown}
-                  more={answer.more}
-                  nameOf={nameOf}
-                  timeZone={zone}
-                  now={now}
-                  onOpen={open}
-                />
-              )}
               {isStaff(studio.role) && (
                 <Button variant="outline" title={t("schedule.newClass")} onPress={() => router.push("/session/new")} />
               )}
