@@ -76,6 +76,18 @@ export function withNote(form: ReportForm, participantId: string, change: Partia
 
 const hasText = (note: NoteDraft) => note.body.trim() !== "";
 
+/** What a row says about a person's note: nothing written yet, staff only, or shared with them. */
+export function noteLabel(note: NoteDraft): "none" | "staff" | "shared" {
+  return !hasText(note) ? "none" : note.shared ? "shared" : "staff";
+}
+
+/** Up to two capitals for an avatar: first letters of the first and last word of the name. */
+export function initials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const letters = words.length > 1 ? [words[0], words[words.length - 1]] : words.slice(0, 1);
+  return letters.map((w) => Array.from(w)[0].toUpperCase()).join("");
+}
+
 /**
  * The body of `PUT /sessions/{id}/report`. The PUT replaces the whole report, so all four fields
  * are always sent and a blank one is null: it clears what was stored. `notes` is a list that

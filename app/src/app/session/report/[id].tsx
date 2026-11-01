@@ -1,19 +1,20 @@
+import { useSession } from "@/auth/session";
 import { useLocalSearchParams, useNavigation, usePreventRemove, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AttendeeRow } from "@/components/attendee-row";
 import { AddAttendeeSheet } from "@/components/add-attendee-sheet";
 import { Button } from "@/components/button";
+import { NoteSheet } from "@/components/note-sheet";
 import { PageHeader } from "@/components/page-header";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
-import { TextField } from "@/components/text-field";
+import { ReportField } from "@/components/report-field";
 import { useT } from "@/i18n/use-language";
 import {
   FIELDS,
-  MAX_LENGTH,
   canSave,
   isDirty,
   noteFor,
@@ -24,8 +25,11 @@ import {
   type SaveOutcome,
 } from "@/schedule/report";
 import { attendMessage, type AttendOutcome } from "@/schedule/attendance";
+import { formatDay, startOfDay } from "@/schedule/time";
+import { useNow } from "@/schedule/use-now";
 import { useReport } from "@/schedule/use-report";
-import { radius, space } from "@/theme/tokens";
+import { useSessionDetail } from "@/schedule/use-session";
+import { space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
 export default function ReportScreen() {
@@ -33,10 +37,18 @@ export default function ReportScreen() {
   const { colors } = useTheme();
   const t = useT();
   const report = useReport(id);
+  const { studio } = useSession();
+  const detail = useSessionDetail(id);
+  const now = useNow(60_000);
+  // "Morning Yoga · Tue 3 Nov": the header's second line and the note sheet's class line
+  const classLine =
+    detail.status === "ready" && studio
+      ? `${detail.session.class_type_name} · ${formatDay(startOfDay(Date.parse(detail.session.starts_at), studio.timezone), now, studio.timezone, t)}`
+      : "";
 
   return (
     <Screen>
-      <PageHeader title={t("report.title")} backLabel={t("report.back")} />
+      <PageHeader title={t("report.title")} subtitle={classLine || undefined} backLabel={t("report.back")} />
 
       {report.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
       {report.status === "notFound" && (
@@ -53,24 +65,24 @@ export default function ReportScreen() {
         </View>
       )}
       {report.status === "ready" && (
-        <Form saved={report.saved} attendees={report.attendees} save={report.save} setAttended={report.setAttended} />
+        <Form classLine={classLine} saved={report.saved} attendees={report.attendees} save={report.save} setAttended={report.setAttended} />
       )}
     </Screen>
   );
 }
 
 type FormProps = {
+  classLine: string;
   saved: ReportForm;
   attendees: Attendee[];
   save: (form: ReportForm) => Promise<SaveOutcome>;
   setAttended: (person: Attendee, attended: boolean) => Promise<AttendOutcome>;
 };
 
-function Form({ saved, attendees, save, setAttended }: FormProps) {
+function Form({ classLine, saved, attendees, save, setAttended }: FormProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const navigation = useNavigation();
-  const { colors } = useTheme();
   const t = useT();
   // Starts from what was loaded; after that the text belongs to the form, not to the server's copy.
   const [form, setForm] = useState(saved);
@@ -79,7 +91,7 @@ function Form({ saved, attendees, save, setAttended }: FormProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [attendNote, setAttendNote] = useState<string | null>(null);
-  const [open, setOpen] = useState<string | null>(null); // the attendee whose note is shown
+  const [open, setOpen] = useState<Attendee | null>(null); // the attendee whose note sheet is open
 
   // Leaving with unsaved text asks first. After a save `done` lifts the guard, and only then the
   // screen is left (the effect runs after the render that lifted it).
@@ -123,16 +135,20 @@ function Form({ saved, attendees, save, setAttended }: FormProps) {
         keyboardDismissMode="interactive"
       >
         {FIELDS.map(({ key, label }) => (
-          <TextField
-            key={key}
-            label={t(label)}
-            value={form[key]}
-            onChangeText={(text) => setForm((f) => ({ ...f, [key]: text }))}
-            multiline
-            maxLength={MAX_LENGTH}
-            editable={!saving}
-            style={styles.input}
-          />
+          <View key={key} style={styles.field}>
+            {key === "summary" && (
+              <Text variant="caption" color="textMuted">
+                {t("report.summaryHint")}
+              </Text>
+            )}
+            <ReportField
+              label={t(label)}
+              value={form[key]}
+              onChangeText={(text) => setForm((f) => ({ ...f, [key]: text }))}
+              editable={!saving}
+              always={key === "summary"}
+            />
+          </View>
         ))}
         <View style={styles.notes}>
           <Text variant="eyebrow">{t("report.notes")}</Text>
@@ -144,64 +160,31 @@ function Form({ saved, attendees, save, setAttended }: FormProps) {
             </Text>
           )}
           {attendees.length === 0 && <Text color="textMuted">{t("report.noAttendees")}</Text>}
-          {attendees.map((a) => {
-            const note = noteFor(form, a.participant_id);
-            const share = t("report.share", { name: a.name });
-            return (
-              <AttendeeRow
-                key={a.participant_id}
-                name={a.name}
-                hasNote={note.body.trim() !== ""}
-                shared={note.shared}
-                open={open === a.participant_id}
-                onToggle={() => setOpen(open === a.participant_id ? null : a.participant_id)}
-              >
-                <TextField
-                  label={t("report.noteFor", { name: a.name })}
-                  value={note.body}
-                  onChangeText={(body) => setForm((f) => withNote(f, a.participant_id, { body }))}
-                  multiline
-                  maxLength={MAX_LENGTH}
-                  editable={!saving}
-                  style={styles.input}
-                />
-                <View style={styles.shareRow}>
-                  <Text style={styles.shareLabel}>{share}</Text>
-                  <Switch
-                    accessibilityLabel={share}
-                    value={note.shared}
-                    onValueChange={(shared) => setForm((f) => withNote(f, a.participant_id, { shared }))}
-                    disabled={saving}
-                    trackColor={{ false: colors.border, true: colors.primary }}
-                  />
-                </View>
-                <View style={styles.links}>
-                  <Button
-                    variant="link"
-                    title={t("report.timeline")}
-                    onPress={() =>
-                      router.push({ pathname: "/timeline/[id]", params: { id: a.participant_id, name: a.name } })
-                    }
-                  />
-                  <Button variant="link" title={t("report.remove", { name: a.name })} onPress={() => remove(a)} />
-                </View>
-              </AttendeeRow>
-            );
-          })}
+          {attendees.map((a) => (
+            <AttendeeRow key={a.participant_id} name={a.name} note={noteFor(form, a.participant_id)} onPress={() => setOpen(a)} />
+          ))}
         </View>
+      </ScrollView>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
         {blank && <Text color="textMuted">{t("report.needText")}</Text>}
         {message && (
           <Text color="danger" accessibilityRole="alert">
             {message}
           </Text>
         )}
-        <Button
-          title={t("report.save")}
-          onPress={send}
-          busy={saving}
-          disabled={blank || !isDirty(form, saved)}
+        <Button title={t("report.save")} onPress={send} busy={saving} disabled={blank || !isDirty(form, saved)} />
+      </View>
+      {open && (
+        <NoteSheet
+          person={open}
+          classLine={classLine}
+          note={noteFor(form, open.participant_id)}
+          disabled={saving}
+          onSave={(note) => setForm((f) => withNote(f, open.participant_id, note))}
+          onRemove={() => remove(open)}
+          onClose={() => setOpen(null)}
         />
-      </ScrollView>
+      )}
       {adding && (
         <AddAttendeeSheet
           attendees={attendees}
@@ -217,10 +200,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
   form: { flexGrow: 1, padding: space.xl, gap: space.lg },
+  field: { gap: space.xs },
   notes: { gap: space.md },
-  shareRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md },
-  shareLabel: { flex: 1 },
-  links: { flexDirection: "row", justifyContent: "center", flexWrap: "wrap" },
-  // A multiline field starts at the top, taller than the one-line fields.
-  input: { minHeight: 120, paddingTop: space.md, paddingBottom: space.md, textAlignVertical: "top", borderRadius: radius.md },
+  footer: { paddingHorizontal: space.xl, paddingTop: space.md, gap: space.sm },
 });
