@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSession, type Studio } from "@/auth/session";
@@ -16,14 +16,20 @@ import {
   canCreate,
   createMessage,
   dayChoices,
+  formFromLastClass,
   initialForm,
   showSeats,
   times,
   toPayload,
+  toSeriesPayload,
 } from "@/schedule/new-session";
+import { dateLabel, weekdayName } from "@/schedule/series";
 import { formatRange } from "@/schedule/time";
 import { useStaff } from "@/schedule/use-staff";
+import { useNewSeries } from "@/schedule/use-new-series";
 import { useNewSession } from "@/schedule/use-new-session";
+import { useSchedule } from "@/schedule/use-schedule";
+import { useWeekStart } from "@/schedule/use-week-start";
 import { space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
@@ -42,15 +48,41 @@ export default function NewSessionScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const classTypes = useNewSession();
   const staff = useStaff(studio.role === "owner");
+  const owner = studio.role === "owner";
+  const { create: createSeries } = useNewSeries();
+  const [weekly, setWeekly] = useState(false);
+  const { firstDay } = useWeekStart();
+  const schedule = useSchedule(zone, firstDay);
+  // Starts from the last class once, when both lists have arrived, unless the person already changed something.
+  const [prefilled, setPrefilled] = useState(false);
+  const touched = useRef(false);
+  useEffect(() => {
+    if (prefilled || touched.current || schedule.status !== "ready" || classTypes.status !== "ready") return;
+    const patch = formFromLastClass(schedule.all, classTypes.types.map((c) => c.id), Date.now(), zone, user?.id);
+    if (patch) {
+      setForm((f) => ({ ...f, ...patch }));
+      setPrefilled(true);
+    }
+  }, [prefilled, schedule.status, schedule.all, classTypes, zone, user?.id]);
 
   const chosen = classTypes.status === "ready" ? classTypes.types.find((c) => c.id === form.classTypeId) : undefined;
   const seatsShown = showSeats(chosen, studio.modules);
-  const change = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
+  const change = (patch: Partial<typeof form>) => {
+    touched.current = true;
+    setForm((f) => ({ ...f, ...patch }));
+  };
   const { start, end } = times(form, zone);
 
   async function submit() {
     setBusy(true);
     setMessage(null);
+    if (weekly) {
+      const outcome = await createSeries(toSeriesPayload(form, zone, seatsShown));
+      setBusy(false);
+      if (outcome === "ok") router.back();
+      else setMessage(createMessage(t, outcome));
+      return;
+    }
     const { outcome, id } = await classTypes.create(toPayload(form, zone, seatsShown));
     setBusy(false);
     if (outcome === "ok" && id) router.replace({ pathname: "/session/[id]", params: { id } });
@@ -75,6 +107,7 @@ export default function NewSessionScreen() {
             contentContainerStyle={[styles.form, { paddingBottom: insets.bottom + space.xl }]}
             keyboardShouldPersistTaps="handled"
           >
+            {prefilled && <Text color="textMuted">{t("newSession.prefilled")}</Text>}
             <View style={styles.group}>
               <Text variant="eyebrow">{t("newSession.classType")}</Text>
               {classTypes.types.length === 0 && <Text color="textMuted">{t("newSession.noTypes")}</Text>}
@@ -103,13 +136,38 @@ export default function NewSessionScreen() {
               me={user?.id}
             />
 
-            <Text variant="title">{formatRange(start, end, zone, t.locale)}</Text>
+            {owner && (
+              <View style={styles.switchRow}>
+                <View style={styles.switchText}>
+                  <Text>{t("newSession.repeat")}</Text>
+                  <Text variant="caption" color="textMuted">
+                    {t("newSession.repeatHint")}
+                  </Text>
+                </View>
+                <Switch
+                  accessibilityLabel={t("newSession.repeat")}
+                  value={weekly}
+                  onValueChange={setWeekly}
+                  disabled={busy}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                />
+              </View>
+            )}
+
+            <Text variant="title">
+              {weekly
+                ? t("newSeries.summary", {
+                    day: weekdayName(toSeriesPayload(form, zone, seatsShown).weekday, t.locale),
+                    from: dateLabel(toSeriesPayload(form, zone, seatsShown).first_date, t.locale),
+                  })
+                : `${formatRange(start, end, zone, t.locale)}${chosen ? ` · ${chosen.name}` : ""}`}
+            </Text>
             {message && (
               <Text color="danger" accessibilityRole="alert">
                 {message}
               </Text>
             )}
-            <Button title={t("newSession.create")} onPress={submit} busy={busy} disabled={!canCreate(form, seatsShown)} />
+            <Button title={t(weekly ? "newSeries.create" : "newSession.create")} onPress={submit} busy={busy} disabled={!canCreate(form, seatsShown)} />
           </ScrollView>
         </KeyboardAvoidingView>
       )}
@@ -122,5 +180,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
   form: { padding: space.xl, gap: space.xl },
   group: { gap: space.sm },
+  switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md },
+  switchText: { flex: 1 },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
 });

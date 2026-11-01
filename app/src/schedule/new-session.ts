@@ -42,6 +42,37 @@ export function initialForm(now: number, timeZone: string): NewSessionForm {
 /** `value` moved by `delta` steps on a clock face of `size` values, wrapping round. */
 export const wrap = (value: number, delta: number, size: number): number => (((value + delta) % size) + size) % size;
 
+type PastClass = { class_type_id: string; coach_id: string; starts_at: string; ends_at: string; capacity: number | null; status: string };
+
+/**
+ * What to start the form from: the latest class that has started and was not cancelled, preferring
+ * the caller's own (an owner who does not teach takes the latest of anyone's). Its class type must
+ * still be on offer, or the next one back is used. Null when there is none: the form stays plain.
+ */
+export function formFromLastClass(
+  sessions: PastClass[],
+  offeredTypeIds: string[],
+  now: number,
+  timeZone: string,
+  userId: string | undefined,
+): Partial<NewSessionForm> | null {
+  const past = sessions
+    .filter((s) => s.status !== "cancelled" && Date.parse(s.starts_at) <= now && offeredTypeIds.includes(s.class_type_id))
+    .sort((a, b) => b.starts_at.localeCompare(a.starts_at));
+  const last = past.find((s) => s.coach_id === userId) ?? past[0];
+  if (!last) return null;
+  const start = Date.parse(last.starts_at);
+  const { hour, minute } = localTime(start, timeZone);
+  return {
+    classTypeId: last.class_type_id,
+    coachId: last.coach_id === userId ? null : last.coach_id,
+    hour,
+    minute,
+    duration: Math.round((Date.parse(last.ends_at) - start) / 60_000),
+    seats: last.capacity === null ? "" : String(last.capacity),
+  };
+}
+
 /** Seats only exist for a booking-mode class in a studio that has the booking module on. */
 export const showSeats = (type: ClassTypeChoice | undefined, modules: string[]): boolean =>
   type?.attendance_mode === "booking" && modules.includes("booking");
