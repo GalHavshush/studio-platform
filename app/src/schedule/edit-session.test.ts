@@ -1,6 +1,6 @@
 import { makeTranslator } from "@/i18n/translate";
 
-import { canChange, changeMessage, changeOutcome, editDays, editDurations, editForm, toPatch } from "./edit-session";
+import { canChange, changeCount, changeMessage, changeOutcome, editDays, editDurations, editForm, toPatch } from "./edit-session";
 import { startOfDay } from "./time";
 import type { SessionDetail } from "./use-session";
 
@@ -88,4 +88,14 @@ test("an owner changes any open class, a coach only their own, nobody a cancelle
 
 test("a class with history says to cancel it instead", () => {
   expect(changeMessage(t, "hasHistory")).toMatch(/Cancel it instead/);
+});
+
+test("changes are counted as the form shows them: day, time, length, seats, coach, preview", () => {
+  const was = editForm(session, Z);
+  expect(changeCount(was, session, Z, true)).toBe(0);
+  expect(changeCount({ ...was, coachId: "u2" }, session, Z, true)).toBe(1);
+  // moving the start also moves the end, but it is one change
+  expect(changeCount({ ...was, hour: 10 }, session, Z, true)).toBe(1);
+  expect(changeCount({ ...was, hour: 10, duration: 90, preview: "" }, session, Z, true)).toBe(3);
+  expect(changeCount({ ...was, seats: "20" }, session, Z, false)).toBe(0); // seats are not shown, so not changed
 });
