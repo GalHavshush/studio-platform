@@ -8,7 +8,7 @@ import { StudioBadge } from "@/components/studio-badge";
 import { ReportsToWrite } from "@/components/reports-to-write";
 import { Screen } from "@/components/screen";
 import { TAB_BAR_SPACE } from "@/components/tab-bar";
-import { TimelineView } from "@/components/timeline-view";
+import { MyClassesView } from "@/components/my-classes-view";
 import { useT } from "@/i18n/use-language";
 import { space } from "@/theme/tokens";
 
@@ -20,7 +20,7 @@ export default function MyClasses() {
   const t = useT();
   const reports = studio && isStaff(studio.role) ? <ReportsToWrite /> : undefined;
 
-  if (studio?.participantId) return <TimelineView id={studio.participantId} tab header={reports} />;
+  if (studio?.participantId) return <MyClassesView id={studio.participantId} header={reports} />;
   return (
     <Screen>
       <PageHeader title={t("tabs.timeline")} tag={<StudioBadge />} />
