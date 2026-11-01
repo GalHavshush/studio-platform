@@ -14,6 +14,14 @@ const STROKE = 2;
 // The icons are drawn with plain views, so the bar needs no icon or SVG library.
 function Icon({ name, color }: { name: string; color: string }) {
   const line = { backgroundColor: color, position: "absolute" as const };
+  if (name === "home") {
+    return (
+      <View style={styles.icon}>
+        <View style={[styles.roof, { borderColor: color }]} />
+        <View style={[styles.house, { borderColor: color }]} />
+      </View>
+    );
+  }
   if (name === "index") {
     return (
       <View style={styles.icon}>
@@ -100,6 +108,8 @@ const styles = StyleSheet.create({
   tab: { flex: 1, minHeight: TAB_BAR_SPACE, alignItems: "center", justifyContent: "center", gap: 2 },
   icon: { width: ICON, height: ICON },
   calendar: { position: "absolute", left: 2, right: 2, top: 4, bottom: 2, borderWidth: STROKE, borderRadius: 5 },
+  roof: { position: "absolute", left: 6, top: 3, width: 12, height: 12, borderLeftWidth: STROKE, borderTopWidth: STROKE, transform: [{ rotate: "45deg" }] },
+  house: { position: "absolute", left: 4, right: 4, top: 11, bottom: 2, borderWidth: STROKE, borderTopWidth: 0, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
   clock: { position: "absolute", left: 2, right: 2, top: 2, bottom: 2, borderWidth: STROKE, borderRadius: 10 },
   knob: { position: "absolute", width: 8, height: 8, borderRadius: 4, borderWidth: STROKE },
 });

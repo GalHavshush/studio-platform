@@ -69,5 +69,5 @@ export function useTimeline(participantId: string) {
     refresh();
   };
 
-  return { ...state, retry, showMore };
+  return { ...state, refresh, retry, showMore };
 }
