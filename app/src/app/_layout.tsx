@@ -55,7 +55,6 @@ function Navigator() {
         <Stack.Screen name="class-types/index" />
         <Stack.Screen name="class-types/[id]" />
         <Stack.Screen name="series/index" />
-        <Stack.Screen name="series/new" />
         <Stack.Screen name="series/[id]" />
         <Stack.Screen name="series/edit/[id]" />
         <Stack.Screen name="session/new" />
