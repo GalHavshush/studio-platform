@@ -1,6 +1,6 @@
 import { makeTranslator } from "@/i18n/translate";
 
-import { clock, dateLabel, rangeLabel, seriesRows, weekdayName, type Series } from "./series";
+import { clock, dateLabel, rangeLabel, seriesGroups, seriesRows, statusLabel, todayIn, weekdayName, type Series } from "./series";
 
 const t = makeTranslator("en");
 const series = (over: Partial<Series> = {}): Series => ({
@@ -67,4 +67,37 @@ test("every series gets its own card, in the order the API gave", () => {
   const rows = seriesRows(t, [series({ id: "b" }), series({ id: "a" })], [], []);
 
   expect(rows.map((r) => r.id)).toEqual(["b", "a"]);
+});
+
+test("where a weekly class stands: not started, ongoing, running to a date, or ended", () => {
+  const today = "2026-11-03";
+  expect(statusLabel(t, series({ first_date: "2026-11-08" }), today)).toBe("starts 8 Nov");
+  expect(statusLabel(t, series(), today)).toBe("ongoing");
+  expect(statusLabel(t, series({ last_date: "2026-12-28" }), today)).toBe("until 28 Dec");
+  expect(statusLabel(t, series({ last_date: "2026-10-27" }), today)).toBe("ended 27 Oct");
+  expect(statusLabel(t, series({ last_date: "2026-11-03" }), today)).toBe("until 3 Nov"); // its last day is today
+});
+
+test("today is the studio's date, not the phone's", () => {
+  const instant = Date.parse("2026-11-02T22:30:00Z"); // 3 Nov 00:30 in Jerusalem
+  expect(todayIn(instant, "Asia/Jerusalem")).toBe("2026-11-03");
+  expect(todayIn(instant, "UTC")).toBe("2026-11-02");
+});
+
+test("the list is grouped by weekday, by time inside a day, starting on the person's first day", () => {
+  const list = [
+    series({ id: "sun", weekday: 6, start_time: "07:00:00", coach_id: "u2", first_date: "2026-11-08" }),
+    series({ id: "late", weekday: 1, start_time: "19:30:00" }),
+    series({ id: "early", weekday: 1, start_time: "07:00:00" }),
+  ];
+  const types = [{ id: "ct1", name: "Yoga" }];
+  const staff = [{ id: "u1", name: "Cody" }, { id: "u2", name: "Olivia" }];
+
+  const monday = seriesGroups(t, list, types, staff, "2026-11-03", 1);
+  expect(monday.map((g) => g.weekday)).toEqual(["Tuesday", "Sunday"]);
+  expect(monday[0].rows.map((r) => r.id)).toEqual(["early", "late"]);
+  expect(monday[0].rows[0]).toEqual({ id: "early", time: "07:00", title: "Yoga", note: "Cody · ongoing" });
+  expect(monday[1].rows[0].note).toBe("Olivia · starts 8 Nov");
+
+  expect(seriesGroups(t, list, types, staff, "2026-11-03", 0).map((g) => g.weekday)).toEqual(["Sunday", "Tuesday"]);
 });
