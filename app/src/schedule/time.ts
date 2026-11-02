@@ -111,7 +111,8 @@ export function formatDay(dayStart: number, now: number, timeZone: string, t: Tr
   }).format(new Date(dayStart));
 }
 
-const dateFormat = (instant: number, timeZone: string, locale: string) =>
+/** "Tue 3 Nov" for an instant, always the date (never "Today"). */
+export const dateFormat = (instant: number, timeZone: string, locale: string) =>
   new Intl.DateTimeFormat(locale, { timeZone, weekday: "short", day: "numeric", month: "short" }).format(
     new Date(instant),
   );
