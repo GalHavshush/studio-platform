@@ -107,11 +107,23 @@ export function toPayload(form: NewSessionForm, timeZone: string, seatsShown: bo
   };
 }
 
+/** An end date ("2026-12-22") that falls before the first class: the weekly class would never run. */
+export const untilBeforeStart = (firstDate: string, until: string | null): boolean => until !== null && until < firstDate;
+
+/** A calendar date as the picker's local-midnight `Date`, and back: no timezone can shift the day. */
+export const dateFromIso = (iso: string): Date => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+export const isoFromDate = (date: Date): string =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
 /**
  * The body of `POST /series`: the chosen day is the first date, and its weekday (0 is Monday) is the
  * weekday, so the two always agree. The time is the studio's wall clock, never converted to an instant.
+ * `until` is the last date, or null for a weekly class without an end.
  */
-export function toSeriesPayload(form: NewSessionForm, timeZone: string, seatsShown: boolean) {
+export function toSeriesPayload(form: NewSessionForm, timeZone: string, seatsShown: boolean, until: string | null = null) {
   const first_date = dayKey(form.dayStart, timeZone);
   const seats = seatsShown ? seatsValue(form.seats) : null;
   return {
@@ -120,6 +132,7 @@ export function toSeriesPayload(form: NewSessionForm, timeZone: string, seatsSho
     start_time: `${String(form.hour).padStart(2, "0")}:${String(form.minute).padStart(2, "0")}`,
     duration_minutes: form.duration,
     first_date,
+    ...(until ? { last_date: until } : {}),
     ...(typeof seats === "number" ? { capacity: seats } : {}),
     ...(form.coachId ? { coach_id: form.coachId } : {}),
   };

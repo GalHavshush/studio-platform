@@ -2,6 +2,8 @@ import { makeTranslator } from "@/i18n/translate";
 
 import {
   canCreate,
+  dateFromIso,
+  isoFromDate,
   createMessage,
   createOutcome,
   dayChoices,
@@ -12,6 +14,7 @@ import {
   times,
   toPayload,
   toSeriesPayload,
+  untilBeforeStart,
   wrap,
   type ClassTypeChoice,
   type NewSessionForm,
@@ -168,4 +171,24 @@ test("cancelled classes and archived class types are skipped; none left means no
   expect(formFromLastClass([past({ status: "cancelled" })], ["ct1"], NOW, ZONE, "me")).toBeNull();
   expect(formFromLastClass([past()], ["ct9"], NOW, ZONE, "me")).toBeNull();
   expect(formFromLastClass([], ["ct1"], NOW, ZONE, "me")).toBeNull();
+});
+
+test("a weekly class has an end date only when one is picked", () => {
+  const f = form({ classTypeId: "ct1" });
+  expect(toSeriesPayload(f, ZONE, false)).not.toHaveProperty("last_date");
+  expect(toSeriesPayload(f, ZONE, false, null)).not.toHaveProperty("last_date");
+  expect(toSeriesPayload(f, ZONE, false, "2026-12-22")).toMatchObject({ last_date: "2026-12-22" });
+});
+
+test("an end date before the first class is caught; the same day or later is fine", () => {
+  expect(untilBeforeStart("2026-11-03", "2026-11-02")).toBe(true);
+  expect(untilBeforeStart("2026-11-03", "2026-11-03")).toBe(false);
+  expect(untilBeforeStart("2026-11-03", "2026-12-22")).toBe(false);
+  expect(untilBeforeStart("2026-11-03", null)).toBe(false);
+});
+
+test("a calendar date and the picker's Date convert back and forth without moving the day", () => {
+  expect(isoFromDate(dateFromIso("2026-12-22"))).toBe("2026-12-22");
+  expect(isoFromDate(dateFromIso("2026-01-05"))).toBe("2026-01-05");
+  expect(isoFromDate(new Date(2026, 11, 31, 23, 59))).toBe("2026-12-31");
 });
