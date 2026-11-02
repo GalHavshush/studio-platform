@@ -12,12 +12,13 @@ import { Text } from "@/components/text";
 import { useT } from "@/i18n/use-language";
 import { editDurations } from "@/schedule/edit-session";
 import { seatsValue, showSeats, type ClassTypeChoice } from "@/schedule/new-session";
-import type { Series } from "@/schedule/series";
-import { editedMessage, failureMessage, seriesForm, seriesPatch } from "@/schedule/series-actions";
+import { clock, weekdayName, type Series } from "@/schedule/series";
+import { editedMessage, failureMessage, seriesForm, seriesPatch, whatChanges } from "@/schedule/series-actions";
 import { useSeries } from "@/schedule/use-series";
 import { useSeriesActions } from "@/schedule/use-series-actions";
+import { useSeriesSessions } from "@/schedule/use-series-sessions";
 import { useStaff } from "@/schedule/use-staff";
-import { space } from "@/theme/tokens";
+import { radius, space } from "@/theme/tokens";
 import { useTheme } from "@/theme/use-theme";
 
 // An owner's form for the rule of a weekly class: coach, start time, length and seats.
@@ -31,7 +32,18 @@ export default function EditSeriesScreen() {
 
   return (
     <Screen>
-      <PageHeader title={t("seriesScreen.editTitle")} backLabel={t("series.back")} />
+      <PageHeader
+        title={t("seriesScreen.editTitle")}
+        subtitle={
+          found && type
+            ? t("seriesScreen.editSubtitle", {
+                title: type.name,
+                day: weekdayName(found.weekday, t.locale),
+              })
+            : undefined
+        }
+        backLabel={t("series.back")}
+      />
       {list.status === "loading" && <ActivityIndicator style={styles.center} color={colors.textMuted} />}
       {list.status === "error" && (
         <View style={styles.center}>
@@ -51,21 +63,35 @@ export default function EditSeriesScreen() {
   );
 }
 
-function Form({ series, type, refresh }: { series: Series; type: ClassTypeChoice | undefined; refresh: () => Promise<void> }) {
+function Form({
+  series,
+  type,
+  refresh,
+}: {
+  series: Series;
+  type: ClassTypeChoice | undefined;
+  refresh: () => Promise<void>;
+}) {
   const { studio: s, user } = useSession();
   const studio = s as Studio;
   const staff = useStaff(true);
   const actions = useSeriesActions(series.id);
+  const coming = useSeriesSessions(series.id);
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const t = useT();
   const [now] = useState(Date.now);
   const [form, setForm] = useState(() => seriesForm(series, now, studio.timezone));
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ text: string; failed: boolean } | null>(null);
+  const [message, setMessage] = useState<{
+    text: string;
+    failed: boolean;
+  } | null>(null);
 
   const seatsShown = showSeats(type, studio.modules);
   const change = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
   const patch = seriesPatch(form, series, seatsShown);
+  const changes = coming.status === "ready" ? whatChanges(t, patch, staff, coming.sessions, studio.timezone) : null;
   const valid = !seatsShown || seatsValue(form.seats) !== "invalid";
 
   async function save() {
@@ -73,7 +99,7 @@ function Form({ series, type, refresh }: { series: Series; type: ClassTypeChoice
     setMessage(null);
     const { outcome, data } = await actions.edit(patch);
     if (outcome === "ok" && data) {
-      await refresh();
+      await Promise.all([refresh(), coming.refresh()]);
       setMessage({ text: editedMessage(t, data), failed: false });
     } else {
       setMessage({ text: failureMessage(t, outcome) as string, failed: true });
@@ -87,6 +113,10 @@ function Form({ series, type, refresh }: { series: Series; type: ClassTypeChoice
         contentContainerStyle={[styles.form, { paddingBottom: insets.bottom + space.xl }]}
         keyboardShouldPersistTaps="handled"
       >
+        <View style={styles.type}>
+          <Text variant="eyebrow">{t("seriesScreen.class")}</Text>
+          <Text variant="title">{type?.name ?? t("series.unknownType")}</Text>
+        </View>
         <SessionFields
           form={form}
           change={change}
@@ -97,13 +127,25 @@ function Form({ series, type, refresh }: { series: Series; type: ClassTypeChoice
           busy={busy}
           staff={staff}
           me={user?.id}
+          was={clock(series.start_time)}
         />
+        {changes && (
+          <View style={[styles.box, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text variant="title">{t("seriesScreen.changes")}</Text>
+            <Text color="textMuted">{changes.text}</Text>
+          </View>
+        )}
         {message && (
           <Text color={message.failed ? "danger" : "text"} accessibilityRole={message.failed ? "alert" : undefined}>
             {message.text}
           </Text>
         )}
-        <Button title={t("editSession.save")} onPress={save} busy={busy} disabled={!valid || Object.keys(patch).length === 0} />
+        <Button
+          title={changes && changes.count > 0 ? t.count("seriesScreen.saveN", changes.count) : t("editSession.save")}
+          onPress={save}
+          busy={busy}
+          disabled={!valid || Object.keys(patch).length === 0}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -111,6 +153,18 @@ function Form({ series, type, refresh }: { series: Series; type: ClassTypeChoice
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: space.sm,
+  },
   form: { padding: space.xl, gap: space.xl },
+  type: { gap: space.xs },
+  box: {
+    padding: space.lg,
+    gap: space.xs,
+    borderRadius: radius.lg - 4,
+    borderWidth: 1,
+  },
 });

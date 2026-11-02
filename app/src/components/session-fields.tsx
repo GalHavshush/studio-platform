@@ -24,10 +24,24 @@ type Props = {
   // the owner's coach picker: who can teach, and who is asking (marked "you"); empty hides the row
   staff?: StaffMember[];
   me?: string;
+  // the start as it is now, struck through next to the steppers when the form moved it
+  was?: string;
 };
 
 // The day, start, length and seats of a class: the same fields to create one and to edit one.
-export function SessionFields({ form, change, days, durations, now, zone, seatsShown, busy, staff = [], me }: Props) {
+export function SessionFields({
+  form,
+  change,
+  days,
+  durations,
+  now,
+  zone,
+  seatsShown,
+  busy,
+  staff = [],
+  me,
+  was,
+}: Props) {
   const t = useT();
   return (
     <>
@@ -81,6 +95,11 @@ export function SessionFields({ form, change, days, durations, now, zone, seatsS
             upLabel={t("newSession.up", { what: t("newSession.minute") })}
             downLabel={t("newSession.down", { what: t("newSession.minute") })}
           />
+          {was && was !== `${two(form.hour)}:${two(form.minute)}` && (
+            <Text color="textMuted" style={styles.was}>
+              {was}
+            </Text>
+          )}
         </View>
       </View>
 
@@ -121,5 +140,6 @@ const styles = StyleSheet.create({
   group: { gap: space.sm },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
   chips: { flexDirection: "row", gap: space.sm },
-  time: { flexDirection: "row", alignItems: "center", gap: space.md },
+  time: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.md },
+  was: { textDecorationLine: "line-through" },
 });
