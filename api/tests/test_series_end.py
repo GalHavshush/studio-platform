@@ -35,12 +35,12 @@ async def end(client, two_tenants, studio, role, series_id):
     )
 
 
-async def rsvp_row(db_session, studio, session_id, name="Gail"):
+async def rsvp_row(db_session, studio, session_id, name="Gail", status="going"):
     person = Participant(tenant_id=studio.id, name=name)
     db_session.add(person)
     await db_session.flush()
     db_session.add(
-        Rsvp(session_id=session_id, participant_id=person.id, tenant_id=studio.id, status="going")
+        Rsvp(session_id=session_id, participant_id=person.id, tenant_id=studio.id, status=status)
     )
     await db_session.flush()
 

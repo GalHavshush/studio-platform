@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, PositiveInt, model_validator
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -163,12 +163,11 @@ async def list_series(
     return [SeriesOut.model_validate(row) for row in rows]
 
 
-@router.get("/{series_id}")
-async def get_series_by_id(
-    series_id: uuid.UUID, ctx: CoachCtx, session: Annotated[AsyncSession, Depends(get_session)]
-) -> SeriesOut:
-    """One series: 404 if it is not in this studio, 403 `not_your_series` if a coach (not an
-    owner) is not its coach."""
+async def readable_series(
+    session: AsyncSession, ctx: CoachCtx, series_id: uuid.UUID
+) -> ClassSeries:
+    """The series if this caller may read it: 404 if it is not in this studio, 403
+    `not_your_series` if a coach (not an owner) is not its coach."""
     row = await session.scalar(
         select(ClassSeries).where(
             ClassSeries.id == series_id, ClassSeries.tenant_id == ctx.tenant_id
@@ -178,7 +177,64 @@ async def get_series_by_id(
         raise HTTPException(status_code=404, detail="series_not_found")
     if ctx.role == "coach" and row.coach_id != ctx.user.id:
         raise HTTPException(status_code=403, detail="not_your_series")
-    return SeriesOut.model_validate(row)
+    return row
+
+
+@router.get("/{series_id}")
+async def get_series_by_id(
+    series_id: uuid.UUID, ctx: CoachCtx, session: Annotated[AsyncSession, Depends(get_session)]
+) -> SeriesOut:
+    """One series: 404 if it is not in this studio, 403 `not_your_series` if a coach (not an
+    owner) is not its coach."""
+    return SeriesOut.model_validate(await readable_series(session, ctx, series_id))
+
+
+class SeriesSessionOut(BaseModel):
+    """One coming class of a series, with how many people said they are going (a count, never who)."""
+
+    id: uuid.UUID
+    starts_at: datetime
+    ends_at: datetime
+    status: str
+    capacity: int | None
+    going: int
+
+
+@router.get("/{series_id}/sessions")
+async def list_series_sessions(
+    series_id: uuid.UUID, ctx: CoachCtx, session: Annotated[AsyncSession, Depends(get_session)]
+) -> list[SeriesSessionOut]:
+    """The series' sessions that have not started yet, earliest first, cancelled ones included
+    (`status`), each with its `going` count. Read by whoever may read the series: an owner, or the
+    coach who teaches it (`403 not_your_series` for another coach; 404 if it is not in this studio)."""
+    await readable_series(session, ctx, series_id)
+    rows = await session.execute(
+        select(ClassSession, func.count(Rsvp.session_id))
+        .outerjoin(
+            Rsvp,
+            (Rsvp.session_id == ClassSession.id)
+            & (Rsvp.tenant_id == ClassSession.tenant_id)
+            & (Rsvp.status == "going"),
+        )
+        .where(
+            ClassSession.series_id == series_id,
+            ClassSession.tenant_id == ctx.tenant_id,
+            ClassSession.starts_at >= datetime.now(UTC),
+        )
+        .group_by(ClassSession.id)
+        .order_by(ClassSession.starts_at, ClassSession.id)
+    )
+    return [
+        SeriesSessionOut(
+            id=row.id,
+            starts_at=row.starts_at,
+            ends_at=row.ends_at,
+            status=row.status,
+            capacity=row.capacity,
+            going=going,
+        )
+        for row, going in rows
+    ]
 
 
 class ExtendOut(BaseModel):
