@@ -3,7 +3,7 @@
 import type { components } from "@/api/schema";
 import type { Translator } from "@/i18n/translate";
 
-import type { FirstDay } from "./time";
+import { dayKey, formatDay, startOfDay, type FirstDay } from "./time";
 
 export type Series = components["schemas"]["SeriesOut"];
 
@@ -24,35 +24,8 @@ export const dateLabel = (isoDate: string, locale: string): string =>
     Date.parse(isoDate),
   );
 
-/** "From 3 Nov 2026", or "3 Nov 2026 to 24 Nov 2026" once the series has an end. */
-export const rangeLabel = (t: Translator, series: Series): string =>
-  series.last_date === null
-    ? t("series.from", { from: dateLabel(series.first_date, t.locale) })
-    : t("series.fromTo", { from: dateLabel(series.first_date, t.locale), to: dateLabel(series.last_date, t.locale) });
-
-export type SeriesRow = { id: string; title: string; when: string; coach: string; range: string };
-
-/**
- * What each card shows. The class type and the coach come as ids; a name that is not in the lists
- * (the type was removed, the coach left the studio) gets a plain fallback instead of an empty line.
- */
-export function seriesRows(t: Translator, series: Series[], types: Named[], staff: Named[]): SeriesRow[] {
-  return series.map((s) => ({
-    id: s.id,
-    title: types.find((type) => type.id === s.class_type_id)?.name ?? t("series.unknownType"),
-    when: [
-      t("series.every", { day: weekdayName(s.weekday, t.locale) }),
-      clock(s.start_time),
-      t("series.minutes", { count: s.duration_minutes }),
-      ...(s.capacity === null ? [] : [t.count("series.seats", s.capacity)]),
-    ].join(" · "),
-    coach: t("series.coach", { name: staff.find((person) => person.id === s.coach_id)?.name ?? t("series.formerCoach") }),
-    range: rangeLabel(t, s),
-  }));
-}
-
 /** "8 Nov" for a calendar date: the list is about now, so no year. */
-const dayMonth = (isoDate: string, locale: string): string =>
+export const dayMonth = (isoDate: string, locale: string): string =>
   new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", timeZone: "UTC" }).format(Date.parse(isoDate));
 
 /** Today's calendar date ("2026-11-03") on the studio's wall clock; the sv locale writes dates the ISO way. */
@@ -96,4 +69,46 @@ export function seriesGroups(
         })),
     }))
     .filter((group) => group.rows.length > 0);
+}
+
+export type SeriesSessionRow = components["schemas"]["SeriesSessionOut"];
+
+export type SeriesFacts = { every: string; time: string; title: string; rows: { label: string; value: string }[] };
+
+/** The top of the weekly class page: when it repeats, its name, and the rule's rows (the end date only when it has one). */
+export function seriesFacts(t: Translator, series: Series, types: Named[], staff: Named[]): SeriesFacts {
+  return {
+    every: t("series.every", { day: weekdayName(series.weekday, t.locale) }),
+    time: clock(series.start_time),
+    title: types.find((type) => type.id === series.class_type_id)?.name ?? t("series.unknownType"),
+    rows: [
+      { label: t("seriesScreen.coach"), value: staff.find((person) => person.id === series.coach_id)?.name ?? t("series.formerCoach") },
+      { label: t("seriesScreen.length"), value: t("series.minutes", { count: series.duration_minutes }) },
+      { label: t("seriesScreen.seats"), value: series.capacity === null ? t("seriesScreen.unlimited") : String(series.capacity) },
+      { label: t("seriesScreen.since"), value: dayMonth(series.first_date, t.locale) },
+      ...(series.last_date === null ? [] : [{ label: t("seriesScreen.until"), value: dayMonth(series.last_date, t.locale) }]),
+    ],
+  };
+}
+
+export type ComingRow = { id: string; day: string; note: string; cancelled: boolean };
+
+/** The "Coming up" rows: the day, and "12 of 20" (or "12 going" with no seat limit) or "Cancelled". */
+export function comingRows(t: Translator, sessions: SeriesSessionRow[], now: number, timeZone: string): ComingRow[] {
+  return sessions.map((s) => {
+    const cancelled = s.status === "cancelled";
+    const going = s.capacity === null ? t("seriesScreen.going", { count: s.going }) : t("seriesScreen.goingOf", { count: s.going, seats: s.capacity });
+    return {
+      id: s.id,
+      day: formatDay(startOfDay(Date.parse(s.starts_at), timeZone), now, timeZone, t),
+      note: cancelled ? t("common.cancelled") : going,
+      cancelled,
+    };
+  });
+}
+
+/** "Scheduled to 29 Dec": the day of the last class that is not cancelled; null when none is left. */
+export function scheduledTo(t: Translator, sessions: SeriesSessionRow[], timeZone: string): string | null {
+  const last = sessions.filter((s) => s.status !== "cancelled").at(-1);
+  return last ? t("seriesScreen.scheduledTo", { date: dayMonth(dayKey(Date.parse(last.starts_at), timeZone), t.locale) }) : null;
 }
