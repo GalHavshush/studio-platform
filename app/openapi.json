@@ -1202,6 +1202,55 @@
         "title": "SeriesPatch",
         "type": "object"
       },
+      "SeriesSessionOut": {
+        "description": "One coming class of a series, with how many people said they are going (a count, never who).",
+        "properties": {
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "going": {
+            "title": "Going",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "starts_at",
+          "ends_at",
+          "status",
+          "capacity",
+          "going"
+        ],
+        "title": "SeriesSessionOut",
+        "type": "object"
+      },
       "SessionDetail": {
         "description": "One session with what a screen needs to show it: names instead of ids, and the caller's\nown plan and own attendance (`my_attended`: true, false, or null when nothing is recorded; kept\napart from the plan, so someone can have attended without ever answering). `rsvp_counts` is for\ncoaches and owners; a member gets null, so nobody learns what the others chose, not even as a\ntotal. `seats_left` is the one number every member gets: free\nseats in a booking class with a seat limit, null when there are no seats to count.",
         "properties": {
@@ -3336,6 +3385,75 @@
           }
         ],
         "summary": "Extend Series",
+        "tags": [
+          "series"
+        ]
+      }
+    },
+    "/series/{series_id}/sessions": {
+      "get": {
+        "description": "The series' sessions that have not started yet, earliest first, cancelled ones included\n(`status`), each with its `going` count. Read by whoever may read the series: an owner, or the\ncoach who teaches it (`403 not_your_series` for another coach; 404 if it is not in this studio).",
+        "operationId": "list_series_sessions_series__series_id__sessions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Series Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SeriesSessionOut"
+                  },
+                  "title": "Response List Series Sessions Series  Series Id  Sessions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Series Sessions",
         "tags": [
           "series"
         ]

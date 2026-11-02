@@ -473,6 +473,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/series/{series_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Series Sessions
+         * @description The series' sessions that have not started yet, earliest first, cancelled ones included
+         *     (`status`), each with its `going` count. Read by whoever may read the series: an owner, or the
+         *     coach who teaches it (`403 not_your_series` for another coach; 404 if it is not in this studio).
+         */
+        get: operations["list_series_sessions_series__series_id__sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sessions": {
         parameters: {
             query?: never;
@@ -1293,6 +1315,33 @@ export interface components {
             duration_minutes?: number | null;
             /** Start Time */
             start_time?: string | null;
+        };
+        /**
+         * SeriesSessionOut
+         * @description One coming class of a series, with how many people said they are going (a count, never who).
+         */
+        SeriesSessionOut: {
+            /** Capacity */
+            capacity: number | null;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Going */
+            going: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Status */
+            status: string;
         };
         /**
          * SessionDetail
@@ -2339,6 +2388,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExtendOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_series_sessions_series__series_id__sessions_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-tenant-id"?: string | null;
+            };
+            path: {
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesSessionOut"][];
                 };
             };
             /** @description Validation Error */

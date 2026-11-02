@@ -21,7 +21,9 @@ async def test_insert_and_read_user(db_session):
 
 
 async def test_duplicate_email_is_rejected(db_session):
-    db_session.add_all([User(email="a@example.com", name="A"), User(email="a@example.com", name="B")])
+    db_session.add_all(
+        [User(email="a@example.com", name="A"), User(email="a@example.com", name="B")]
+    )
 
     with pytest.raises(IntegrityError):
         await db_session.flush()
