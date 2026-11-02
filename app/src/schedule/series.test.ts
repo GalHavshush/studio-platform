@@ -93,6 +93,7 @@ const coming = (over: Partial<SeriesSessionRow> = {}): SeriesSessionRow => ({
   status: "scheduled",
   capacity: 20,
   going: 12,
+  changed_by_hand: false,
   ...over,
 });
 const NOW = Date.parse("2026-11-01T10:00:00Z");

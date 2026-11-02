@@ -1323,6 +1323,8 @@ export interface components {
         SeriesSessionOut: {
             /** Capacity */
             capacity: number | null;
+            /** Changed By Hand */
+            changed_by_hand: boolean;
             /**
              * Ends At
              * Format: date-time

@@ -1216,6 +1216,10 @@
             ],
             "title": "Capacity"
           },
+          "changed_by_hand": {
+            "title": "Changed By Hand",
+            "type": "boolean"
+          },
           "ends_at": {
             "format": "date-time",
             "title": "Ends At",
@@ -1246,7 +1250,8 @@
           "ends_at",
           "status",
           "capacity",
-          "going"
+          "going",
+          "changed_by_hand"
         ],
         "title": "SeriesSessionOut",
         "type": "object"
