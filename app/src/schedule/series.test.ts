@@ -1,6 +1,6 @@
 import { makeTranslator } from "@/i18n/translate";
 
-import { clock, dateLabel, rangeLabel, seriesGroups, seriesRows, statusLabel, todayIn, weekdayName, type Series } from "./series";
+import { clock, comingRows, dateLabel, scheduledTo, seriesFacts, seriesGroups, statusLabel, todayIn, weekdayName, type Series, type SeriesSessionRow } from "./series";
 
 const t = makeTranslator("en");
 const series = (over: Partial<Series> = {}): Series => ({
@@ -28,45 +28,6 @@ test("the start time is shown as written, without seconds", () => {
 test("a date is a calendar date: the phone's timezone cannot move it", () => {
   expect(dateLabel("2026-11-03", t.locale)).toBe("3 Nov 2026");
   expect(dateLabel("2027-01-01", t.locale)).toBe("1 Jan 2027");
-});
-
-test("a series without an end says from, and one with an end says both dates", () => {
-  expect(rangeLabel(t, series())).toBe("From 3 Nov 2026");
-  expect(rangeLabel(t, series({ last_date: "2026-11-24" }))).toBe("3 Nov 2026 to 24 Nov 2026");
-});
-
-test("a card names the class, the schedule, the coach and the dates", () => {
-  const [row] = seriesRows(t, [series({ capacity: 12 })], [{ id: "ct1", name: "Yoga" }], [{ id: "u1", name: "Cody Coach" }]);
-
-  expect(row).toEqual({
-    id: "s1",
-    title: "Yoga",
-    when: "Every Tuesday · 18:00 · 60 min · 12 seats",
-    coach: "Coach: Cody Coach",
-    range: "From 3 Nov 2026",
-  });
-});
-
-test("seats are left out when the class is unlimited, and one seat is singular", () => {
-  const [none] = seriesRows(t, [series()], [], []);
-  const [one] = seriesRows(t, [series({ capacity: 1 })], [], []);
-
-  expect(none.when).toBe("Every Tuesday · 18:00 · 60 min");
-  expect(one.when).toContain("1 seat");
-  expect(one.when).not.toContain("1 seats");
-});
-
-test("a class type or coach that is not in the lists gets a plain fallback", () => {
-  const [row] = seriesRows(t, [series()], [{ id: "other", name: "Pilates" }], [{ id: "other", name: "Someone" }]);
-
-  expect(row.title).toBe("Unknown class type");
-  expect(row.coach).toBe("Coach: Former coach");
-});
-
-test("every series gets its own card, in the order the API gave", () => {
-  const rows = seriesRows(t, [series({ id: "b" }), series({ id: "a" })], [], []);
-
-  expect(rows.map((r) => r.id)).toEqual(["b", "a"]);
 });
 
 test("where a weekly class stands: not started, ongoing, running to a date, or ended", () => {
@@ -100,4 +61,57 @@ test("the list is grouped by weekday, by time inside a day, starting on the pers
   expect(monday[1].rows[0].note).toBe("Olivia · starts 8 Nov");
 
   expect(seriesGroups(t, list, types, staff, "2026-11-03", 0).map((g) => g.weekday)).toEqual(["Sunday", "Tuesday"]);
+});
+
+const types = [{ id: "ct1", name: "Yoga" }];
+const staff = [{ id: "u1", name: "Cody" }];
+
+test("the weekly class page names the rule and shows the end date only when there is one", () => {
+  const facts = seriesFacts(t, series({ capacity: 20 }), types, staff);
+  expect(facts).toMatchObject({ every: "Every Tuesday", time: "18:00", title: "Yoga" });
+  expect(facts.rows).toEqual([
+    { label: "Coach", value: "Cody" },
+    { label: "Length", value: "60 min" },
+    { label: "Seats", value: "20" },
+    { label: "Since", value: "3 Nov" },
+  ]);
+  const ended = seriesFacts(t, series({ last_date: "2026-12-29" }), types, staff).rows;
+  expect(ended.at(-1)).toEqual({ label: "Until", value: "29 Dec" });
+  expect(ended.find((r) => r.label === "Seats")?.value).toBe("Unlimited");
+});
+
+test("a missing class type or coach gets a plain fallback", () => {
+  const facts = seriesFacts(t, series(), [], []);
+  expect(facts.title).toBe("Unknown class type");
+  expect(facts.rows[0].value).toBe("Former coach");
+});
+
+const coming = (over: Partial<SeriesSessionRow> = {}): SeriesSessionRow => ({
+  id: "x",
+  starts_at: "2026-11-03T05:00:00Z",
+  ends_at: "2026-11-03T06:00:00Z",
+  status: "scheduled",
+  capacity: 20,
+  going: 12,
+  ...over,
+});
+const NOW = Date.parse("2026-11-01T10:00:00Z");
+
+test("a coming class reads 12 of 20, 12 going without a seat limit, or Cancelled", () => {
+  const rows = comingRows(t, [coming(), coming({ capacity: null }), coming({ status: "cancelled" })], NOW, "UTC");
+  expect(rows.map((r) => r.note)).toEqual(["12 of 20", "12 going", "Cancelled"]);
+  expect(rows.map((r) => r.cancelled)).toEqual([false, false, true]);
+  expect(rows[0].day).toBe("Tue 3 Nov");
+});
+
+test("a class today or tomorrow says so", () => {
+  const rows = comingRows(t, [coming({ starts_at: "2026-11-01T18:00:00Z" }), coming({ starts_at: "2026-11-02T07:00:00Z" })], NOW, "UTC");
+  expect(rows.map((r) => r.day)).toEqual(["Today", "Tomorrow"]);
+});
+
+test("scheduled to the last class that is not cancelled", () => {
+  const list = [coming(), coming({ starts_at: "2026-12-29T05:00:00Z" }), coming({ starts_at: "2027-01-05T05:00:00Z", status: "cancelled" })];
+  expect(scheduledTo(t, list, "UTC")).toBe("Scheduled to 29 Dec");
+  expect(scheduledTo(t, [coming({ status: "cancelled" })], "UTC")).toBeNull();
+  expect(scheduledTo(t, [], "UTC")).toBeNull();
 });
