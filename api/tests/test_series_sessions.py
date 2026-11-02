@@ -51,6 +51,19 @@ async def test_only_going_counts_and_a_cancelled_class_stays_in_the_list(
     assert [r["status"] for r in rows] == ["scheduled", "cancelled", "scheduled"]
 
 
+async def test_a_class_edited_by_hand_says_so(client, two_tenants, db_session):
+    series_id, _, future = await started(client, two_tenants, db_session)
+    await client.patch(
+        f"/sessions/{future[1]}",
+        json={"capacity": 5},
+        headers=two_tenants.headers(two_tenants.a.users["owner"], two_tenants.a.id),
+    )
+
+    rows = (await read(client, two_tenants, two_tenants.a, "owner", series_id)).json()
+
+    assert [r["changed_by_hand"] for r in rows] == [False, True, False]
+
+
 async def test_a_class_that_has_started_is_not_coming_up(client, two_tenants, db_session):
     a = two_tenants.a
     series_id = await create_now(client, two_tenants, db_session)

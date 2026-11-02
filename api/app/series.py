@@ -198,6 +198,8 @@ class SeriesSessionOut(BaseModel):
     status: str
     capacity: int | None
     going: int
+    # Someone edited this class by hand, so a change to the series leaves it alone.
+    changed_by_hand: bool
 
 
 @router.get("/{series_id}/sessions")
@@ -232,6 +234,7 @@ async def list_series_sessions(
             status=row.status,
             capacity=row.capacity,
             going=going,
+            changed_by_hand=row.is_overridden,
         )
         for row, going in rows
     ]
