@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { Screen } from "@/components/screen";
 import { SessionFields } from "@/components/session-fields";
 import { Text } from "@/components/text";
+import { UntilRow } from "@/components/until-row";
 import { useT } from "@/i18n/use-language";
 import {
   DURATIONS,
@@ -22,6 +23,7 @@ import {
   times,
   toPayload,
   toSeriesPayload,
+  untilBeforeStart,
 } from "@/schedule/new-session";
 import { dateLabel, weekdayName } from "@/schedule/series";
 import { formatRange } from "@/schedule/time";
@@ -53,6 +55,7 @@ export default function NewSessionScreen() {
   // the "New weekly class" button on the weekly classes list opens this form with the switch already on
   const { repeat } = useLocalSearchParams<{ repeat?: string }>();
   const [weekly, setWeekly] = useState(owner && repeat === "1");
+  const [until, setUntil] = useState<string | null>(null);
   const { firstDay } = useWeekStart();
   const schedule = useSchedule(zone, firstDay);
   // Starts from the last class once, when both lists have arrived, unless the person already changed something.
@@ -74,12 +77,14 @@ export default function NewSessionScreen() {
     setForm((f) => ({ ...f, ...patch }));
   };
   const { start, end } = times(form, zone);
+  const series = toSeriesPayload(form, zone, seatsShown);
+  const endsEarly = untilBeforeStart(series.first_date, until);
 
   async function submit() {
     setBusy(true);
     setMessage(null);
     if (weekly) {
-      const outcome = await createSeries(toSeriesPayload(form, zone, seatsShown));
+      const outcome = await createSeries(toSeriesPayload(form, zone, seatsShown, until));
       setBusy(false);
       if (outcome === "ok") router.back();
       else setMessage(createMessage(t, outcome));
@@ -156,20 +161,24 @@ export default function NewSessionScreen() {
               </View>
             )}
 
+            {weekly && <UntilRow until={until} firstDate={series.first_date} onChange={setUntil} disabled={busy} />}
+
             <Text variant="title">
               {weekly
-                ? t("newSeries.summary", {
-                    day: weekdayName(toSeriesPayload(form, zone, seatsShown).weekday, t.locale),
-                    from: dateLabel(toSeriesPayload(form, zone, seatsShown).first_date, t.locale),
+                ? t(until ? "newSeries.summaryUntil" : "newSeries.summary", {
+                    day: weekdayName(series.weekday, t.locale),
+                    from: dateLabel(series.first_date, t.locale),
+                    until: until ? dateLabel(until, t.locale) : "",
                   })
                 : `${formatRange(start, end, zone, t.locale)}${chosen ? ` · ${chosen.name}` : ""}`}
             </Text>
+            {weekly && endsEarly && <Text color="danger">{t("newSeries.untilBeforeStart")}</Text>}
             {message && (
               <Text color="danger" accessibilityRole="alert">
                 {message}
               </Text>
             )}
-            <Button title={t(weekly ? "newSeries.create" : "newSession.create")} onPress={submit} busy={busy} disabled={!canCreate(form, seatsShown)} />
+            <Button title={t(weekly ? "newSeries.create" : "newSession.create")} onPress={submit} busy={busy} disabled={!canCreate(form, seatsShown) || (weekly && endsEarly)} />
           </ScrollView>
         </KeyboardAvoidingView>
       )}
